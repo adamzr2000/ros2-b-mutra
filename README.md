@@ -24,7 +24,7 @@ This will:
 - Launch a VNC container with the Gazebo client for graphical access via a web browser.
 
 ## Access the Gazebo Client
-1. Environment variables are defined in the [.env](./env) file.
+1. Environment variables are defined in the [.env](./.env) file.
 2. Open a browser and navigate to: [http://127.0.0.1:6080](http://127.0.0.1:6080).
 3. Open a terminal inside the VNC session and execute:
 
@@ -44,3 +44,4 @@ The C++ executable responsible for robot state publishing can be found at:
 
 [robot_state_publisher.cpp](./dockerfiles/turtlebot3/ros2_ws/src/robot_state_publisher/src/robot_state_publisher.cpp)
 
+This ROS node calculates and broadcasts the transforms (TF) of a robot's kinematic tree using its URDF model, enabling other nodes to understand the robot's structure and movement.
