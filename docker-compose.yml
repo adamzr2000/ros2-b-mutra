@@ -1,0 +1,120 @@
+# version: "3.8"
+
+x-common-commands:
+  gzserver_command: &gzserver_command >
+    bash -c "
+    source /home/agent/ros2_ws/install/setup.bash && \
+    ros2 launch turtlebot3_gazebo gazebo_server.launch.py verbose:=true \
+    "
+
+  robot_entrypoint: &robot_entrypoint >
+    bash -c "
+    ./start_turtlebot.sh
+    "
+
+  # robot1_command: &robot1_command >
+  #   bash -c "
+  #   source /home/agent/ros2_ws/install/setup.bash && \
+  #   ros2 launch c_example_package dummy_publisher.launch.py \
+  #   namespace:=robot1 topic_name:=chatter message:="Hello from robot1!"
+  #   "
+
+  # robot2_command: &robot2_command >
+  #   bash -c "
+  #   source /home/agent/ros2_ws/install/setup.bash && \
+  #   ros2 run c_example_package dummy_subscriber --ros-args -p topic_name:=robot1/chatter
+  #   "
+
+  # gzclient_command: &gzclient_command >
+  #   bash -c "
+  #   source /home/agent/ros2_ws/install/setup.bash && \
+  #   ros2 launch turtlebot3_gazebo gazebo_client.launch.py \
+  #   "
+
+services:
+  gazebo-server:
+    image: ros2-agent:latest
+    container_name: gazebo-server
+    hostname: gazebo-server
+    privileged: true 
+    volumes:
+      - ./dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src   
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}    
+      - GAZEBO_AUDIO_DEVICE=none
+    ports:
+      - "11345:11345"
+    tty: true
+    stdin_open: true
+    command: *gzserver_command
+
+  gazebo-client:
+    image: gazebo-vnc:latest
+    container_name: gazebo-client
+    hostname: gazebo-client
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - GAZEBO_MASTER_URI=http://gazebo-server:11345    
+    depends_on:
+      - gazebo-server    
+    ports:
+      - "6080:80"
+    security_opt:
+      - seccomp=unconfined
+    restart: unless-stopped
+
+  # gazebo-client:
+  #   image: ros2-agent:latest
+  #   container_name: gazebo-client
+  #   hostname: gazebo-client
+  #   volumes:
+  #     - /tmp/.X11-unix:/tmp/.X11-unix
+  #     - $HOME/.Xauthority:/home/agent/.Xauthority
+  #   environment:
+  #     - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+  #     - GAZEBO_MASTER_URI=http://gazebo-server:11345
+  #     - DISPLAY=$DISPLAY
+  #     - QT_X11_NO_MITSHM=1
+  #     - XAUTHORITY=/home/agent/.Xauthority
+  #   depends_on:
+  #     - gazebo-server      
+  #   privileged: true
+  #   tty: true
+  #   stdin_open: true
+  robot1:
+    image: ros2-agent:latest
+    container_name: robot1
+    hostname: robot1
+    volumes:
+      - ./dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
+      - ./dockerfiles/turtlebot3/scripts:/home/agent/scripts    
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - GAZEBO_MASTER_URI=http://gazebo-server:11345
+      - NAMESPACE=${ROBOT_1_NS}
+      - X_POSE=${ROBOT_1_X_POSE}
+      - Y_POSE=${ROBOT_1_Y_POSE}
+    depends_on:
+      - gazebo-server      
+    tty: true
+    stdin_open: true
+    command: *robot_entrypoint
+
+  robot2:
+    image: ros2-agent:latest
+    container_name: robot2
+    hostname: robot2
+    volumes:
+      - ./dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
+      - ./dockerfiles/turtlebot3/scripts:/home/agent/scripts    
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - GAZEBO_MASTER_URI=http://gazebo-server:11345
+      - NAMESPACE=${ROBOT_2_NS}
+      - X_POSE=${ROBOT_2_X_POSE}
+      - Y_POSE=${ROBOT_2_Y_POSE}
+    depends_on:
+      - gazebo-server
+    tty: true
+    stdin_open: true
+    command: *robot_entrypoint
