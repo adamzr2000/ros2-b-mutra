@@ -25,7 +25,7 @@ This will:
 
 ## Access the Gazebo Client
 1. Environment variables are defined in the [.env](./.env) file.
-2. Open a browser and navigate to: [http://127.0.0.1:6080](http://127.0.0.1:6080).
+2. Open a browser and navigate to: [http://10.5.99.99:6080](http://10.5.99.99:6080).
 3. Open a terminal inside the VNC session and execute:
 
    ```bash
