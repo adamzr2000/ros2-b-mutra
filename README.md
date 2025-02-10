@@ -39,7 +39,7 @@ This will:
    ```
 2. Inside the container, launch the robot by running:
    ```bash  
-   ./run_gazebo_client.sh
+   ./start_turtlebot.sh
    ```
 This will spawn the robot in the Gazebo simulation using the [robot.launch.py](./dockerfiles/turtlebot3/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/launch/robot.launch.py) and the `namespace`, `x_pose` and `y_pose` values defined in the [.env](./.env) file.
 
