@@ -12,6 +12,25 @@ x-common-commands:
     ./start_turtlebot.sh
     "
 
+  # robot1_command: &robot1_command >
+  #   bash -c "
+  #   source /home/agent/ros2_ws/install/setup.bash && \
+  #   ros2 launch c_example_package dummy_publisher.launch.py \
+  #   namespace:=robot1 topic_name:=chatter message:="Hello from robot1!"
+  #   "
+
+  # robot2_command: &robot2_command >
+  #   bash -c "
+  #   source /home/agent/ros2_ws/install/setup.bash && \
+  #   ros2 run c_example_package dummy_subscriber --ros-args -p topic_name:=robot1/chatter
+  #   "
+
+  # gzclient_command: &gzclient_command >
+  #   bash -c "
+  #   source /home/agent/ros2_ws/install/setup.bash && \
+  #   ros2 launch turtlebot3_gazebo gazebo_client.launch.py \
+  #   "
+
 services:
   gazebo-server:
     image: ros2-agent:latest
@@ -40,6 +59,25 @@ services:
     security_opt:
       - seccomp=unconfined
     restart: unless-stopped
+
+  # gazebo-client:
+  #   image: ros2-agent:latest
+  #   container_name: gazebo-client
+  #   hostname: gazebo-client
+  #   volumes:
+  #     - /tmp/.X11-unix:/tmp/.X11-unix
+  #     - $HOME/.Xauthority:/home/agent/.Xauthority
+  #   environment:
+  #     - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+  #     - GAZEBO_MASTER_URI=http://gazebo-server:11345
+  #     - DISPLAY=$DISPLAY
+  #     - QT_X11_NO_MITSHM=1
+  #     - XAUTHORITY=/home/agent/.Xauthority
+  #   depends_on:
+  #     - gazebo-server      
+  #   privileged: true
+  #   tty: true
+  #   stdin_open: true
   robot1:
     image: ros2-agent:latest
     container_name: robot1
@@ -57,7 +95,7 @@ services:
       - gazebo-server      
     tty: true
     stdin_open: true
-    # command: *robot_entrypoint
+    command: *robot_entrypoint
 
   robot2:
     image: ros2-agent:latest
@@ -76,7 +114,7 @@ services:
       - gazebo-server
     tty: true
     stdin_open: true
-    # command: *robot_entrypoint
+    command: *robot_entrypoint
 
   robot3:
     image: ros2-agent:latest
@@ -95,7 +133,7 @@ services:
       - gazebo-server
     tty: true
     stdin_open: true
-    # command: *robot_entrypoint
+    command: *robot_entrypoint
 
   robot4:
     image: ros2-agent:latest
@@ -114,4 +152,4 @@ services:
       - gazebo-server
     tty: true
     stdin_open: true
-    # command: *robot_entrypoint
+    command: *robot_entrypoint
