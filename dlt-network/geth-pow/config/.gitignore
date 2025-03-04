@@ -1,0 +1,2 @@
+# Ignore all directories with the pattern nodeX/geth
+node*/geth/

@@ -1,0 +1,9 @@
+{
+    "name": "robot2",
+    "uuid": "98de8901-d7fb-4f55-9e5a-5d9ebdb84525",
+    "eth_address": "0xB407B1C625290695467dAE9507E3A1a32F8f5773",
+    "private_key": "54cbe88faff78ab7979f4180ca186a5cbd8ffd46222c26804b0834dd1b07a0da",
+    "eth_node": "ws://10.0.1.3:3336",
+    "contract_address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9",
+    "ref_signature": "37c0e3f7c3e2bf4bbdfd787eb5952db4edd5f663ce5e6bb745e22442686deddd"
+}

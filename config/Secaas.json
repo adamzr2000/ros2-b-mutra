@@ -1,0 +1,7 @@
+{
+    "name": "secaas",
+    "eth_address": "0x5174423B3aABceD1833d612d99c38A58dc639E49",
+    "private_key": "05060eed6bba71773f7a064b5ed53b67e1949715f4f72344b479fe34ab66989b",
+    "eth_node": "ws://10.0.1.1:3334",
+    "contract_address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9"
+}

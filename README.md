@@ -1,6 +1,12 @@
-# Running the Gazebo Robot Simulation
+# Securing the MAS with DLT: Integrity and Inter-agent communications
+
+## Overview
+This repository contains scripts and Dockerfiles to secure Multi-Agent Systems (MAS) using Distributed Ledger Technologies (DLTs), specifically the combination of Ethereum blockchain and smart contracts.
+
+**Author:** Adam Zahir Rodriguez
 
 ## Installation
+Before getting started, make sure you have the [Docker](https://docs.docker.com/engine/install/ubuntu/) and [Docker Compose](https://docs.docker.com/compose/install/linux/) installed on your system.
 
 1. Clone the repository:
 ```bash
@@ -8,51 +14,84 @@ git clone git@github.com:adamzr2000/turtlebot3-service-remote-attestaition.git
 ```
 
 2. Build Docker Images:
-Navigate to the [dockerfiles](./dockerfiles) directory and run the `./build.sh` scripts for each image.
+Go to the [docker-images](./dockerfiles) directory and run the `./build.sh` scripts for each image:
+
+- `dlt-node`: Based on [Go-Ethereum (Geth)](https://geth.ethereum.org/docs) software, serving as nodes within the peer-to-peer blockchain network. (detailed info [here](./dockerfiles/dlt-node/)). ![#00FF00](https://via.placeholder.com/15/00ff00/000000?text=+) Available
+
+- `eth-netstats`: Dashboard for monitoring Geth nodes. (detailed info [here](./dockerfiles/eth-netstats/)). ![#00FF00](https://via.placeholder.com/15/00ff00/000000?text=+) Available
+
+- `truffle`: Development framework for Ethereum-based blockchain applications. It provides a suite of tools that allows developers to write, test, and deploy smart contracts. (detailed info [here](./dockerfiles/eth-netstats/)). ![#00FF00](https://via.placeholder.com/15/00ff00/000000?text=+) Available
+
+- `turtlebot3`: Mobile robot used in the simulation (detailed info [here](./dockerfiles/turtlebot3/)). ![#00FF00](https://via.placeholder.com/15/00ff00/000000?text=+) Available
+
+- `gazebo-vnc`: Robot simulator (detailed info [here](./dockerfiles/gazebo-vnc/)). ![#00FF00](https://via.placeholder.com/15/00ff00/000000?text=+) Available
 
 
-## Start the Simulation
-To launch the Gazebo robot simulator along with four (unspawned) robots, run:
+# Blockchain Network Setup
+Create a blockchain network using `dlt-node` containers.
 
+1. Initialize the network
+```bash
+cd dlt-network/geth-poa
+sudo ./start_geth_poa_network.sh
+```
+
+Access the `eth-netsats` web interface for additional information at [http://10.5.99.99:3000](http://localhost:3000)
+
+2. Stop the network
+```bash
+sudo ./stop_geth_poa_network.sh
+```
+
+# Usage
+
+1. Deploy the MasMutualAttestation SC to the blockchain Network:
+
+```bash
+./deploy_smart_contract.sh --node-ip 10.0.1.1 --ws-port 3334 
+```
+
+2. Create scenario configuration
+
+```bash
+python3 create_experimental_scenario.py
+```
+
+> Note: This generates JSON configuration files containing agent settings. Additionally, a Docker Compose file is created, which will be used to launch the experimental scenario.
+
+4. Start the experimental scenario
 ```bash
 docker compose up -d
 ```
 
-This will:
-- Start the Gazebo server.
-- Deploy four robot containers without spawning them in the simulation.
-- Launch a VNC container with the Gazebo client for graphical access via a web browser.
+# Mutual Attestation
 
-## Access the Gazebo Client
-1. Environment variables are defined in the [.env](./.env) file.
-2. Open a browser and navigate to: [http://10.5.99.99:6080](http://10.5.99.99:6080).
-3. Open a terminal inside the VNC session and execute:
-   ```bash
-   ./run_gazebo_client.sh
-   ```
-![gazebo client vnc](./gazebo-client-vnc.png)
+4. SECaaS
+In `secaas` container, run:
 
-## Spawn the Robot in Gazebo
-1. Enter the robot container with the following command:
-   ```bash
-   docker exec -it <container_name> /bin/bash
-   ```
-2. Inside the container, launch the robot by running:
-   ```bash  
-   ./start_turtlebot.sh
-   ```
-This will spawn the robot in the Gazebo simulation using the [robot.launch.py](./dockerfiles/turtlebot3/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/launch/robot.launch.py) and the `namespace`, `x_pose` and `y_pose` values defined in the [.env](./.env) file.
+```bash
+docker exec -it secaas sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant secaas"
+```
 
-## Stop the Simulation
-To shut down the simulation and related containers, run:
+4. Robots
+In `robot` containers, run:
 
+```bash
+docker exec -it robot1 sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant agent"
+docker exec -it robot2 sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant agent"
+
+...
+```
+
+4. Stop the experimental scenario
 ```bash
 docker compose down
 ```
 
-## ROS Node for Remote Attestation
-The C++ executable responsible for robot state publishing can be found at:
+## Cleanup
+Run the following script in the app directory to clean up all resources after testing.
 
-[robot_state_publisher.cpp](./dockerfiles/turtlebot3/ros2_ws/src/robot_state_publisher/src/robot_state_publisher.cpp)
+```bash
+./cleanup.sh
+```
 
-This ROS node calculates and broadcasts the transforms (TF) of a robot's kinematic tree using its URDF model, enabling other nodes to understand the robot's structure and movement.
