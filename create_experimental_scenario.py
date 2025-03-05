@@ -134,7 +134,7 @@ services:
     volumes:
       - "./config/:/home/agent/config/"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     stdin_open: true
     tty: true    
     networks:
@@ -153,7 +153,8 @@ services:
     volumes:
       - "./config/{agent_filename}:/home/agent/config/{agent_filename}"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345

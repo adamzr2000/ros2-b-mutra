@@ -33,7 +33,7 @@ WORKDIR /home/agent
 RUN mkdir -p ros2_ws/src 
 COPY ros2_ws/src /home/agent/ros2_ws/src
 
-RUN mkdir scripts && mkdir smart-contracts && mkdir config
+RUN mkdir scripts && mkdir smart-contracts && mkdir config && mkdir ros2-scripts
 
 USER root
 
@@ -57,47 +57,48 @@ RUN apt-get update && apt-get install -y \
 USER agent
 WORKDIR /home/agent
 
-# Install pyenv as 'agent' user
-RUN curl https://pyenv.run | bash
-
-# Configure pyenv for all users
-RUN echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc && \
-    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
-    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv init --path)"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv init -)"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
-
-# Ensure pyenv is properly sourced before usage
-RUN export PATH="$HOME/.pyenv/bin:$PATH" && \
-    eval "$(pyenv init --path)" && \
-    eval "$(pyenv init -)" && \
-    pyenv install 3.8.10 && \
-    pyenv global 3.8.10
-
-
+RUN pip3 install --no-cache-dir numpy 
+ 
 # Build the workspace
 RUN cd ros2_ws && source /opt/ros/${ROS_DISTRO}/setup.bash && colcon build --symlink-install
 
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN echo "source /home/agent/ros2_ws/install/setup.bash" >> ~/.bashrc
 
+COPY ros2-scripts/* /home/agent/ros2-scripts/
 COPY scripts/* /home/agent/scripts/
+
+# Install pyenv and ensure it's properly initialized for both interactive and non-interactive shells
+RUN curl https://pyenv.run | bash && \
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
+    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init --path)"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init -)"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc && \
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.profile && \
+    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.profile && \
+    echo 'eval "$(pyenv init --path)"' >> ~/.profile && \
+    echo 'eval "$(pyenv init -)"' >> ~/.profile && \
+    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.profile
+
+# Explicitly set environment variables for pyenv in Docker
+ENV PYENV_ROOT="/home/agent/.pyenv"
+ENV PATH="$PYENV_ROOT/bin:$PATH"
+
+
+# Install only Python 3.8.10 using pyenv
+RUN pyenv install 3.8.10
+
+# Create a virtual environment inside /home/agent/scripts/
+RUN pyenv virtualenv 3.8.10 dlt-env
 
 WORKDIR /home/agent/scripts/
 
-# Install dependencies for agent user
-RUN export PATH="/home/agent/.pyenv/versions/3.8.10/bin:$PATH" && \
-    /home/agent/.pyenv/versions/3.8.10/bin/python3 -m pip install --no-cache-dir --upgrade pip && \
-    /home/agent/.pyenv/versions/3.8.10/bin/python3 -m pip install --no-cache-dir -r requirements.txt
+# Set the virtual environment locally in /home/agent/scripts/
+RUN pyenv local dlt-env
 
-
-# Set default user to 'agent' and ensure Python and pip are always correct
-USER agent
-ENV PATH="/home/agent/.pyenv/versions/3.8.10/bin:$PATH"
-ENV PYENV_ROOT="/home/agent/.pyenv"
-ENV PYTHONPATH="/home/agent/.pyenv/versions/3.8.10/lib/python3.8/site-packages"
+# Force the shell to recognize the virtualenv before installing packages
+RUN /home/agent/.pyenv/versions/dlt-env/bin/pip install --no-cache-dir -r requirements.txt
 
 # Indicate completion of Dockerfile setup
 RUN echo "ALL Done"
-

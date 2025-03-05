@@ -51,7 +51,7 @@ services:
     volumes:
       - "./config/:/home/agent/config/"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     stdin_open: true
     tty: true    
     networks:
@@ -63,7 +63,8 @@ services:
     volumes:
       - "./config/Agent_1.json:/home/agent/config/Agent_1.json"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -83,7 +84,8 @@ services:
     volumes:
       - "./config/Agent_2.json:/home/agent/config/Agent_2.json"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -103,7 +105,8 @@ services:
     volumes:
       - "./config/Agent_3.json:/home/agent/config/Agent_3.json"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -123,7 +126,8 @@ services:
     volumes:
       - "./config/Agent_4.json:/home/agent/config/Agent_4.json"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -143,7 +147,8 @@ services:
     volumes:
       - "./config/Agent_5.json:/home/agent/config/Agent_5.json"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -163,7 +168,8 @@ services:
     volumes:
       - "./config/Agent_6.json:/home/agent/config/Agent_6.json"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -183,7 +189,8 @@ services:
     volumes:
       - "./config/Agent_7.json:/home/agent/config/Agent_7.json"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -203,11 +210,54 @@ services:
     volumes:
       - "./config/Agent_8.json:/home/agent/config/Agent_8.json"
       - "./smart-contracts:/home/agent/smart-contracts"
-      - "./dockerfiles/turtlebot3/scripts:/home/agent/scripts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot8
+        - X_POSE=5
+        - Y_POSE=-10
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - dlt_network
+  robot9:
+    image: ros2-agent:latest
+    container_name: robot9
+    hostname: robot9
+    volumes:
+      - "./config/Agent_9.json:/home/agent/config/Agent_9.json"
+      - "./smart-contracts:/home/agent/smart-contracts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot9
+        - X_POSE=10
+        - Y_POSE=-10
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - dlt_network
+  robot10:
+    image: ros2-agent:latest
+    container_name: robot10
+    hostname: robot10
+    volumes:
+      - "./config/Agent_10.json:/home/agent/config/Agent_10.json"
+      - "./smart-contracts:/home/agent/smart-contracts"
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot10
         - X_POSE=5
         - Y_POSE=-10
     depends_on:

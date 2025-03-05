@@ -30,7 +30,7 @@ cd dlt-network/geth-poa
 sudo ./start_geth_poa_network.sh
 ```
 
-Access the `eth-netsats` web interface for additional information at [http://10.5.99.99:3000](http://localhost:3000)
+Access the `eth-netsats` web interface for additional information at [http://10.5.99.99:3000](http://10.5.99.99:3000)
 
 2. Deploy the [MasMutualAttestation](./smart-contracts/contracts/MasMutualAttestation.sol) smart contract
 ```bash
@@ -54,22 +54,22 @@ docker compose up -d
 Execute the mutual attestation script inside the `secaas` container:
 
 ```bash
-docker exec -it secaas sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant secaas"
+docker exec -it secaas bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant secaas"
 ```
 
 3. Run blockchain-based attestation on Robots
 Execute the mutual attestation script for each `robot` container:
 
 ```bash
-docker exec -it robot1 sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
+docker exec -it robot1 bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
 ```
 
 ```bash
-docker exec -it robot2 sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
+docker exec -it robot2 bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
 ```
 
 ```bash
-docker exec -it robot3 sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
+docker exec -it robot3 bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
 ```
 
 4. Stop the experimental scenario
@@ -95,21 +95,21 @@ python3 create_experimental_scenario.py
 
 ### Reset attestation chain in smart contract
 ```bash
-docker exec -it secaas sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant secaas --reset-chain"
+docker exec -it secaas bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant secaas --reset-chain"
 ```
 
 ### Retrieve blockchain transaction receipt
 ```bash
-docker exec -it secaas sh -c "cd /home/agent/scripts && python3 get_tx_receipt.py --eth-node-url ws://10.0.1.1:3334 --tx-hash <hash>"
+docker exec -it secaas bash -c "source ~/.profile && cd ~/scripts && python3 get_tx_receipt.py --eth-node-url ws://10.0.1.1:3334 --tx-hash <hash>"
 ```
 
 ### Remove registered agent from the smart contract
 ```bash
-docker exec -it robot1 sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant agent --remove-agent"
+docker exec -it robot1 bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --remove-agent"
 ```
 
 ### Simulate failed attestation
 ```bash
-docker exec -it robot1 sh -c "cd /home/agent/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap --fail-attestation"
+docker exec -it robot1 bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap --fail-attestation"
 ```
 

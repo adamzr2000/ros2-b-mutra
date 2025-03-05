@@ -1,6 +1,6 @@
 {
     "name": "robot3",
-    "uuid": "3ad33b07-1912-4396-acdb-243d742d6a75",
+    "uuid": "5a1e3ef8-08df-46a6-8aec-1764fbae4161",
     "eth_address": "0x28aDb0333AEc0ad6f68fC212aB757A93Df53e1D3",
     "private_key": "b1a1c4ffa0c7b999a641a660bbdb3cd0e878c4aed8d4d031f1fc2d150c356ca7",
     "eth_node": "ws://10.0.1.4:3337",
