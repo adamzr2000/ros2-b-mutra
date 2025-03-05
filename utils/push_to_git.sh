@@ -9,6 +9,12 @@ fi
 # Commit message
 COMMIT_MESSAGE="$1"
 
+# Fix ownership for Docker-generated files
+echo "Fixing ownership for Docker-related files..."
+sudo chown -R $USER:$USER dlt-network/geth-poa/config/
+sudo chown -R $USER:$USER dlt-network/geth-pow/config/
+sudo chown -R $USER:$USER .git
+
 # Add all changes
 git add --all
 
