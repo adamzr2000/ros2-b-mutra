@@ -1,1 +1,1 @@
-Agents config go here
+Agent configuration goes here

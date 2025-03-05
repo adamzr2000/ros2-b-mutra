@@ -95,37 +95,37 @@ x-common-commands:
 
 services:
 
-#   gazebo-server:
-#     image: ros2-agent:latest
-#     container_name: gazebo-server
-#     hostname: gazebo-server
-#     environment:
-#       - ROS_DOMAIN_ID=42   
-#       - GAZEBO_AUDIO_DEVICE=none
-#     ports:
-#       - "11345:11345"
-#     tty: true
-#     stdin_open: true
-#     command: *gzserver_command
-#     networks:
-#       - dlt_network
+  gazebo-server:
+    image: ros2-agent:latest
+    container_name: gazebo-server
+    hostname: gazebo-server
+    environment:
+      - ROS_DOMAIN_ID=42   
+      - GAZEBO_AUDIO_DEVICE=none
+    ports:
+      - "11345:11345"
+    tty: true
+    stdin_open: true
+    command: *gzserver_command
+    networks:
+      - dlt_network
 
-#   gazebo-client:
-#     image: gazebo-vnc:latest
-#     container_name: gazebo-client
-#     hostname: gazebo-client
-#     environment:
-#       - ROS_DOMAIN_ID=42
-#       - GAZEBO_MASTER_URI=http://gazebo-server:11345    
-#     depends_on:
-#       - gazebo-server    
-#     ports:
-#       - "6080:80"
-#     security_opt:
-#       - seccomp=unconfined
-#     restart: unless-stopped
-#     networks:
-#       - dlt_network
+  gazebo-client:
+    image: gazebo-vnc:latest
+    container_name: gazebo-client
+    hostname: gazebo-client
+    environment:
+      - ROS_DOMAIN_ID=42
+      - GAZEBO_MASTER_URI=http://gazebo-server:11345    
+    depends_on:
+      - gazebo-server    
+    ports:
+      - "6080:80"
+    security_opt:
+      - seccomp=unconfined
+    restart: unless-stopped
+    networks:
+      - dlt_network
 
   secaas:
     image: ros2-agent:latest
@@ -160,8 +160,8 @@ services:
         - NAMESPACE={agent_name}
         - X_POSE={x_pose}
         - Y_POSE={y_pose}
-    # depends_on:
-    #   - gazebo-server
+    depends_on:
+      - gazebo-server
     stdin_open: true
     tty: true
     networks:

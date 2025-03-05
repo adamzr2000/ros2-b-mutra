@@ -1,0 +1,9 @@
+{
+    "name": "robot8",
+    "uuid": "4df261fa-3702-433d-8dc6-56b7f15c9aa5",
+    "eth_address": "0xD29237AedE8F7C7A18Ca49f93Ce18421304cA5F0",
+    "private_key": "ab3d08386b3ce75c190b3ecaf2f32eb6172102208ec471eda3143472de611f98",
+    "eth_node": "ws://10.0.1.9:3342",
+    "contract_address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9",
+    "ref_signature": "70169e8fc363ce6f5bc9ae7a40fe58c0cc5216c8e8f756f6b88acccff30d7cf5"
+}

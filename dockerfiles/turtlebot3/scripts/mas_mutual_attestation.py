@@ -24,13 +24,43 @@ class MasMutualAttestationContractEvents(str, Enum):
     READY_FOR_EVALUATION = "ReadyForEvaluation"
     ATTESTATION_COMPLETED = "AttestationCompleted"
 
-# Parse participant role
-parser = argparse.ArgumentParser(description='Initialize participant')
-parser.add_argument('--participant', type=str, default='secaas|agent',
-                         help='Flags: "secaas" for the SECaaS, "agent" for Agents')
+# Argument parser setup
+parser = argparse.ArgumentParser(description="Initialize participant")
+parser.add_argument('--participant', choices=['secaas', 'agent'], required=True,
+                    help='Specify "secaas" for the SECaaS or "agent" for an Agent')
+parser.add_argument('--reset-chain', action='store_true',
+                    help="(Only for SECaaS) Reset the attestation chain before starting.")
+parser.add_argument('--bootstrap', action='store_true',
+                    help="(Only for Agent) Register the agent before starting.")
+parser.add_argument('--remove-agent', action='store_true',
+                    help="(Only for Agent) Remove the agent before starting.")
+parser.add_argument('--fail-attestation', action='store_true',
+                    help="(Only for Agents in Prover mode) Introduce an attestation failure.")
 
+# Parse and validate arguments
 args = parser.parse_args()
-participant = args.participant
+participant = args.participant.lower()
+reset_chain_flag = args.reset_chain
+bootstrap_flag = args.bootstrap
+remove_agent_flag = args.remove_agent
+fail_attestation_flag = args.fail_attestation  # New flag for failure
+
+# Validate flag usage based on participant role
+if participant == "secaas" and (bootstrap_flag or remove_agent_flag or fail_attestation_flag):
+    logger.error("Only agents can use --bootstrap, --remove-agent, or --fail-attestation.")
+    sys.exit(1)
+elif participant == "agent" and reset_chain_flag:
+    logger.error("Only SECaaS can use --reset-chain.")
+    sys.exit(1)
+
+# Print the selected argument values for the user
+logger.info("Selected Execution Parameters:")
+logger.info(f"  - Participant       : {participant}")
+logger.info(f"  - Reset Chain       : {'Enabled' if reset_chain_flag else 'Disabled'}")
+logger.info(f"  - Bootstrap Agent   : {'Enabled' if bootstrap_flag else 'Disabled'}")
+logger.info(f"  - Remove Agent      : {'Enabled' if remove_agent_flag else 'Disabled'}")
+logger.info(f"  - Fail Attestation  : {'Enabled' if fail_attestation_flag else 'Disabled'}") 
+
 
 # Load configuration
 json_file_path = "/home/agent/config/Secaas.json" if participant == "secaas" else utils.find_agent_json(directory="/home/agent/config")
@@ -202,6 +232,16 @@ def reset_attestation_chain(eth_address, contract):
     
     except Exception as e:
         raise Exception(f"An error occurred while calling the function: {str(e)}")
+
+def request_attestation(eth_address, contract):
+    global nonce
+    try:
+        tx_data = contract.functions.RequestAttestation().buildTransaction({'from': eth_address, 'nonce': nonce})
+        tx_hash = send_signed_transaction(tx_data)
+        return tx_hash
+    
+    except Exception as e:
+        raise Exception(f"An error occurred while requesting attestation: {str(e)}")
     
 def register_agent(agent_uuid_str, eth_address, contract):
     global nonce
@@ -281,7 +321,7 @@ def get_attestation_measurements(attestation_id, eth_address, contract):
     
     except Exception as e:
         raise Exception(f"An error occurred while getting the attestation measurements: {str(e)}")
-
+    
 def send_attestation_result(attestation_id, verified, eth_address, contract):
     global nonce
     try:
@@ -295,26 +335,34 @@ def send_attestation_result(attestation_id, verified, eth_address, contract):
     
     except Exception as e:
         raise Exception(f"An error occurred while closing the attestation process: {str(e)}")
-
     
-def get_agent_info(eth_address, contract):
+def get_agent_info(agent_address, eth_address, contract):
     try:
-        retrieved_uuid_bytes , is_registered, is_verified  = contract.functions.GetAgentInfo(eth_address).call()
+        retrieved_uuid_bytes , is_registered, completed_attestations  = contract.functions.GetAgentInfo(agent_address, eth_address).call()
         retrieved_uuid_str = uuid.UUID(bytes=retrieved_uuid_bytes).hex
-        return retrieved_uuid_str, is_registered, is_verified
+        return retrieved_uuid_str, is_registered, completed_attestations
     
     except Exception as e:
         raise Exception(f"An error occurred while getting agent info: {str(e)}")
 
 def get_prover_uuid(attestation_id, eth_address, contract):
     try:
-        retrieved_uuid_bytes, prover_eth_address  = contract.functions.GetProverUUID(web3.toBytes(hexstr=attestation_id), eth_address).call()
+        retrieved_uuid_bytes  = contract.functions.GetProverUUID(web3.toBytes(hexstr=attestation_id), eth_address).call()
         retrieved_uuid_str = uuid.UUID(bytes=retrieved_uuid_bytes).hex
         return retrieved_uuid_str
     
     except Exception as e:
         raise Exception(f"An error occurred while getting agent info: {str(e)}")
+
+def get_attestation_chain(contract):
+    global nonce
+    try:
+        attestation_chain = contract.functions.GetAttestationChain().call()
+        return attestation_chain
     
+    except Exception as e:
+        raise Exception(f"An error occurred while getting the attestation chain: {str(e)}")
+      
 def get_attestation_info(attestation_id, contract):
     try:
         prover_address, verifier_address, attestation_result, timestamp  = contract.functions.GetAttestationInfo(web3.toBytes(hexstr=attestation_id)).call()
@@ -346,54 +394,152 @@ def display_attestation_state(attestation_id, contract):
     else:
         logger.error(f"Error: state for attestation {attestation_id} is {current_attestation_state}")
 
+def display_attestation_chain(contract):
+    attestation_chain = get_attestation_chain(contract)
 
-def handle_secaas_logic(eth_address, contract, seen_events):
-    """SECaaS logic: Attestation monitoring and verification process."""
+    if not attestation_chain:
+        print("=== Attestation chain is empty ===")
+        return
+    
+    print("=== Attestation chain ===")
+    for i, attestation_id_bytes in enumerate(attestation_chain):
+        attestation_id = attestation_id_bytes.hex()
+        prover_address, verifier_address, attestation_result, timestamp = get_attestation_info(attestation_id, contract)
+        print("-" * 50)
+        print(f"Attestation ID     : {attestation_id}")
+        print(f"Prover Address     : {prover_address}")
+        print(f"Verifier Address   : {verifier_address}")
+        print(f"Result             : {'SUCCESS' if attestation_result == 2 else 'FAILURE'}")
+        print(f"Timestamp          : {timestamp}")
+        print("-" * 50)
+        if i < len(attestation_chain) - 1:
+            print("    ↓") 
+    print()
+
+def handle_verifier_logic(attestation_id, eth_address, contract, seen_events, last_n_blocks):
+    """Handles Verifier agent logic."""
+    ready_for_evaluation = False 
+    while ready_for_evaluation == False:
+        ready_for_evaluation = True if get_attestation_state(attestation_id, contract) == 3 else False
+
+    display_attestation_state(attestation_id, contract)
+
+    # Retrieve and compare measurements
+    fresh_signature, reference_signature = get_attestation_measurements(attestation_id, eth_address, contract)
+
+    logger.info(f"Attestation measurements:\n" +
+                f"  - Fresh Signature: {fresh_signature}\n" +
+                f"  - Reference: {reference_signature}\n")
+
+    # Compare measurements
+    logger.info("Comparing hashes...")
+    result = fresh_signature == reference_signature
+
+    # Save attestation result
+    tx_hash = send_attestation_result(attestation_id, result, eth_address, contract)
+    logger.info(f"Attestation closed:\n" +
+                f"  - Result: {'SUCCESS' if result else 'FAILURE'}\n" +
+                f"  - Tx Hash: {tx_hash}\n")
+
+
+def handle_prover_logic(attestation_id, eth_address, contract, seen_events, agent_uuid, last_n_blocks, fail_attestation_flag):
+    """Handles Prover agent logic."""
+
+    logger.info("Generating fresh signature...")
+
+    # Modify to generate a runtime fresh signature using SECaaS-based PROVE function
+    agent_info = utils.get_agent_by_uuid("/home/agent/config", agent_uuid)    
+    fresh_signature = agent_info['ref_signature']
+
+    # If the fail flag is enabled, modify the signature to an incorrect value
+    if fail_attestation_flag:
+        logger.warning("Fail Attestation flag is set. Modifying the fresh signature to trigger failure.")
+        fresh_signature = "".join("F" if c.isalpha() else c for c in fresh_signature)
+    
+    tx_hash = send_fresh_signature(attestation_id, fresh_signature, eth_address, contract)
+    logger.info(f"Fresh signature sent:\n" +
+                f"  - Signature: {fresh_signature}\n" +
+                f"  - Tx Hash: {tx_hash}\n")
+
+    logger.info("Waiting for attestation to complete...")    
+    attestation_closed = False 
+    while attestation_closed == False:
+        attestation_closed = True if get_attestation_state(attestation_id, contract) == 4 else False
+
+    display_attestation_state(attestation_id, contract)
+
+    # Retrieve attestation details
+    prover_address, verifier_address, attestation_result, timestamp = get_attestation_info(attestation_id, contract)
+    print("=== Attestation info ===")
+    print(f"Attestation ID     : {attestation_id}")
+    print(f"Prover Address     : {prover_address}")
+    print(f"Verifier Address   : {verifier_address}")
+    print(f"Result             : {'SUCCESS' if attestation_result == 2 else 'FAILURE'}")
+    print(f"Timestamp          : {timestamp}")
+    print()
+
+
+def handle_agent_logic(eth_address, contract, seen_events, agent_uuid, fail_attestation_flag: bool = False, last_n_blocks:int = None):
+    """Handles Agent registration and attestation process."""
+    attestation_id = ''
+    start_time = None
+    end_time = None
+    while True:
+        logger.info("Subscribed to attestation events. Waiting for process initiation...")
+        new_attestation_event_filter = create_event_filter(contract, MasMutualAttestationContractEvents.ATTESTATION_STARTED, last_n_blocks)
+        attestation_started = False
+        while not attestation_started:
+            attestation_events = new_attestation_event_filter.get_all_entries()
+            for event in attestation_events:
+                tx_hash = event['transactionHash'].hex()
+                if tx_hash not in seen_events:
+                    attestation_id = event["args"]["id"].hex()
+
+                    # Check the attestation state
+                    current_attestation_state = get_attestation_state(attestation_id, contract)
+                    if current_attestation_state in [0, 1]:  # Only proceed if Open or SecaasResponded
+                        start_time = time.time()
+                        seen_events.add(tx_hash)
+                        attestation_started = True
+                        logger.info(f"Attestation initiated:\n" + 
+                            f"  - Attestation ID: {attestation_id}\n" +
+                            f"  - Tx Hash: {tx_hash}\n")
+                        break
+
+        display_attestation_state(attestation_id, contract)
+
+        # Check if the agent is the verifier
+        is_verifier = is_verifier_agent(attestation_id, eth_address, contract)
+        is_prover = is_prover_agent(attestation_id, eth_address, contract)
+
+        if is_verifier:
+            logger.info("You are the Verifier agent!")
+            logger.info("Waiting for responses from SECaaS and Prover...")
+            handle_verifier_logic(attestation_id, eth_address, contract, seen_events, last_n_blocks)
+            end_time = time.time()
+            attestation_duration = end_time - start_time
+            logger.info(f"Attestation duration (Verifier perspective): {attestation_duration:.2f} seconds")
+            time.sleep(3)
+
+        elif is_prover:
+            logger.info("You are the Prover agent!")
+            handle_prover_logic(attestation_id, eth_address, contract, seen_events, agent_uuid, last_n_blocks, fail_attestation_flag)
+            end_time = time.time()
+            attestation_duration = end_time - start_time
+            logger.info(f"Attestation duration (Prover perspective): {attestation_duration:.2f} seconds")
+
+        else:
+            logger.warning("You are neither the Verifier nor the Prover, continuing to listen for events...\n") 
+            time.sleep(3)
+            continue
+
+def handle_secaas_logic(eth_address, contract, seen_events, last_n_blocks:int = None):
+    """Handles SECaaS logic"""
+    display_attestation_chain(contract)
     attestation_id = ''
     while True:
-
-        # print("\SECaaS Menu:")
-        # print("1. Clean attestation chain")
-        # print("2. Read transaction receipt")
-        # print("3. Continue...")
-
-        # choice = input("Select an option (1-3): ").strip()
-
-        # if not choice.isdigit():
-        #     logger.info("Invalid input. Please enter a number between 1 and 3.")
-        #     continue  # Re-prompt user
-
-        # choice = int(choice)
-
-        # try:
-        #     if choice == 1:
-        #         tx_hash = register_agent(agent_uuid, eth_address, contract)
-        #         logger.info(f"Agent registered | Tx: {tx_hash}")
-
-        #     elif choice == 2:
-        #         tx_hash = input("Enter the transaction hash to retrieve the receipt: ").strip()
-        #         if not tx_hash:
-        #             logger.info("No transaction hash entered. Returning to menu.")
-        #             continue
-
-        #         receipt = get_transaction_receipt(tx_hash)
-        #         logger.info("Transaction receipt details:")
-        #         for key, value in receipt.items():
-        #             print(f"{key}: {value}")
-        #         break  # Exit after displaying receipt
-
-        #     elif choice == 3:
-        #         logger.info("Continuing to next step...")
-
-        #     else:
-        #         logger.info("Invalid option. Please select a number between 1 and 3.")
-
-        # except Exception as e:
-        #     logger.error(f"Error occurred: {str(e)}")
-
-
         logger.info("Subscribed to attestation events. Waiting for process initiation...")
-        new_attestation_event_filter = create_event_filter(contract, MasMutualAttestationContractEvents.ATTESTATION_STARTED, 10)
+        new_attestation_event_filter = create_event_filter(contract, MasMutualAttestationContractEvents.ATTESTATION_STARTED, last_n_blocks)
         
         attestation_started = False
         while not attestation_started:
@@ -401,14 +547,17 @@ def handle_secaas_logic(eth_address, contract, seen_events):
             for event in attestation_events:
                 tx_hash = event['transactionHash'].hex()
                 if tx_hash not in seen_events:
-                    seen_events.add(tx_hash)
-                    attestation_started = True
                     attestation_id = event["args"]["id"].hex()
 
-                    logger.info(f"Attestation initiated:\n" + 
-                        f"  Attestation ID: {attestation_id}\n" +
-                        f"  Tx Hash: {tx_hash}\n")
-                    break
+                    # Check the attestation state
+                    current_attestation_state = get_attestation_state(attestation_id, contract)
+                    if current_attestation_state in [0, 2]:  # Only proceed if Open or ProverResponded
+                        seen_events.add(tx_hash)
+                        attestation_started = True
+                        logger.info(f"Attestation initiated:\n" + 
+                            f"  - Attestation ID: {attestation_id}\n" +
+                            f"  - Tx Hash: {tx_hash}\n")
+                        break
         
         display_attestation_state(attestation_id, contract)
 
@@ -426,182 +575,46 @@ def handle_secaas_logic(eth_address, contract, seen_events):
 
         tx_hash = send_reference_signature(attestation_id, reference_agent_measurement, eth_address, contract)
         logger.info(f"Reference signature sent:\n" + 
-            f"  Agent UUID: {agent_uuid}\n" +
-            f"  Agent ref. signature: {agent_uuid}\n" +
-            f"  Tx Hash: {tx_hash}\n")
+            f"  - Agent UUID: {agent_uuid}\n" +
+            f"  - Agent ref. signature: {agent_uuid}\n" +
+            f"  - Tx Hash: {tx_hash}\n")
         
         is_verifier = is_verifier_agent(attestation_id, eth_address, contract)
         if is_verifier:
             logger.info("You are the Verifier agent!")
-            ready_for_evaluation = False 
-            while ready_for_evaluation == False:
-                ready_for_evaluation = True if get_attestation_state(attestation_id, contract) == 3 else False
-
-            display_attestation_state(attestation_id, contract)
-            
-            # Retrieve and compare measurements
-            fresh_signature, reference_signature = get_attestation_measurements(attestation_id, eth_address, contract)
-
-            # Compare measurements
-            logger.info("Comparing hashes...")
-            result = fresh_signature == reference_signature
-
-            # Save attestation result
-            tx_hash = send_attestation_result(attestation_id, result, eth_address, contract)
-            logger.info(f"Attestation closed:\n" + 
-                f"  Result: {'SUCCESS' if result else 'FAILURE'}\n" +
-                f"  Tx Hash: {tx_hash}\n")
-            time.sleep(3)      
-
-
-def handle_agent_logic(eth_address, contract, seen_events, agent_uuid, reference_measurement=None):
-    """Handles Agent registration and attestation process."""
-    attestation_id = ''
-    while True:
-        print("\nAgent Menu:")
-        print("1. Register agent")
-        print("2. Remove agent")
-        print("3. Read transaction receipt")
-        print("4. Continue...")
-
-        choice = input("Select an option (1-4): ").strip()
-
-        if not choice.isdigit():
-            logger.info("Invalid input. Please enter a number between 1 and 4.")
-            continue  # Re-prompt user
-
-        choice = int(choice)
-
-        try:
-            if choice == 1:
-                tx_hash = register_agent(agent_uuid, eth_address, contract)
-                logger.info(f"Agent registered | Tx: {tx_hash}")
-
-            elif choice == 2:
-                tx_hash = remove_agent(eth_address, contract)
-                logger.info(f"Agent removed | Tx: {tx_hash}")
-                break  # Exit loop after removing agent
-
-            elif choice == 3:
-                tx_hash = input("Enter the transaction hash to retrieve the receipt: ").strip()
-                if not tx_hash:
-                    logger.info("No transaction hash entered. Returning to menu.")
-                    continue
-
-                receipt = get_transaction_receipt(tx_hash)
-                logger.info("Transaction receipt details:")
-                for key, value in receipt.items():
-                    print(f"{key}: {value}")
-                break  # Exit after displaying receipt
-
-            elif choice == 4:
-                logger.info("Continuing to next step...")
-
-            else:
-                logger.info("Invalid option. Please select a number between 1 and 4.")
-
-        except Exception as e:
-            logger.error(f"Error occurred: {str(e)}")
-
-        logger.info("Subscribed to attestation events. Waiting for process initiation...")
-        new_attestation_event_filter = create_event_filter(contract, MasMutualAttestationContractEvents.ATTESTATION_STARTED, 10)
-        attestation_started = False
-        while not attestation_started:
-            attestation_events = new_attestation_event_filter.get_all_entries()
-            for event in attestation_events:
-                tx_hash = event['transactionHash'].hex()
-                if tx_hash not in seen_events:
-                    seen_events.add(tx_hash)
-                    attestation_started = True
-                    attestation_id = event["args"]["id"].hex()
-                    logger.info(f"Attestation initiated:\n" + 
-                        f"  Attestation ID: {attestation_id}\n" +
-                        f"  Tx Hash: {tx_hash}\n")
-                    break
-
-        display_attestation_state(attestation_id, contract)
-
-        # Check if the agent is the verifier
-        is_verifier = is_verifier_agent(attestation_id, eth_address, contract)
-        is_prover = is_prover_agent(attestation_id, eth_address, contract)
-
-        if is_verifier:
-            logger.info("You are the Verifier agent!")
-
-            # Wait for secaas and prover to respond
-            logger.info("Waiting for responses from SECaaS and Prover...")
-            ready_for_evaluation = False 
-            while ready_for_evaluation == False:
-                ready_for_evaluation = True if get_attestation_state(attestation_id, contract) == 3 else False
-
-            display_attestation_state(attestation_id, contract)
-
-            # Retrieve and compare measurements
-            fresh_signature, reference_signature = get_attestation_measurements(attestation_id, eth_address, contract)
-            
-            logger.info(f"Attestation measurements:\n" + 
-                f"  Fresh Signature: {fresh_signature}\n" +
-                f"  Reference: {reference_signature}\n")
-
-            # Compare measurements
-            logger.info("Comparing hashes...")
-            result = fresh_signature == reference_signature
-
-            # Save attestation result
-            tx_hash = send_attestation_result(attestation_id, result, eth_address, contract)
-            logger.info(f"Attestation closed:\n" + 
-                f"  Result: {'SUCCESS' if result else 'FAILURE'}\n" +
-                f"  Tx Hash: {tx_hash}\n")
-            time.sleep(3)        
-        
-        # Check if the agent is the prover
-        elif is_prover:
-            logger.info("You are the Prover agent!")
-            
-            logger.info("Generating fresh signature...")
-            time.sleep(2)
-
-            tx_hash = send_fresh_signature(attestation_id, reference_measurement, eth_address, contract)            
-            logger.info(f"Fresh signature sent:\n" + 
-                f"  Signature: {reference_measurement}\n" +
-                f"  Tx Hash: {tx_hash}\n")
-            
-            logger.info("Waiting for attestation to complete...")
-            attestation_completed_event = create_event_filter(contract, MasMutualAttestationContractEvents.ATTESTATION_COMPLETED)
-            attestation_completed = False
-            while not attestation_completed:
-                completed_events = attestation_completed_event.get_all_entries()
-                for event in completed_events:
-                    tx_hash = event['transactionHash'].hex()
-                    if tx_hash not in seen_events:
-                        seen_events.add(tx_hash)
-                        attestation_completed = True
-                        # print("\nAttestation process completed")
-                        break
-            
-            display_attestation_state(attestation_id, contract)
-            
-            # Retrieve attestation details
-            prover_address, verifier_address, attestation_result, timestamp = get_attestation_info(attestation_id, contract)
-            
-            logger.info(f"Attestation info:\n" + 
-                f"  Prover address: {prover_address}\n" +
-                f"  Verifier address: {verifier_address}\n" +
-                f"  Result: {'SUCCESS' if attestation_result else 'FAILURE'}\n" +
-                f"  Timestamp: {timestamp}\n")            
-        else:
-            logger.error("You are neither the Verifier nor the Prover, continuing to listen for events...")  
+            handle_verifier_logic(attestation_id, eth_address, contract, seen_events, last_n_blocks)
             time.sleep(3)
-            continue
 
-            
+        attestation_closed = False 
+        while attestation_closed == False:
+            attestation_closed = True if get_attestation_state(attestation_id, contract) == 4 else False
+        display_attestation_chain(contract)
+
+
 if __name__ == "__main__":
     try:
         if participant == 'secaas':
-            handle_secaas_logic(eth_address, mas_contract, seen_events)
+            if reset_chain_flag:
+                logger.info("Resetting attestation chain...")
+                tx_hash = reset_attestation_chain(eth_address, mas_contract)
+                logger.info(f"Attestation chain reset | Tx Hash: {tx_hash}")
+                sys.exit(1)
+
+            handle_secaas_logic(eth_address, mas_contract, seen_events, last_n_blocks=10)
 
         elif participant == 'agent':
-            handle_agent_logic(eth_address, mas_contract, seen_events, agent_uuid, reference_measurement)
+            if bootstrap_flag:
+                logger.info("Registering agent...")
+                tx_hash = register_agent(agent_uuid, eth_address, mas_contract)
+                logger.info(f"Agent registered successfully | Tx: {tx_hash}")
+        
+            elif remove_agent_flag:
+                logger.info("Removing agent...")
+                tx_hash = remove_agent(eth_address, mas_contract)
+                logger.info(f"Agent removed successfully | Tx: {tx_hash}")
+                sys.exit(1)
+
+            handle_agent_logic(eth_address, mas_contract, seen_events, agent_uuid, fail_attestation_flag, last_n_blocks=10)
 
     except Exception as e:
             print(f"An error occurred in the main execution: {str(e)}")

@@ -4,12 +4,14 @@ pragma solidity ^0.8.0;
 contract MasMutualAttestation {
 
     enum AttestationResult {None, Failure, Success}
+
+    // Define the possible states of an attestation process
     enum AttestationState {Open, SecaasResponded, ProverResponded, ReadyForEvaluation, Closed}
 
     struct Agent {
         bytes16 uuid;
         bool registered;
-        bool verified;
+        bytes32[] completedAttestations; // Stores all attestation IDs the agent has completed
     }
 
     struct MutualAttestation {
@@ -23,12 +25,16 @@ contract MasMutualAttestation {
         uint256 timestamp; // Timestamp for attestation closure
     }
 
-    mapping(address => Agent) private agent;
-    mapping(bytes32 => MutualAttestation) private attestation;
     address private currentVerifier;
     address private secaas;
-    uint256 private currentAttestationIndex;  
+    bytes32[] private attestationChain; // Store all attestation IDs
 
+    // Define mappings to store data
+    mapping(address => Agent) private agent;
+    mapping(bytes32 => MutualAttestation) private attestation;
+
+
+    // Define events
     event AgentRegistered(address agent);
     event AgentRemoved(address agent);
     event AttestationStarted(bytes32 id);
@@ -41,14 +47,12 @@ contract MasMutualAttestation {
     constructor() {
         secaas = msg.sender;
         currentVerifier = secaas;
-        currentAttestationIndex = 1;
     }
 
     function ResetChain() public {
         require(msg.sender == secaas, "Only the SECaaS can reset the chain");
-
-        // Reset attestation index and current verifier
-        currentAttestationIndex = 1;
+        
+        delete attestationChain;
         currentVerifier = secaas;
 
         emit ChainReset();
@@ -62,12 +66,11 @@ contract MasMutualAttestation {
 
         currentAgent.uuid = uuid;
         currentAgent.registered = true;
-        currentAgent.verified = false;
 
         emit AgentRegistered(msg.sender);
 
         // Generate a unique attestation ID
-        bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp, currentAttestationIndex));
+        bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
 
         MutualAttestation storage currentAttestation = attestation[id];
         currentAttestation.id = id;
@@ -80,29 +83,51 @@ contract MasMutualAttestation {
         currentAttestation.timestamp = 0; 
 
         emit AttestationStarted(id);
-        currentAttestationIndex++;
     }
 
     function RemoveAgent() public {
         Agent storage currentAgent = agent[msg.sender];
         require(currentAgent.registered, "Agent is not registered");
+        delete currentAgent.completedAttestations;
         delete agent[msg.sender];
         emit AgentRemoved(msg.sender);
     }
 
-    function GetAgentInfo(address callAddress) public view returns (bytes16, bool, bool) {
+    function GetAgentInfo(address agentAddress, address callAddress) public view returns (bytes16, bool, bytes32[] memory) {
         Agent storage currentAgent = agent[callAddress];
+        Agent storage agentToFind = agent[agentAddress];
         require(currentAgent.registered || callAddress == secaas, "Agent is not registered");
-        return (currentAgent.uuid, currentAgent.registered, currentAgent.verified);
+        return (agentToFind.uuid, agentToFind.registered, agentToFind.completedAttestations);
     } 
 
-    function GetProverUUID(bytes32 id, address callAddress) public view returns (bytes16, address) {
+
+    function RequestAttestation() public {
+        Agent storage currentAgent = agent[msg.sender];
+        require(currentAgent.registered, "Agent is not registered");
+
+        // Generate unique attestation ID
+        bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
+
+        MutualAttestation storage currentAttestation = attestation[id];
+        currentAttestation.id = id;
+        currentAttestation.verifier = currentVerifier;
+        currentAttestation.prover = msg.sender;
+        currentAttestation.fresh_signature = bytes32(0);
+        currentAttestation.ref_signature = bytes32(0);
+        currentAttestation.state = AttestationState.Open;
+        currentAttestation.result = AttestationResult.None;
+        currentAttestation.timestamp = 0; 
+
+        emit AttestationStarted(id);
+    }
+
+    function GetProverUUID(bytes32 id, address callAddress) public view returns (bytes16) {
         require(callAddress == secaas, "You are not the SECaaS.");
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.state == AttestationState.Open || currentAttestation.state == AttestationState.ProverResponded, "Attestation is closed or not exists");
         address proverAgentAddress = currentAttestation.prover;
         Agent storage currentAgent = agent[proverAgentAddress];
-        return (currentAgent.uuid, msg.sender);
+        return (currentAgent.uuid);
     }     
 
     function SendFreshSignaure(bytes32 id, bytes32 measurement) public returns (bool) {
@@ -159,6 +184,10 @@ contract MasMutualAttestation {
         return attestation[id].state;
     }
 
+    function GetAttestationChain() public view returns (bytes32[] memory) {
+        return attestationChain;
+    }
+
     function CloseAttestationProcess(bytes32 id, bool verified) public returns (bool) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.verifier == msg.sender, "Only the verifier can close the attestation process");
@@ -167,16 +196,21 @@ contract MasMutualAttestation {
         currentAttestation.state = AttestationState.Closed;
         currentAttestation.timestamp = block.timestamp; // Store closure timestamp
         Agent storage proverAgent = agent[currentAttestation.prover];
-        currentAttestationIndex++;
 
         if (verified) {
-            proverAgent.verified = true;
+            // proverAgent.verified = true;
             currentAttestation.result = AttestationResult.Success;
             currentVerifier = currentAttestation.prover;
         } else {
-            proverAgent.verified = false;
+            // proverAgent.verified = false;
             currentAttestation.result = AttestationResult.Failure;
         }
+
+        // Store attestation history for the prover only
+        proverAgent.completedAttestations.push(id);
+
+        // Store attestation history for all agents
+        attestationChain.push(id);
 
         emit AttestationCompleted(id);
         return true;
