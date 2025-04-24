@@ -22573,11 +22573,11 @@
       "events": {},
       "links": {},
       "address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9",
-      "transactionHash": "0x51a82eeace8b10b26a3d1999811e422a05a1611bc8b568b3303907bbb9271f35"
+      "transactionHash": "0x02f45c5f86892bdfe26d593b75225056c37b3e2d53243b691c52b79bb82bba87"
     }
   },
   "schemaVersion": "3.4.16",
-  "updatedAt": "2025-03-05T15:12:57.685Z",
+  "updatedAt": "2025-04-23T08:44:31.089Z",
   "networkType": "ethereum",
   "devdoc": {
     "kind": "dev",
