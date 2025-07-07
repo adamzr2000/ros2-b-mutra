@@ -1,0 +1,13 @@
+{
+	"agent": 1,
+	"uuid": "885f3488-1031-4e0c-ad01-7ffd15ed8ef4",
+	"eth_address": "0xd95fFe906eD576dA6f178CC7cff2Cf3784e4CB86",
+    "private_key": "791c9741a8e57fea84779983d1a13ab742bb6c41c93d941594557f6604745d0a",
+    "eth_node": "ws://10.0.1.2:3335",
+    "contract_address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9",
+	"agent_name": "robot1",
+	"cmd_name": "robot_state_publisher",
+	"text_section_size": 42223,
+	"sha256": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
+	"offset": 0 
+}

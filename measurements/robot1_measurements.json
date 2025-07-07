@@ -1,0 +1,29 @@
+{
+  "final_digests:robot1": [
+    {
+      "final_digest": "98b5573b111cc1c0eb5041b2752ef90883c82ce0725cc6e2f1cfbd073ba85928",
+      "threshold": 500,
+      "timestamp": 1751887100.0606716
+    },
+    {
+      "final_digest": "98b5573b111cc1c0eb5041b2752ef90883c82ce0725cc6e2f1cfbd073ba85928",
+      "threshold": 500,
+      "timestamp": 1751887138.3569431
+    },
+    {
+      "final_digest": "98b5573b111cc1c0eb5041b2752ef90883c82ce0725cc6e2f1cfbd073ba85928",
+      "threshold": 500,
+      "timestamp": 1751887177.3537018
+    },
+    {
+      "final_digest": "98b5573b111cc1c0eb5041b2752ef90883c82ce0725cc6e2f1cfbd073ba85928",
+      "threshold": 500,
+      "timestamp": 1751887216.2545233
+    },
+    {
+      "final_digest": "98b5573b111cc1c0eb5041b2752ef90883c82ce0725cc6e2f1cfbd073ba85928",
+      "threshold": 500,
+      "timestamp": 1751887255.3543074
+    }
+  ]
+}

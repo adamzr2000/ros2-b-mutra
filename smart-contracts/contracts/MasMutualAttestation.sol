@@ -25,13 +25,17 @@ contract MasMutualAttestation {
         uint256 timestamp; // Timestamp for attestation closure
     }
 
-    address private currentVerifier;
     address private secaas;
+    address[] private participants;
     bytes32[] private attestationChain; // Store all attestation IDs
+    uint256 public freshnessWindow = 3600; // in seconds
+    uint256 public rrIndex;
 
     // Define mappings to store data
+    mapping(address => uint256) private lastSuccess;
     mapping(address => Agent) private agent;
     mapping(bytes32 => MutualAttestation) private attestation;
+    mapping(address => uint256) private indexOf;
 
 
     // Define events
@@ -46,51 +50,82 @@ contract MasMutualAttestation {
 
     constructor() {
         secaas = msg.sender;
-        currentVerifier = secaas;
+        participants.push(secaas);
+        indexOf[secaas] = 0;
     }
 
     function ResetChain() public {
         require(msg.sender == secaas, "Only the SECaaS can reset the chain");
-        
-        delete attestationChain;
-        currentVerifier = secaas;
 
+        delete attestationChain;
+        rrIndex = 0;
+        
         emit ChainReset();
     }    
 
     function RegisterAgent(bytes16 uuid) public {
         require(uuid != bytes16(0), "UUID is not valid");
-
         Agent storage currentAgent = agent[msg.sender];
         require(!currentAgent.registered, "Agent already registered");
-
         currentAgent.uuid = uuid;
         currentAgent.registered = true;
-
+        indexOf[msg.sender] = participants.length;
+        participants.push(msg.sender);
         emit AgentRegistered(msg.sender);
 
-        // Generate a unique attestation ID
-        bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
+        // // Generate a unique attestation ID
+        // bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
 
-        MutualAttestation storage currentAttestation = attestation[id];
-        currentAttestation.id = id;
-        currentAttestation.verifier = currentVerifier;
-        currentAttestation.prover = msg.sender;
-        currentAttestation.fresh_signature = bytes32(0);
-        currentAttestation.ref_signature = bytes32(0);
-        currentAttestation.state = AttestationState.Open;
-        currentAttestation.result = AttestationResult.None;
-        currentAttestation.timestamp = 0; 
+        // MutualAttestation storage currentAttestation = attestation[id];
+        // currentAttestation.id = id;
+        // currentAttestation.verifier = currentVerifier;
+        // currentAttestation.prover = msg.sender;
+        // currentAttestation.fresh_signature = bytes32(0);
+        // currentAttestation.ref_signature = bytes32(0);
+        // currentAttestation.state = AttestationState.Open;
+        // currentAttestation.result = AttestationResult.None;
+        // currentAttestation.timestamp = 0; 
 
-        emit AttestationStarted(id);
+        // emit AttestationStarted(id);
     }
 
     function RemoveAgent() public {
         Agent storage currentAgent = agent[msg.sender];
         require(currentAgent.registered, "Agent is not registered");
+        
+        uint idx = indexOf[msg.sender];
+        address last = participants[participants.length - 1];
+        participants[idx] = last;
+        indexOf[last] = idx;
+        participants.pop();
+
+        delete indexOf[msg.sender];
         delete currentAgent.completedAttestations;
         delete agent[msg.sender];
         emit AgentRemoved(msg.sender);
+    }
+
+    function ElectVerifier(address prover) internal returns (address) {
+        address[] memory freshList = new address[](participants.length);
+        uint count = 0;
+        for (uint i = 0; i < participants.length; i++) {
+            address cand = participants[i];
+            if (
+                cand != prover &&
+                lastSuccess[cand] != 0
+                // block.timestamp - lastSuccess[cand] <= freshnessWindow
+            ) {
+                freshList[count++] = cand;
+            }
+        }
+
+        if (count == 0) {
+            return secaas;
+        }
+
+        address selected = freshList[rrIndex % count];
+        rrIndex++;
+        return selected;
     }
 
     function GetAgentInfo(address agentAddress, address callAddress) public view returns (bytes16, bool, bytes32[] memory) {
@@ -110,7 +145,7 @@ contract MasMutualAttestation {
 
         MutualAttestation storage currentAttestation = attestation[id];
         currentAttestation.id = id;
-        currentAttestation.verifier = currentVerifier;
+        currentAttestation.verifier = ElectVerifier(msg.sender);
         currentAttestation.prover = msg.sender;
         currentAttestation.fresh_signature = bytes32(0);
         currentAttestation.ref_signature = bytes32(0);
@@ -154,7 +189,7 @@ contract MasMutualAttestation {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.state == AttestationState.Open || currentAttestation.state == AttestationState.ProverResponded, "Invalid state for SECaaS response");
         
-         currentAttestation.ref_signature = measurement;
+        currentAttestation.ref_signature = measurement;
     
         if (currentAttestation.state == AttestationState.ProverResponded) {
             currentAttestation.state = AttestationState.ReadyForEvaluation;
@@ -198,11 +233,9 @@ contract MasMutualAttestation {
         Agent storage proverAgent = agent[currentAttestation.prover];
 
         if (verified) {
-            // proverAgent.verified = true;
             currentAttestation.result = AttestationResult.Success;
-            currentVerifier = currentAttestation.prover;
+            lastSuccess[currentAttestation.prover] = block.timestamp;
         } else {
-            // proverAgent.verified = false;
             currentAttestation.result = AttestationResult.Failure;
         }
 

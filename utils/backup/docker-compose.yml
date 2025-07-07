@@ -1,0 +1,260 @@
+version: '3'
+
+x-common-commands:
+  gzserver_command: &gzserver_command >
+    bash -c "
+    source /home/agent/ros2_ws/install/setup.bash && ros2 launch turtlebot3_gazebo gazebo_server.launch.py verbose:=true
+    "
+
+  robot_entrypoint: &robot_entrypoint >
+    bash -c "
+    cd ~/scripts && ./start_turtlebot.sh
+    "
+
+  secaas_entrypoint: &secaas_entrypoint >
+    bash -c "
+    cd ~/scripts && python3 mas_mutual_attestation.py --participant secaas
+    "
+
+  sidecar_controller_entrypoint: &sidecar_controller_entrypoint >
+    bash -c "
+    cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap
+    "
+
+services:
+
+  gazebo-server:
+    image: ros2-agent:latest
+    container_name: gazebo-server
+    hostname: gazebo-server
+    environment:
+      - ROS_DOMAIN_ID=42   
+      - GAZEBO_AUDIO_DEVICE=none
+    ports:
+      - "11345:11345"
+    tty: true
+    stdin_open: true
+    command: *gzserver_command
+    networks:
+      - dlt_network
+
+  gazebo-client:
+    image: gazebo-vnc:latest
+    container_name: gazebo-client
+    hostname: gazebo-client
+    environment:
+      - ROS_DOMAIN_ID=42
+      - GAZEBO_MASTER_URI=http://gazebo-server:11345    
+    depends_on:
+      - gazebo-server    
+    ports:
+      - "6080:80"
+    security_opt:
+      - seccomp=unconfined
+    restart: unless-stopped
+    networks:
+      - dlt_network
+
+  secaas:
+    image: dlt-manager:latest
+    container_name: secaas
+    hostname: secaas
+    volumes:
+      - "./config/:/home/agent/config/"
+      - "./smart-contracts:/home/agent/smart-contracts"
+      - "./dockerfiles/dlt-manager/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
+    stdin_open: true
+    tty: true 
+    command: *secaas_entrypoint   
+    networks:
+      - dlt_network
+
+  robot1:
+    image: ros2-agent:latest
+    container_name: robot1
+    hostname: robot1
+    volumes:
+      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
+      - "./dockerfiles/turtlebot3/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot1
+        - X_POSE=0
+        - Y_POSE=0
+    command: *robot_entrypoint
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - dlt_network
+
+  sidecar_measurer_robot1:
+    container_name: "sidecar_measurer_robot1"
+    build:
+      context: ./sidecar_measurer_min
+    ports:
+      - "8081:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./measurements/:/measurements:rw
+      - ./jsonfiles/:/jsonfiles:rw
+      - ./binaryfiles/:/binaryfiles:rw
+      - ./smart-contracts:/smart-contracts
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
+      - CONTAINER=robot1
+      - AGENT_NAME=robot1
+      - LOG_LEVEL=debug # or "debug", "warning", "error", "critical", or leave empty to disable custom level
+      - USE_REDIS=FALSE
+      - BOOTSTRAP=FALSE
+      - AUTO_START=TRUE
+      - PROC_COMM=robot_state_pub
+      - CONFIGSIDECAR=/jsonfiles/robot1.json
+      - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
+      - THRESHOLD=500
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+    pid: "container:robot1"
+    depends_on:
+      - robot1
+    cap_add:
+      - SYS_PTRACE
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+    networks:
+      - dlt_network
+
+
+  sidecar_controller_robot1:
+    image: dlt-manager:latest
+    container_name: sidecar_controller_robot1
+    hostname: sidecar_controller_robot1
+    volumes:
+      - "./config/Agent_1.json:/home/agent/config/Agent_1.json"
+      - "./smart-contracts:/home/agent/smart-contracts"
+      - "./dockerfiles/dlt-manager/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
+    stdin_open: true
+    tty: true 
+    command: *sidecar_controller_entrypoint   
+    networks:
+      - dlt_network
+
+    # container_name: "sidecar_controller_robot1"
+    # build:
+    #   context: ./sidecar_controller
+    # # ports:
+    # #   - "8082:8080"
+    # volumes:
+    #   - ./measurements/:/measurements:rw
+    #   - ./jsonfiles/:/jsonfiles:rw
+    #   - ./binaryfiles/:/binaryfiles:rw
+    #   - ./smart-contracts:/smart-contracts
+    #   - ./smart-contracts:/home/agent/smart-contracts
+    #   - ./config/Agent_1.json:/home/agent/config/Agent_1.json
+    #   - ./dockerfiles/dlt-manager/scripts/:/home/agent/scripts/
+    #   - /var/run/docker.sock:/var/run/docker.sock
+    # environment:
+    #   - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
+    #   - CONTAINER=robot1
+    #   - AGENT_NAME=robot1
+    #   - LOG_LEVEL=debug # or "debug", "warning", "error", "critical", or leave empty to disable custom level
+    #   - USE_REDIS=FALSE
+    #   - BOOTSTRAP=TRUE
+    #   - AUTO_START=TRUE
+    #   - PROC_COMM=robot_state_pub
+    #   - CONFIGSIDECAR=/jsonfiles/robot1.json
+    #   - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
+    #   - THRESHOLD=600
+    # command: ["bash", "-c", "python3 /home/agent/scripts/mas_mutual_attestation.py --participant agent --bootstrap"]
+    # pid: "container:robot1"
+    # depends_on:
+    #   - robot1
+    # cap_add:
+    #   - SYS_PTRACE
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '0.1'
+    # networks:
+    #   - dlt_network
+
+  robot2:
+    image: ros2-agent:latest
+    container_name: robot2
+    hostname: robot2
+    volumes:
+      - "./config/Agent_2.json:/home/agent/config/Agent_2.json"
+      - "./smart-contracts:/home/agent/smart-contracts"
+      - "./dockerfiles/dlt-manager/scripts/mas_mutual_attestation.py:/home/agent/scripts/mas_mutual_attestation.py"
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot2
+        - X_POSE=5
+        - Y_POSE=0
+    command: *robot_entrypoint
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - dlt_network
+
+  db:
+    image: postgres:12
+    container_name: db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgresql_data:/var/lib/postgresql/data/pgdata
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+    networks:
+      - dlt_network
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - dlt_network
+
+  secaas_wrapper:
+    container_name: secaas_wrapper
+    build:
+      context: dockerfiles/secaas_wrapper
+    ports:
+      - "8001:8000"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./dockerfiles/secaas_wrapper:/code
+      - ./jsonfiles/:/jsonfiles
+      - ./binaryfiles:/binaryfiles
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    networks:
+      - dlt_network
+
+networks:
+  dlt_network:
+    external: true

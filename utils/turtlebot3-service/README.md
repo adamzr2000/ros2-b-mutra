@@ -30,7 +30,7 @@ This will:
    ```bash  
    ./start_turtlebot.sh
    ```
-This will spawn the robot in the Gazebo simulation using the [robot.launch.py](./dockerfiles/turtlebot3/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/launch/robot.launch.py) and the `namespace`, `x_pose` and `y_pose` values defined in the [.env](./.env) file.
+This will spawn the robot in the Gazebo simulation using the [robot.launch.py](./../../dockerfiles/turtlebot3/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/launch/robot.launch.py) and the `namespace`, `x_pose` and `y_pose` values defined in the [.env](./.env) file.
 
 ## Stop the Simulation
 To shut down the simulation and related containers, run:
@@ -42,6 +42,6 @@ docker compose down
 ## ROS Node for Remote Attestation
 The C++ executable responsible for robot state publishing can be found at:
 
-[robot_state_publisher.cpp](./dockerfiles/turtlebot3/ros2_ws/src/robot_state_publisher/src/robot_state_publisher.cpp)
+[robot_state_publisher.cpp](./../../dockerfiles/turtlebot3/ros2_ws/src/robot_state_publisher/src/robot_state_publisher.cpp)
 
 This ROS node calculates and broadcasts the transforms (TF) of a robot's kinematic tree using its URDF model, enabling other nodes to understand the robot's structure and movement.

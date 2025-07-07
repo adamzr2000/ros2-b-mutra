@@ -45,8 +45,8 @@ services:
     container_name: robot1
     hostname: robot1
     volumes:
-      - ./dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
-      - ./dockerfiles/turtlebot3/scripts:/home/agent/scripts    
+      - ./../../dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
+      - ./../../dockerfiles/turtlebot3/scripts:/home/agent/scripts    
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
       - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -64,8 +64,8 @@ services:
     container_name: robot2
     hostname: robot2
     volumes:
-      - ./dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
-      - ./dockerfiles/turtlebot3/scripts:/home/agent/scripts    
+      - ./../../dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
+      - ./../../dockerfiles/turtlebot3/scripts:/home/agent/scripts    
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
       - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -83,8 +83,8 @@ services:
     container_name: robot3
     hostname: robot3
     volumes:
-      - ./dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
-      - ./dockerfiles/turtlebot3/scripts:/home/agent/scripts    
+      - ./../../dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
+      - ./../../dockerfiles/turtlebot3/scripts:/home/agent/scripts    
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
       - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -102,8 +102,8 @@ services:
     container_name: robot4
     hostname: robot4
     volumes:
-      - ./dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
-      - ./dockerfiles/turtlebot3/scripts:/home/agent/scripts    
+      - ./../../dockerfiles/turtlebot3/ros2_ws/src:/home/agent/ros2_ws/src
+      - ./../../dockerfiles/turtlebot3/scripts:/home/agent/scripts    
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
       - GAZEBO_MASTER_URI=http://gazebo-server:11345

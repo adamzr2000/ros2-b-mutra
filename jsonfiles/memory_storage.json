@@ -1,0 +1,39 @@
+{
+  "bootstrap_digest:agent1": {
+    "digest": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
+    "timestamp": 1746776123.3892417,
+    "agent_name": "agent1"
+  },
+  "final_digests:agent1": [
+    {
+      "final_digest": "16f47da2553e97a5fc09e9563f4569f5f2bb076787462abf0ffd9c74f637a883",
+      "threshold": 300,
+      "timestamp": 1746790371.4871929
+    },
+    {
+      "final_digest": "16f47da2553e97a5fc09e9563f4569f5f2bb076787462abf0ffd9c74f637a883",
+      "threshold": 300,
+      "timestamp": 1746790381.690158
+    },
+    {
+      "final_digest": "16f47da2553e97a5fc09e9563f4569f5f2bb076787462abf0ffd9c74f637a883",
+      "threshold": 300,
+      "timestamp": 1746790391.288645
+    },
+    {
+      "final_digest": "16f47da2553e97a5fc09e9563f4569f5f2bb076787462abf0ffd9c74f637a883",
+      "threshold": 300,
+      "timestamp": 1746790401.4880254
+    },
+    {
+      "final_digest": "16f47da2553e97a5fc09e9563f4569f5f2bb076787462abf0ffd9c74f637a883",
+      "threshold": 300,
+      "timestamp": 1746790473.88727
+    },
+    {
+      "final_digest": "16f47da2553e97a5fc09e9563f4569f5f2bb076787462abf0ffd9c74f637a883",
+      "threshold": 300,
+      "timestamp": 1746790482.988403
+    }
+  ]
+}
