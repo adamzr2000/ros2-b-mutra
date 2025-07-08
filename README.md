@@ -462,60 +462,26 @@ Attestation measurements:
 ## Blockchain Network Setup
 1. Initialize the network
 ```bash
-cd dlt-network/geth-poa
-sudo ./start_geth_poa_network.sh
+cd blockchain-network/geth-poa
+sudo ./start_geth_net.sh
 ```
 
 Access the `eth-netsats` web interface for additional information at [http://10.5.99.99:3000](http://10.5.99.99:3000)
 
 2. Deploy the [MasMutualAttestation](./smart-contracts/contracts/MasMutualAttestation.sol) smart contract
 ```bash
-./deploy_smart_contract.sh --node-ip 10.0.1.1 --ws-port 3334 
+cd ../..
+./deploy_smart_contract.sh --node-ip 10.0.1.1 --port 3334 --protocol http 
 ```
 
 3. Stop the network
 ```bash
-cd dlt-network/geth-poa
-sudo ./stop_geth_poa_network.sh
+cd blockchain-network/geth-poa
+sudo ./stop_geth_net.sh
 ```
 
-<!-- ## Usage
 
-1. Start the experimental scenario
-```bash
-docker compose up -d
-```
-
-2. Run blockchain-based attestation on SECaaS
-Execute the mutual attestation script inside the `secaas` container:
-
-```bash
-docker exec -it secaas bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant secaas"
-```
-
-3. Run blockchain-based attestation on Robots
-Execute the mutual attestation script for each `robot` container:
-
-```bash
-docker exec -it robot1 bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
-```
-
-```bash
-docker exec -it robot2 bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
-```
-
-```bash
-docker exec -it robot3 bash -c "source ~/.profile && cd ~/scripts && python3 mas_mutual_attestation.py --participant agent --bootstrap"
-```
-
-4. Stop the experimental scenario
-```bash
-docker compose down
-```
-
-Run the `./cleanup.sh` script to clean up all resources after testing.
-
-## Utilities
+<!-- ## Utilities
 
 ### Create scenario configuration
 ```bash
