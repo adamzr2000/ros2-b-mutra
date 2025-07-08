@@ -1,9 +1,0 @@
-{
-    "name": "robot5",
-    "uuid": "7c47e686-accf-46d7-8c3f-db0e841baa94",
-    "eth_address": "0x58730E3CC767bC8Bf4E19aF0959BA8796D59bD2f",
-    "private_key": "42600efdcee6fc71b2700bf9e3753318e186208f7d84508ed2a8fc7d3abff003",
-    "eth_node": "ws://10.0.1.6:3339",
-    "contract_address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9",
-    "ref_signature": "c013a51fdd291a9ecd38a4e78923a4021f760d02b90df133a54f5e2d425bf979"
-}

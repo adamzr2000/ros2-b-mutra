@@ -1,9 +1,0 @@
-{
-    "name": "robot10",
-    "uuid": "cade9b3a-e1f1-4511-9a6f-c7821642a9fa",
-    "eth_address": null,
-    "private_key": null,
-    "eth_node": null,
-    "contract_address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9",
-    "ref_signature": "68580faae12101f2c7e3607d6bd633cc6cfd8f070bf645632cec334e3ed432a2"
-}

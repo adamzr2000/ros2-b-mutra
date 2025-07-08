@@ -26,7 +26,7 @@ services:
     stdin_open: true
     command: *gzserver_command
     networks:
-      - dlt_network
+      - blockchain_network
 
   gazebo-client:
     image: gazebo-vnc:latest
@@ -43,7 +43,7 @@ services:
       - seccomp=unconfined
     restart: unless-stopped
     networks:
-      - dlt_network
+      - blockchain_network
 
   secaas:
     container_name: secaas
@@ -60,14 +60,12 @@ services:
     stdin_open: true
     tty: true 
     networks:
-      - dlt_network
+      - blockchain_network
 
   robot1:
     image: ros2-agent:latest
     container_name: robot1
     hostname: robot1
-    volumes:
-      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -80,7 +78,7 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - dlt_network
+      - blockchain_network
 
   sidecar-measurer-robot1:
     container_name: sidecar-measurer-robot1
@@ -117,7 +115,7 @@ services:
         limits:
           cpus: '0.1'
     networks:
-      - dlt_network
+      - blockchain_network
 
   sidecar-controller-robot1:
     container_name: sidecar-controller-robot1
@@ -135,14 +133,12 @@ services:
     stdin_open: true
     tty: true 
     networks:
-      - dlt_network
+      - blockchain_network
 
   robot2:
     image: ros2-agent:latest
     container_name: robot2
     hostname: robot2
-    volumes:
-      - "./dockerfiles/turtlebot3/ros2-scripts:/home/agent/ros2-scripts"
     environment:
         - ROS_DOMAIN_ID=42
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
@@ -155,7 +151,7 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - dlt_network
+      - blockchain_network
 
   sidecar-measurer-robot2:
     container_name: sidecar-measurer-robot2
@@ -192,7 +188,7 @@ services:
         limits:
           cpus: '0.1'
     networks:
-      - dlt_network
+      - blockchain_network
 
   sidecar-controller-robot2:
     container_name: sidecar-controller-robot2
@@ -210,7 +206,79 @@ services:
     stdin_open: true
     tty: true 
     networks:
-      - dlt_network
+      - blockchain_network
+
+  robot3:
+    image: ros2-agent:latest
+    container_name: robot3
+    hostname: robot3
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot2
+        - X_POSE=10
+        - Y_POSE=15
+    command: *robot_entrypoint
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - blockchain_network
+  sidecar-measurer-robot3:
+    container_name: sidecar-measurer-robot3
+    build:
+      context: ./dockerfiles/sidecar-measurer
+    ports:
+      - "8083:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./measurements/:/measurements:rw
+      - ./jsonfiles/:/jsonfiles:rw
+      - ./binaryfiles/:/binaryfiles:rw
+      - ./smart-contracts:/smart-contracts
+    environment:
+      - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
+      - CONTAINER=robot3
+      - AGENT_NAME=robot3
+      - LOG_LEVEL=debug # or "debug", "warning", "error", "critical", or leave empty to disable custom level
+      - USE_REDIS=FALSE
+      - BOOTSTRAP=FALSE
+      - AUTO_START=TRUE
+      - PROC_COMM=robot_state_pub
+      - CONFIGSIDECAR=/jsonfiles/robot3.json
+      - MEMORY_STORAGE_FILE=/measurements/robot3_measurements.json
+      - THRESHOLD=500
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+    pid: "container:robot2"
+    depends_on:
+      - robot3
+    cap_add:
+      - SYS_PTRACE
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+    networks:
+      - blockchain_network
+
+  sidecar-controller-robot3:
+    container_name: sidecar-controller-robot3
+    build:
+      context: ./dockerfiles/sidecar-controller
+    environment:
+      - PARTICIPANT=agent
+      - CONFIG_PATH=/config/robot3.json
+      - EXPORT_RESULTS=FALSE
+    volumes:
+      - "./config/robot3.json:/config/robot3.json"
+      - "./smart-contracts:/smart-contracts"
+      - "./dockerfiles/sidecar-controller/app:/app"
+      - "./experiments/:/experiments:rw"
+    stdin_open: true
+    tty: true 
+    networks:
+      - blockchain_network
   db:
     image: postgres:12
     container_name: db
@@ -225,7 +293,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_DB=${POSTGRES_DB}
     networks:
-      - dlt_network
+      - blockchain_network
 
   redis:
     image: redis:alpine
@@ -234,7 +302,7 @@ services:
     ports:
       - "6379:6379"
     networks:
-      - dlt_network
+      - blockchain_network
 
   secaas-wrapper:
     container_name: secaas-wrapper
@@ -260,8 +328,8 @@ services:
       - REDIS_PORT=6379
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     networks:
-      - dlt_network
+      - blockchain_network
 
 networks:
-  dlt_network:
+  blockchain_network:
     external: true

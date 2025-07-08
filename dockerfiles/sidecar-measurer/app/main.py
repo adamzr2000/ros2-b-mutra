@@ -104,7 +104,14 @@ try:
         raise ValueError("ETH_NODE_URL or CONTRACT_ADDRESS not set.")
     logging.info(f"Connecting to Ethereum node at {eth_node_url}")
 
-    web3 = Web3(Web3.WebsocketProvider(eth_node_url))
+    # Auto detect protocol and clean URL
+    if eth_node_url.startswith("ws://"):
+        web3 = Web3(Web3.WebsocketProvider(eth_node_url))
+    elif eth_node_url.startswith("http://"):
+        web3 = Web3(Web3.HTTPProvider(eth_node_url))
+    else:
+        raise ValueError("eth_node_url must start with ws:// or http://")
+    
     web3.middleware_onion.inject(geth_poa_middleware, layer=0)
 
     if not web3.isConnected():

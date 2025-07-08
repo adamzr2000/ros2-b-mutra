@@ -6,7 +6,7 @@ import uuid
 from dotenv import dotenv_values
 
 # Load blockchain and contract environment configuration
-geth_config_env_file = dotenv_values('./dlt-network/geth-poa/.env')
+geth_config_env_file = dotenv_values('./blockchain-network/geth-poa/.env')
 contract_env_file = dotenv_values('./smart-contracts/smart-contract.env')
 
 # Extract contract address
@@ -38,7 +38,7 @@ def create_agent_config(agent_index, node_index, output_directory):
         "ref_signature": generate_fake_hash(f"robot{agent_index}")
     }
 
-    filename = f"Agent_{agent_index}.json"
+    filename = f"robot{agent_index}.json"
     filepath = os.path.join(output_directory, filename)
     
     with open(filepath, "w") as file:
@@ -59,7 +59,7 @@ def create_secaas_config(output_directory):
         "contract_address": contract_address,
     }
 
-    filename = "Secaas.json"
+    filename = "secaas.json"
     filepath = os.path.join(output_directory, filename)
     
     with open(filepath, "w") as file:
@@ -108,7 +108,7 @@ services:
     stdin_open: true
     command: *gzserver_command
     networks:
-      - dlt_network
+      - blockchain_network
 
   gazebo-client:
     image: gazebo-vnc:latest
@@ -125,7 +125,7 @@ services:
       - seccomp=unconfined
     restart: unless-stopped
     networks:
-      - dlt_network
+      - blockchain_network
 
   secaas:
     image: ros2-agent:latest
@@ -138,11 +138,11 @@ services:
     stdin_open: true
     tty: true    
     networks:
-      - dlt_network
+      - blockchain_network
 '''
 
     for i in range(1, num_agents + 1):
-        agent_filename = f"Agent_{i}.json"
+        agent_filename = f"robot{i}.json"
         agent_name = f"robot{i}"
         x_pose, y_pose = calculate_position(i)
 
@@ -166,12 +166,12 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - dlt_network
+      - blockchain_network
 '''
 
     compose_content += '''
 networks:
-  dlt_network:
+  blockchain_network:
     external: true
 '''
 
@@ -196,6 +196,6 @@ if __name__ == "__main__":
         create_agent_config(i, i+1, output_directory)  # Increment node index dynamically
 
     # Generate Docker Compose file in `./`
-    generate_docker_compose(num_agents)
+    # generate_docker_compose(num_agents)
 
     print(f"Successfully created {num_agents} agent configurations in {output_directory} and docker-compose.yml in current directory.")

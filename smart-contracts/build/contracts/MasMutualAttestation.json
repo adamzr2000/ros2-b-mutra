@@ -24397,12 +24397,12 @@
     "2024": {
       "events": {},
       "links": {},
-      "address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9",
-      "transactionHash": "0xb9cb745b0ec6fa629b7cee2b01b694fc62cc13fd853b4d75acb66f03b0c0d159"
+      "address": "0x6eFf06A09e208360AD229111d69a033EcEbDe972",
+      "transactionHash": "0x42eae11f34e15442703900afd6e8905d9df5a39116afb90fb63ddbf35a93b06d"
     }
   },
   "schemaVersion": "3.4.16",
-  "updatedAt": "2025-07-07T11:17:15.166Z",
+  "updatedAt": "2025-07-08T07:18:45.708Z",
   "networkType": "ethereum",
   "devdoc": {
     "kind": "dev",

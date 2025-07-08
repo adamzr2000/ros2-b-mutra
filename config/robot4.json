@@ -1,9 +1,0 @@
-{
-    "name": "robot4",
-    "uuid": "fe204386-2658-4bea-9ead-b4b1081eb4ed",
-    "eth_address": "0x3E29Ac21e5Fb48c09A8D33a11e9548e5aa8BBB69",
-    "private_key": "fb0e267605db9b2665b7df84a30b192cc609d96c781518a87aca51af7e299c1d",
-    "eth_node": "ws://10.0.1.5:3338",
-    "contract_address": "0x4ab30EdE3e64670b643ef8F47407f36BD8bD73a9",
-    "ref_signature": "9b428975b95a1b3227c1fd5a466f938dec0b5d88ea2be39be4dbf8c53d31c84b"
-}

@@ -6,16 +6,16 @@ module.exports = {
       network_id: "*"
     },
 
-    dlt_network: {
+    geth_network_ws: {
       host: process.env.NODE_IP,
-      port: process.env.WS_PORT,
-      network_id: "2024",
+      port: process.env.PORT,
+      network_id: process.env.NETWORK_ID,
       websockets: true
     },
-    dlt_network_http: {
+    geth_network_http: {
       host: process.env.NODE_IP,
-      port: process.env.HTTP_PORT,
-      network_id: "2024",
+      port: process.env.PORT,
+      network_id: process.env.NETWORK_ID,
       websockets: false
     },
   },
