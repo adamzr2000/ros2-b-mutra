@@ -5,6 +5,7 @@ import hashlib
 import logging
 import threading
 import time
+import random
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,11 +14,11 @@ from compute_hash import compute_program_hash, ComputeHashError
 from RedisStorageBackend import RedisStorageBackend
 from MemoryStorageBackend import MemoryStorageBackend
 import sys
+import requests
 
 from web3 import Web3
-from web3.middleware import geth_poa_middleware
-from agent_logic import handle_agent_logic
-import blockchain_interface
+# from agent_logic import handle_agent_logic
+from blockchain_interface import BlockchainInterface, MasMutualAttestationContractEvents
 
 load_dotenv()
 
@@ -64,19 +65,14 @@ final_digest = ""
 
 app = FastAPI()
 
-
-# Charger les variables d'environnement nécessaires ou définir les chemins ici
+# === Environment Variables ===
 eth_node_url = os.getenv('ETH_NODE_URL', '')
 #contract_address = os.getenv('CONTRACT_ADDRESS', '')
 abi_path = os.getenv('CONTRACT_ABI_PATH', '')
-
-web3 = None
-mas_contract = None
-contract_abi = None
-
-# Load configuration
 json_file_path = os.getenv("CONFIGSIDECAR", "")
+sidecar_controller_endpoint = os.getenv('SIDECAR_CONTROLLER_ENDPOINT', '')
 
+# === Configuration Loading ===
 try:
     with open(json_file_path, "r") as json_file:
         data = json.load(json_file)
@@ -86,25 +82,19 @@ try:
     eth_node_url = data["eth_node"]
     contract_address = Web3.toChecksumAddress(data["contract_address"])
 
-except FileNotFoundError:
-    logging.error(f"Configuration file not found: {json_file_path}")
-    sys.exit(1)
-except KeyError as e:
-    logging.error(f"Missing key {e} in configuration file")
-    sys.exit(1)
 except Exception as e:
-    logging.error(f"Unexpected error: {str(e)}")
+    logging.error(f"Configuration error: {str(e)}")
     sys.exit(1)
 
 logging.info(f"Configuration loaded from {json_file_path}")
 
-# Initialize Web3 + contract via blockchain_interface
-mas_contract=blockchain_interface.init_web3_interface(
-    _eth_address    = eth_address,
-    _private_key    = private_key,
-    eth_node_url    = eth_node_url,
-    abi_path        = abi_path,
-    contract_address= contract_address
+# Initialize blockchain interface
+blockchain_interface = BlockchainInterface(
+    eth_address=eth_address,
+    private_key=private_key,
+    eth_node_url=eth_node_url,
+    abi_path=abi_path,
+    contract_address=contract_address
 )
 
 app.add_middleware(
@@ -115,6 +105,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def generate_attestation_id():
+    timestamp = int(time.time())                     # 10 digits
+    rand_suffix = f"{random.randint(1000, 9999)}"    # 4 digits
+    return f"attestation{timestamp % 1000000000}{rand_suffix}"
 
 def read_and_validate_config():
     """Lire et valider la configuration pour l'attestation"""
@@ -230,8 +224,8 @@ def attestation_process_bootstrap():
 
         logging.info(f"Digest and timestamp stored in storage with key bootstrap_digest:{agent_name}")
         # --- Appel logique agent/prover ici ---
-        # Exemple d'appel pour agent avec les paramètres web3 et private_key
-        blockchain_interface.request_attestation(eth_address, mas_contract)
+        attestation_id = generate_attestation_id
+        blockchain_interface.request_attestation(attestation_id)
         time.sleep(3)  # Attendre un peu pour s'assurer que l'attestation est traitée
 
     else:
@@ -308,10 +302,17 @@ def attestation_process_continuous():
                     "timestamp": time.time()
                 })
 
-                logging.info("Requesting attestation...")
-                blockchain_interface.request_attestation(eth_address, mas_contract)
-                time.sleep(3)  # Attendre un peu pour s'assurer que l'attestation est traitée
-
+                try:
+                    logging.info(f"Sending attestation request to sidecar-controller at '{sidecar_controller_endpoint}'")
+                    response = requests.post(f"{sidecar_controller_endpoint}/request_attestation/{final_digest}")
+                    response.raise_for_status()
+                    logging.info(f"Sidecar response: {response.json()}")
+                except requests.exceptions.RequestException as e:
+                    logging.error(f"Failed to send attestation request to sidecar-controller: {e}")
+                
+                attestation_id = generate_attestation_id()
+                blockchain_interface.request_attestation(attestation_id)
+                # time.sleep(3) 
                 
                 logging.info(f"Final digest stored in key: final_digests:{agent_name}")
                 digests = []

@@ -2,6 +2,13 @@
 import os
 import json
 import csv
+import time
+import random
+
+def generate_attestation_id():
+    timestamp = int(time.time())                     # 10 digits
+    rand_suffix = f"{random.randint(1000, 9999)}"    # 4 digits
+    return f"attestation{timestamp % 1000000000}{rand_suffix}"
 
 def get_agent_by_name(directory: str, target_name: str):
     

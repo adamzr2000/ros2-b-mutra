@@ -54,9 +54,14 @@ class BlockchainInterface:
         build_transaction['nonce'] = nonce
 
         # Bump the gas price slightly to avoid underpriced errors
-        base_gas_price = self.web3.eth.gas_price
-        print(build_transaction)
-        # build_transaction['gasPrice'] = int(base_gas_price * 1.1)  # +10%
+        # If not using EIP-1559, inject legacy gasPrice
+        if 'maxFeePerGas' not in build_transaction and 'maxPriorityFeePerGas' not in build_transaction:
+            base_gas_price = self.web3.eth.gas_price
+            build_transaction['gasPrice'] = int(base_gas_price * 1.1)
+
+        # Else (EIP-1559): Optional tweak to bump the maxFeePerGas slightly
+        elif 'maxFeePerGas' in build_transaction:
+            build_transaction['maxFeePerGas'] = int(build_transaction['maxFeePerGas'] * 1.1)
 
         signed_txn = self.web3.eth.account.signTransaction(build_transaction, self.private_key)
         tx_hash = self.web3.eth.sendRawTransaction(signed_txn.rawTransaction)
@@ -159,9 +164,9 @@ class BlockchainInterface:
         except Exception as e:
             raise Exception(f"An error occurred while calling the function: {str(e)}")
 
-    def request_attestation(self):
+    def request_attestation(self, attestation_id):
         try:
-            tx_data = self.contract.functions.RequestAttestation().buildTransaction({'from': self.eth_address})
+            tx_data = self.contract.functions.RequestAttestation(id=self.web3.toBytes(text=attestation_id)).buildTransaction({'from': self.eth_address})
             tx_hash = self.send_signed_transaction(tx_data)
             return tx_hash
         
@@ -195,7 +200,7 @@ class BlockchainInterface:
 
     def is_prover_agent(self, attestation_id):
         try:
-            result = self.contract.functions.IsProver(self.web3.toBytes(hexstr=attestation_id), self.eth_address).call()
+            result = self.contract.functions.IsProver(self.web3.toBytes(text=attestation_id), self.eth_address).call()
             return result
         
         except Exception as e:
@@ -203,7 +208,7 @@ class BlockchainInterface:
 
     def is_verifier_agent(self, attestation_id):
         try:
-            result = self.contract.functions.IsVerifier(self.web3.toBytes(hexstr=attestation_id), self.eth_address).call()
+            result = self.contract.functions.IsVerifier(self.web3.toBytes(text=attestation_id), self.eth_address).call()
             return result
         
         except Exception as e:
@@ -212,7 +217,7 @@ class BlockchainInterface:
     def send_fresh_signature(self, attestation_id, fresh_signature):
         try:
             tx_data = self.contract.functions.SendFreshSignaure(
-                self.web3.toBytes(hexstr=attestation_id), 
+                self.web3.toBytes(text=attestation_id), 
                 self.web3.toBytes(hexstr=f"0x{fresh_signature}") 
             ).buildTransaction({'from': self.eth_address})
             
@@ -225,7 +230,7 @@ class BlockchainInterface:
     def send_reference_signature(self, attestation_id, reference_signature):
         try:
             tx_data = self.contract.functions.SendRefSignaure(
-                self.web3.toBytes(hexstr=attestation_id), 
+                self.web3.toBytes(text=attestation_id), 
                 self.web3.toBytes(hexstr=f"0x{reference_signature}") 
             ).buildTransaction({'from': self.eth_address})
             
@@ -237,7 +242,7 @@ class BlockchainInterface:
     
     def get_attestation_measurements(self, attestation_id):
         try:
-            fresh_signature, reference_signature = self.contract.functions.GetAttestationMeasurements(self.web3.toBytes(hexstr=attestation_id), self.eth_address).call()
+            fresh_signature, reference_signature = self.contract.functions.GetAttestationMeasurements(self.web3.toBytes(text=attestation_id), self.eth_address).call()
             return self.web3.toHex(fresh_signature), self.web3.toHex(reference_signature)
         
         except Exception as e:
@@ -246,7 +251,7 @@ class BlockchainInterface:
     def send_attestation_result(self, attestation_id, verified):
         try:
             tx_data = self.contract.functions.CloseAttestationProcess(
-                self.web3.toBytes(hexstr=attestation_id),
+                self.web3.toBytes(text=attestation_id),
                 verified
             ).buildTransaction({'from': self.eth_address})
             
@@ -267,7 +272,7 @@ class BlockchainInterface:
 
     def get_prover_uuid(self, attestation_id):
         try:
-            retrieved_uuid_bytes  = self.contract.functions.GetProverUUID(self.web3.toBytes(hexstr=attestation_id), self.eth_address).call()
+            retrieved_uuid_bytes  = self.contract.functions.GetProverUUID(self.web3.toBytes(text=attestation_id), self.eth_address).call()
             retrieved_uuid_str = uuid.UUID(bytes=retrieved_uuid_bytes).hex
             return retrieved_uuid_str
         
@@ -284,7 +289,7 @@ class BlockchainInterface:
       
     def get_attestation_info(self, attestation_id):
         try:
-            prover_address, verifier_address, attestation_result, timestamp  = self.contract.functions.GetAttestationInfo(self.web3.toBytes(hexstr=attestation_id)).call()
+            prover_address, verifier_address, attestation_result, timestamp  = self.contract.functions.GetAttestationInfo(self.web3.toBytes(text=attestation_id)).call()
             return prover_address, verifier_address, attestation_result, timestamp
         
         except Exception as e:
@@ -292,7 +297,7 @@ class BlockchainInterface:
 
     def get_attestation_state(self, attestation_id):
         try:
-            attestation_state  = self.contract.functions.GetAttestationState(self.web3.toBytes(hexstr=attestation_id)).call()
+            attestation_state  = self.contract.functions.GetAttestationState(self.web3.toBytes(text=attestation_id)).call()
             return attestation_state
         
         except Exception as e:
@@ -329,8 +334,8 @@ class BlockchainInterface:
         # Get only the last `last_n` attestations
         recent_chain = attestation_chain[-last_n:]
 
-        for i, attestation_id_bytes in enumerate(recent_chain, start=1):
-            attestation_id = attestation_id_bytes.hex()
+        for i, attestation_id in enumerate(recent_chain, start=1):
+            attestation_id = attestation_id.rstrip(b'\x00').decode('utf-8')
             prover_address, verifier_address, attestation_result, timestamp = self.get_attestation_info(attestation_id)
             status = "✅ SUCCESS" if attestation_result == 2 else "❌ FAILURE"
             table.add_row([i, attestation_id, prover_address, verifier_address, status, timestamp])

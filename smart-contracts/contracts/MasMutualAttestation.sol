@@ -136,12 +136,12 @@ contract MasMutualAttestation {
     } 
 
 
-    function RequestAttestation() public {
+    function RequestAttestation(bytes32 id) public {
         Agent storage currentAgent = agent[msg.sender];
         require(currentAgent.registered, "RequestAttestation : Agent is not registered");
 
-        // Generate unique attestation ID
-        bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
+        // // Generate unique attestation ID
+        // bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
 
         MutualAttestation storage currentAttestation = attestation[id];
         currentAttestation.id = id;

@@ -11,27 +11,36 @@ import threading
 from web3 import Web3
 from prettytable import PrettyTable
 
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
-# === Logging ===
+# Initialize logging
 # logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logging.basicConfig(format='%(asctime)s - %(levelname)s - [%(threadName)s] %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === Environment Variables ===
+# Read required environment variables
 participant = os.getenv("PARTICIPANT", "").lower()
 json_file_path = os.getenv("CONFIG_PATH", "")
+reset_chain_flag = os.getenv("RESET_CHAIN", "false").lower() == "true"
 bootstrap_flag = os.getenv("BOOTSTRAP", "false").lower() == "true"
+remove_agent_flag = os.getenv("REMOVE_AGENT", "false").lower() == "true"
 fail_attestation_flag = os.getenv("FAIL_ATTESTATION", "false").lower() == "true"
 export_results_flag = os.getenv("EXPORT_RESULTS", "false").lower() == "true"
 
+# Validate required env vars
 if participant not in ["agent", "secaas"]:
     logger.error('PARTICIPANT must be set to either "agent" or "secaas".')
     sys.exit(1)
 
 if not json_file_path:
     logger.error("CONFIG_PATH environment variable is required.")
+    sys.exit(1)
+
+# Validate flag usage based on participant role
+if participant == "secaas" and (bootstrap_flag or remove_agent_flag or fail_attestation_flag):
+    logger.error("Only agents can use BOOTSTRAP, REMOVE_AGENT, or FAIL_ATTESTATION.")
+    sys.exit(1)
+elif participant == "agent" and reset_chain_flag:
+    logger.error("Only SECaaS can use RESET_CHAIN.")
     sys.exit(1)
 
 # Print selected values
@@ -41,7 +50,7 @@ print(f"  - Export results    : {'Enabled' if export_results_flag else 'Disabled
 print(f"  - Bootstrap mode    : {'Enabled' if bootstrap_flag else 'Disabled'}")
 print(f"  - Fail mode         : {'Enabled' if fail_attestation_flag else 'Disabled'}")
 
-# === Configuration Loading ===
+# Load configuration
 try:
     with open(json_file_path, "r") as json_file:
         data = json.load(json_file)
@@ -56,12 +65,21 @@ try:
         agent_uuid = data["uuid"]
         reference_measurement = data["ref_signature"]
 
+except FileNotFoundError:
+    logger.error(f"Configuration file not found: {json_file_path}")
+    sys.exit(1)
+except KeyError as e:
+    logger.error(f"Missing key {e} in configuration file")
+    sys.exit(1)
 except Exception as e:
-    logger.error(f"Configuration error: {str(e)}")
+    logger.error(f"Unexpected error: {str(e)}")
     sys.exit(1)
 
-# === Blockchain Initialization ===
+
+# Initialize Web3 + contract via blockchain_interface
 abi_path    = "/smart-contracts/build/contracts/MasMutualAttestation.json"
+
+# Initialize blockchain interface
 blockchain_interface = BlockchainInterface(
     eth_address=eth_address,
     private_key=private_key,
@@ -72,9 +90,6 @@ blockchain_interface = BlockchainInterface(
 
 seen_events = set()
 active_attestations = {}  # attestation_id → Thread
-
-# === FastAPI App ===
-app = FastAPI()
 
 def handle_verifier_logic(attestation_id, last_n_blocks):
     """Handles Verifier agent logic."""
@@ -98,8 +113,7 @@ def handle_verifier_logic(attestation_id, last_n_blocks):
 
     # Compare measurements
     logger.info("Comparing hashes...")
-    # result = fresh_signature == reference_signature
-    result = True
+    result = fresh_signature == reference_signature
 
     # Save attestation result
     tx_hash = blockchain_interface.send_attestation_result(attestation_id, result)
@@ -193,8 +207,7 @@ def handle_agent_logic_multi_thread(seen_events, agent_uuid, fail_attestation_fl
         for event in attestation_events:
             tx_hash = event['transactionHash'].hex()
             if tx_hash not in seen_events:
-                attestation_id = Web3.toText(event['args']['id'])
-
+                attestation_id = event["args"]["id"].hex()
 
                 current_attestation_state = blockchain_interface.get_attestation_state(attestation_id)
                 if current_attestation_state in [0, 1]:  # Open or SecaasResponded
@@ -211,7 +224,7 @@ def handle_agent_logic_multi_thread(seen_events, agent_uuid, fail_attestation_fl
             
             logger.info(f"Processing attestation: {attestation_id}")
             short_id = attestation_id[:4]
-            thread_name = f"AgentThread-Attest-{short_id}"
+            thread_name = f"Attest-{short_id}"
 
             t = threading.Thread(
                 target=_process_attestation,
@@ -227,6 +240,60 @@ def handle_agent_logic_multi_thread(seen_events, agent_uuid, fail_attestation_fl
         # nothing to block on here — immediately loop again
         time.sleep(1)
 
+def handle_agent_logic(seen_events, agent_uuid, fail_attestation_flag: bool = False, last_n_blocks: int = None):
+    """Handles Agent registration and attestation process with support for multiple attestation events."""
+    logger.info("Subscribed to attestation events...")
+    while True:
+        new_attestation_event_filter = blockchain_interface.create_event_filter(MasMutualAttestationContractEvents.ATTESTATION_STARTED, last_n_blocks)
+        
+        attestation_queue = []
+
+        # Collect all new valid attestation events
+        attestation_events = new_attestation_event_filter.get_all_entries()
+        for event in attestation_events:
+            tx_hash = event['transactionHash'].hex()
+            if tx_hash not in seen_events:
+                attestation_id = event["args"]["id"].hex()
+
+                current_attestation_state = blockchain_interface.get_attestation_state(attestation_id)
+                if current_attestation_state in [0, 1]:  # Open or SecaasResponded
+                    seen_events.add(tx_hash)
+                    attestation_queue.append((attestation_id, tx_hash))
+
+        if attestation_queue:
+            logger.info(f"Found {len(attestation_queue)} new attestation(s)…\n")
+
+        if not attestation_queue:
+            logger.debug("No new attestation events found. Sleeping before next poll...")
+            time.sleep(3)
+            continue
+
+        # Process each attestation ID sequentially
+        for attestation_id, tx_hash in attestation_queue:
+            logger.info(f"Processing attestation: {attestation_id}")
+
+            is_verifier = blockchain_interface.is_verifier_agent(attestation_id)
+            is_prover = blockchain_interface.is_prover_agent(attestation_id)
+
+            start_time = time.time()
+
+            if is_verifier:
+                logger.info("You are the Verifier agent!\n")
+                logger.info("Waiting for responses from SECaaS and Prover...")
+                handle_verifier_logic(attestation_id, last_n_blocks)
+                duration = time.time() - start_time
+                logger.info(f"Attestation duration (Verifier perspective): {duration:.2f} seconds\n")
+
+            elif is_prover:
+                logger.info("You are the Prover agent!\n")
+                handle_prover_logic(attestation_id, agent_uuid, last_n_blocks, fail_attestation_flag)
+                duration = time.time() - start_time
+                logger.info(f"Attestation duration (Prover perspective): {duration:.2f} seconds\n")
+
+            else:
+                logger.warning("You are not involved in this attestation. Ignoring...\n") 
+                time.sleep(3)
+                continue
 
 def handle_secaas_logic(seen_events, last_n_blocks: int = None):
     """Handles SECaaS logic with support for multiple attestation events."""
@@ -248,7 +315,7 @@ def handle_secaas_logic(seen_events, last_n_blocks: int = None):
         for event in attestation_events:
             tx_hash = event['transactionHash'].hex()
             if tx_hash not in seen_events:
-                attestation_id = Web3.toText(event['args']['id'])
+                attestation_id = event["args"]["id"].hex()
                 current_state = blockchain_interface.get_attestation_state(attestation_id)
                 if current_state in [0, 2]:  # Open or ProverResponded
                     seen_events.add(tx_hash)
@@ -295,59 +362,26 @@ def handle_secaas_logic(seen_events, last_n_blocks: int = None):
             except Exception as e:
                 logger.error(f"Error while processing attestation '{attestation_id}': {e}")
 
-@app.on_event("startup")
-def auto_start_attestation():
-    logger.info("Sidecar controller started. Auto-starting attestation...")
-
-    if participant == 'secaas':
-        thread = threading.Thread(
-            target=handle_secaas_logic,
-            args=(seen_events, 10),
-            name="SECaaSThread",
-            daemon=True
-        )
-        thread.start()
-        logger.info("SECaaS attestation loop started")
-
-    elif participant == 'agent':
-        logger.info(f"Registering agent with UUID: {agent_uuid}...")
-        tx_hash = blockchain_interface.register_agent(agent_uuid)
-        logger.info(f"Agent registered | Tx Hash: {tx_hash}")
-        time.sleep(3)
-
-        thread = threading.Thread(
-            target=handle_agent_logic_multi_thread,
-            args=(seen_events, agent_uuid, fail_attestation_flag, 10),
-            name="AgentThread",
-            daemon=True
-        )
-        thread.start()
-        logger.info("Agent attestation loop started")
-
-@app.post("/request_attestation/{measurement}")
-def request_attestation(measurement: str):
-    attestation_id = utils.generate_attestation_id()
-    return {"message": "Attestation requested", "measurement": measurement, "attestation_id": attestation_id}
-
-@app.get("/")
-def root_endpoint():
-    return {"message": "Sidecar controller running."}
-
-@app.get("/attestation_chain")
-def get_attestation_chain_endpoint():
+if __name__ == "__main__":
     try:
-        chain = blockchain_interface.get_attestation_chain()
-        latest = chain[-10:]
-        return {"last_attestations": [a.hex() for a in latest]}
+        if participant == 'secaas':
+            if reset_chain_flag:
+                logger.info(f"Reset Chain       : {'Enabled' if reset_chain_flag else 'Disabled'}")
+                logger.info("Resetting attestation chain...")
+                tx_hash = blockchain_interface.reset_attestation_chain()
+                logger.info(f"Attestation chain reset | Tx Hash: {tx_hash}")
+                sys.exit(1)
+
+            handle_secaas_logic(seen_events, last_n_blocks=10)
+
+        elif participant == 'agent':
+            logging.info(f"Registering agent with UUID: {agent_uuid}...")
+            tx_hash = blockchain_interface.register_agent(agent_uuid)
+            logging.info(f"Agent registered | Tx Hash: {tx_hash}")
+            time.sleep(3)
+
+            handle_agent_logic_multi_thread(seen_events, agent_uuid, fail_attestation_flag, last_n_blocks=10)
+
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-    
-@app.post("/reset")
-def reset_attestation_chain():
-    if participant != "secaas":
-        return JSONResponse(status_code=403, content={"error": "Only SECaaS can reset the chain."})
-    try:
-        tx_hash = blockchain_interface.reset_attestation_chain()
-        return {"message": "Chain reset", "tx_hash": tx_hash}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+            print(f"An error occurred in the main execution: {str(e)}")
+            sys.exit(1)

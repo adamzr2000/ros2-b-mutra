@@ -24,4 +24,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ .
 
 # Set the entrypoint to execute main.py
-ENTRYPOINT ["python3", "main.py"]
+# ENTRYPOINT ["python3", "main.py"]
+ENTRYPOINT ["python3", "-m", "uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8080"]
