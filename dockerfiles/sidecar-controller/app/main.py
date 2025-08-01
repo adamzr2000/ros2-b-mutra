@@ -4,8 +4,7 @@ import json
 import argparse
 import time
 import utils
-import blockchain_interface
-# import blockchain_interface_multi_thread as blockchain_interface
+from blockchain_interface import BlockchainInterface, MasMutualAttestationContractEvents
 import os
 import threading
 
@@ -79,31 +78,34 @@ except Exception as e:
 
 # Initialize Web3 + contract via blockchain_interface
 abi_path    = "/smart-contracts/build/contracts/MasMutualAttestation.json"
-mas_contract= blockchain_interface.init_web3_interface(
-    _eth_address    = eth_address,
-    _private_key    = private_key,
-    eth_node_url    = eth_node_url,
-    abi_path        = abi_path,
-    contract_address= contract_address
+
+# Initialize blockchain interface
+blockchain_interface = BlockchainInterface(
+    eth_address=eth_address,
+    private_key=private_key,
+    eth_node_url=eth_node_url,
+    abi_path=abi_path,
+    contract_address=contract_address
 )
+
 seen_events = set()
 active_attestations = {}  # attestation_id → Thread
 
-def handle_verifier_logic(attestation_id, eth_address, contract, seen_events, last_n_blocks):
+def handle_verifier_logic(attestation_id, last_n_blocks):
     """Handles Verifier agent logic."""
     ready_for_evaluation = False 
     timestamps = {"start": time.time()}
 
     while ready_for_evaluation == False:
-        ready_for_evaluation = True if blockchain_interface.get_attestation_state(attestation_id, contract) == 3 else False
+        ready_for_evaluation = True if blockchain_interface.get_attestation_state(attestation_id) == 3 else False
         time.sleep(1)
 
     timestamps["evaluation_ready_received"] = time.time()
 
-    blockchain_interface.display_attestation_state(attestation_id, contract)
+    blockchain_interface.display_attestation_state(attestation_id)
 
     # Retrieve and compare measurements
-    fresh_signature, reference_signature = blockchain_interface.get_attestation_measurements(attestation_id, eth_address, contract)
+    fresh_signature, reference_signature = blockchain_interface.get_attestation_measurements(attestation_id)
 
     print(f"Attestation measurements:")
     print(f"  - Fresh Signature: {fresh_signature}")
@@ -114,13 +116,13 @@ def handle_verifier_logic(attestation_id, eth_address, contract, seen_events, la
     result = fresh_signature == reference_signature
 
     # Save attestation result
-    tx_hash = blockchain_interface.send_attestation_result(attestation_id, result, eth_address, contract)
+    tx_hash = blockchain_interface.send_attestation_result(attestation_id, result)
     timestamps["result_sent"] = time.time()
     logger.info(f"Attestation closed (Result: {'✅ SUCCESS' if result else '❌ FAILURE'})\n")
     if export_results_flag:
         utils.export_attestation_result_csv(agent_name, attestation_id, "verifier", "SUCCESS" if result else "FAILURE", timestamps)
 
-def handle_prover_logic(attestation_id, eth_address, contract, seen_events, agent_uuid, last_n_blocks, fail_attestation_flag):
+def handle_prover_logic(attestation_id, agent_uuid, last_n_blocks, fail_attestation_flag):
     """Handles Prover agent logic."""
 
     timestamps = {"start": time.time()}
@@ -138,21 +140,21 @@ def handle_prover_logic(attestation_id, eth_address, contract, seen_events, agen
 
     timestamps["signature_prepared"] = time.time()
     
-    tx_hash = blockchain_interface.send_fresh_signature(attestation_id, fresh_signature, eth_address, contract)
+    tx_hash = blockchain_interface.send_fresh_signature(attestation_id, fresh_signature)
     timestamps["signature_sent"] = time.time()
     logger.info(f"Fresh signature sent: {fresh_signature}\n")
 
     logger.info("Waiting for attestation to complete...")    
     attestation_closed = False 
     while attestation_closed == False:
-        attestation_closed = True if blockchain_interface.get_attestation_state(attestation_id, contract) == 4 else False
+        attestation_closed = True if blockchain_interface.get_attestation_state(attestation_id) == 4 else False
         time.sleep(1)
         
     timestamps["result_received"] = time.time()
-    blockchain_interface.display_attestation_state(attestation_id, contract)
+    blockchain_interface.display_attestation_state(attestation_id)
 
     # Retrieve attestation details
-    prover_address, verifier_address, attestation_result, timestamp = blockchain_interface.get_attestation_info(attestation_id, contract)
+    prover_address, verifier_address, attestation_result, timestamp = blockchain_interface.get_attestation_info(attestation_id)
     status = "SUCCESS" if attestation_result == 2 else "FAILURE"
 
     if export_results_flag:
@@ -166,22 +168,22 @@ def handle_prover_logic(attestation_id, eth_address, contract, seen_events, agen
     time.sleep(3)
     
 def _process_attestation(  # helper to wrap prover/verifier logic
-    attestation_id, eth_address, contract, seen_events,
+    attestation_id,
     agent_uuid, fail_attestation_flag, last_n_blocks
 ):
     start = time.time()
     role = None
     try:
         # Decide role
-        if blockchain_interface.is_verifier_agent(attestation_id, eth_address, contract):
+        if blockchain_interface.is_verifier_agent(attestation_id):
             role = "Verifier"
             logger.info("You are the Verifier agent! - starting work\n")
             logger.info("Waiting for responses from SECaaS and Prover...")
-            handle_verifier_logic(attestation_id, eth_address, contract, seen_events, last_n_blocks)
-        elif blockchain_interface.is_prover_agent(attestation_id, eth_address, contract):
+            handle_verifier_logic(attestation_id, last_n_blocks)
+        elif blockchain_interface.is_prover_agent(attestation_id):
             role = "Prover"
             logger.info("You are the Prover agent! - starting work\n")
-            handle_prover_logic(attestation_id, eth_address, contract, seen_events, agent_uuid, last_n_blocks, fail_attestation_flag)
+            handle_prover_logic(attestation_id, agent_uuid, last_n_blocks, fail_attestation_flag)
         else:
             logger.warning("You are not involved in this attestation. Ignoring...\n") 
             time.sleep(3)
@@ -192,11 +194,11 @@ def _process_attestation(  # helper to wrap prover/verifier logic
         elapsed = time.time() - start
         logger.info(f"{role} duration: {elapsed:.2f}s")
 
-def handle_agent_logic_multi_thread(eth_address, contract, seen_events, agent_uuid, fail_attestation_flag: bool = False, last_n_blocks: int = None):
+def handle_agent_logic_multi_thread(seen_events, agent_uuid, fail_attestation_flag: bool = False, last_n_blocks: int = None):
     """Handles Agent registration and attestation process with support for multiple attestation events."""
     logger.info("Subscribed to attestation events...")
     while True:
-        new_attestation_event_filter = blockchain_interface.create_event_filter(contract, blockchain_interface.MasMutualAttestationContractEvents.ATTESTATION_STARTED, last_n_blocks)
+        new_attestation_event_filter = blockchain_interface.create_event_filter(MasMutualAttestationContractEvents.ATTESTATION_STARTED, last_n_blocks)
         
         attestation_queue = []
 
@@ -207,7 +209,7 @@ def handle_agent_logic_multi_thread(eth_address, contract, seen_events, agent_uu
             if tx_hash not in seen_events:
                 attestation_id = event["args"]["id"].hex()
 
-                current_attestation_state = blockchain_interface.get_attestation_state(attestation_id, contract)
+                current_attestation_state = blockchain_interface.get_attestation_state(attestation_id)
                 if current_attestation_state in [0, 1]:  # Open or SecaasResponded
                     seen_events.add(tx_hash)
                     attestation_queue.append(attestation_id)
@@ -228,7 +230,7 @@ def handle_agent_logic_multi_thread(eth_address, contract, seen_events, agent_uu
                 target=_process_attestation,
                 name=thread_name,
                 args=(
-                    attestation_id, eth_address, contract, seen_events,
+                    attestation_id,
                     agent_uuid, fail_attestation_flag, last_n_blocks
                 ),
                 daemon=True
@@ -238,11 +240,11 @@ def handle_agent_logic_multi_thread(eth_address, contract, seen_events, agent_uu
         # nothing to block on here — immediately loop again
         time.sleep(1)
 
-def handle_agent_logic(eth_address, contract, seen_events, agent_uuid, fail_attestation_flag: bool = False, last_n_blocks: int = None):
+def handle_agent_logic(seen_events, agent_uuid, fail_attestation_flag: bool = False, last_n_blocks: int = None):
     """Handles Agent registration and attestation process with support for multiple attestation events."""
     logger.info("Subscribed to attestation events...")
     while True:
-        new_attestation_event_filter = blockchain_interface.create_event_filter(contract, blockchain_interface.MasMutualAttestationContractEvents.ATTESTATION_STARTED, last_n_blocks)
+        new_attestation_event_filter = blockchain_interface.create_event_filter(MasMutualAttestationContractEvents.ATTESTATION_STARTED, last_n_blocks)
         
         attestation_queue = []
 
@@ -253,7 +255,7 @@ def handle_agent_logic(eth_address, contract, seen_events, agent_uuid, fail_atte
             if tx_hash not in seen_events:
                 attestation_id = event["args"]["id"].hex()
 
-                current_attestation_state = blockchain_interface.get_attestation_state(attestation_id, contract)
+                current_attestation_state = blockchain_interface.get_attestation_state(attestation_id)
                 if current_attestation_state in [0, 1]:  # Open or SecaasResponded
                     seen_events.add(tx_hash)
                     attestation_queue.append((attestation_id, tx_hash))
@@ -270,23 +272,21 @@ def handle_agent_logic(eth_address, contract, seen_events, agent_uuid, fail_atte
         for attestation_id, tx_hash in attestation_queue:
             logger.info(f"Processing attestation: {attestation_id}")
 
-            # blockchain_interface.display_attestation_state(attestation_id, contract)
-
-            is_verifier = blockchain_interface.is_verifier_agent(attestation_id, eth_address, contract)
-            is_prover = blockchain_interface.is_prover_agent(attestation_id, eth_address, contract)
+            is_verifier = blockchain_interface.is_verifier_agent(attestation_id)
+            is_prover = blockchain_interface.is_prover_agent(attestation_id)
 
             start_time = time.time()
 
             if is_verifier:
                 logger.info("You are the Verifier agent!\n")
                 logger.info("Waiting for responses from SECaaS and Prover...")
-                handle_verifier_logic(attestation_id, eth_address, contract, seen_events, last_n_blocks)
+                handle_verifier_logic(attestation_id, last_n_blocks)
                 duration = time.time() - start_time
                 logger.info(f"Attestation duration (Verifier perspective): {duration:.2f} seconds\n")
 
             elif is_prover:
                 logger.info("You are the Prover agent!\n")
-                handle_prover_logic(attestation_id, eth_address, contract, seen_events, agent_uuid, last_n_blocks, fail_attestation_flag)
+                handle_prover_logic(attestation_id, agent_uuid, last_n_blocks, fail_attestation_flag)
                 duration = time.time() - start_time
                 logger.info(f"Attestation duration (Prover perspective): {duration:.2f} seconds\n")
 
@@ -295,17 +295,16 @@ def handle_agent_logic(eth_address, contract, seen_events, agent_uuid, fail_atte
                 time.sleep(3)
                 continue
 
-def handle_secaas_logic(eth_address, contract, seen_events, last_n_blocks: int = None):
+def handle_secaas_logic(seen_events, last_n_blocks: int = None):
     """Handles SECaaS logic with support for multiple attestation events."""
     
-    blockchain_interface.display_attestation_chain(contract, last_n=20)
+    blockchain_interface.display_attestation_chain(last_n=20)
     
     logger.info("Subscribed to attestation events...\n")
 
     while True:
         new_attestation_event_filter = blockchain_interface.create_event_filter(
-            contract,
-            blockchain_interface.MasMutualAttestationContractEvents.ATTESTATION_STARTED,
+            MasMutualAttestationContractEvents.ATTESTATION_STARTED,
             last_n_blocks
         )
 
@@ -317,7 +316,7 @@ def handle_secaas_logic(eth_address, contract, seen_events, last_n_blocks: int =
             tx_hash = event['transactionHash'].hex()
             if tx_hash not in seen_events:
                 attestation_id = event["args"]["id"].hex()
-                current_state = blockchain_interface.get_attestation_state(attestation_id, contract)
+                current_state = blockchain_interface.get_attestation_state(attestation_id)
                 if current_state in [0, 2]:  # Open or ProverResponded
                     seen_events.add(tx_hash)
                     attestation_queue.append((attestation_id, tx_hash))
@@ -333,12 +332,11 @@ def handle_secaas_logic(eth_address, contract, seen_events, last_n_blocks: int =
 
             try:
                 logger.info(f"Retrieving Prover UUID from SC...")
-                agent_uuid = blockchain_interface.get_prover_uuid(attestation_id, eth_address, contract)
+                agent_uuid = blockchain_interface.get_prover_uuid(attestation_id)
                 
                 logger.info(f"Retrieving reference signature from DB...")
 
                 # Modify to retrieve the UUID and reference signature from the SECaaS DB
-
                 agent_info = utils.get_agent_by_uuid("/config", agent_uuid)
                 if not agent_info:
                     logger.error(f"Agent with UUID '{agent_uuid}' not found in the DB.")
@@ -346,20 +344,20 @@ def handle_secaas_logic(eth_address, contract, seen_events, last_n_blocks: int =
 
                 reference_agent_measurement = agent_info['ref_signature']
 
-                tx_hash = blockchain_interface.send_reference_signature(attestation_id, reference_agent_measurement, eth_address, contract)
+                tx_hash = blockchain_interface.send_reference_signature(attestation_id, reference_agent_measurement)
                 logger.info(f"Reference signature for agent with UUID '{agent_uuid}' sent\n")
 
                 # If SECaaS is also verifier, process result
-                if blockchain_interface.is_verifier_agent(attestation_id, eth_address, contract):
+                if blockchain_interface.is_verifier_agent(attestation_id):
                     logger.info("SECaaS is also the verifier\n")
-                    handle_verifier_logic(attestation_id, eth_address, contract, seen_events, last_n_blocks)
+                    handle_verifier_logic(attestation_id, last_n_blocks)
                     time.sleep(3)
 
                 # Wait for attestation closure
-                while blockchain_interface.get_attestation_state(attestation_id, contract) != 4:
+                while blockchain_interface.get_attestation_state(attestation_id) != 4:
                     time.sleep(1)
 
-                blockchain_interface.display_attestation_chain(contract)
+                blockchain_interface.display_attestation_chain()
 
             except Exception as e:
                 logger.error(f"Error while processing attestation '{attestation_id}': {e}")
@@ -370,28 +368,30 @@ if __name__ == "__main__":
             if reset_chain_flag:
                 logger.info(f"Reset Chain       : {'Enabled' if reset_chain_flag else 'Disabled'}")
                 logger.info("Resetting attestation chain...")
-                tx_hash = blockchain_interface.reset_attestation_chain(eth_address, mas_contract)
+                tx_hash = blockchain_interface.reset_attestation_chain()
                 logger.info(f"Attestation chain reset | Tx Hash: {tx_hash}")
                 sys.exit(1)
 
-            handle_secaas_logic(eth_address, mas_contract, seen_events, last_n_blocks=10)
+            handle_secaas_logic(seen_events, last_n_blocks=10)
 
         elif participant == 'agent':
-            if bootstrap_flag:
-                print()
-                # logger.info("Registering agent...")
-                # tx_hash = blockchain_interface.register_agent(agent_uuid, eth_address, mas_contract)
-                # logger.info(f"Agent registered successfully | Tx: {tx_hash}")
+            logging.info(f"Registering agent with UUID: {agent_uuid}...")
+            tx_hash = blockchain_interface.register_agent(agent_uuid)
+            logging.info(f"Agent registered | Tx Hash: {tx_hash}")
+            time.sleep(3)
+            # if bootstrap_flag:
+            #     print()
+            #     # logger.info("Registering agent...")
+            #     # tx_hash = blockchain_interface.register_agent(agent_uuid, eth_address, mas_contract)
+            #     # logger.info(f"Agent registered successfully | Tx: {tx_hash}")
         
-            elif remove_agent_flag:
-                logger.info(f"Remove Agent      : {'Enabled' if remove_agent_flag else 'Disabled'}")
-                logger.info("Removing agent...")
-                tx_hash = blockchain_interface.remove_agent(eth_address, mas_contract)
-                logger.info(f"Agent removed successfully | Tx: {tx_hash}")
-                sys.exit(1)
-
-            # handle_agent_logic(eth_address, mas_contract, seen_events, agent_uuid, fail_attestation_flag, last_n_blocks=10)
-            handle_agent_logic_multi_thread(eth_address, mas_contract, seen_events, agent_uuid, fail_attestation_flag, last_n_blocks=10)
+            # elif remove_agent_flag:
+            #     logger.info(f"Remove Agent      : {'Enabled' if remove_agent_flag else 'Disabled'}")
+            #     logger.info("Removing agent...")
+            #     tx_hash = blockchain_interface.remove_agent(eth_address, mas_contract)
+            #     logger.info(f"Agent removed successfully | Tx: {tx_hash}")
+            #     sys.exit(1)
+            handle_agent_logic_multi_thread(seen_events, agent_uuid, fail_attestation_flag, last_n_blocks=10)
 
     except Exception as e:
             print(f"An error occurred in the main execution: {str(e)}")

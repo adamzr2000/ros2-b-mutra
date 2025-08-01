@@ -92,6 +92,8 @@ services:
       - ./jsonfiles/:/jsonfiles:rw
       - ./binaryfiles/:/binaryfiles:rw
       - ./smart-contracts:/smart-contracts
+      - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-measurer/app/blockchain_interface.py:/app/blockchain_interface.py
     environment:
       - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
       - CONTAINER=robot1
@@ -103,7 +105,7 @@ services:
       - PROC_COMM=robot_state_pub
       - CONFIGSIDECAR=/jsonfiles/robot1.json
       - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
-      - THRESHOLD=500
+      - THRESHOLD=100
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     pid: "container:robot1"
     depends_on:
@@ -165,6 +167,8 @@ services:
       - ./jsonfiles/:/jsonfiles:rw
       - ./binaryfiles/:/binaryfiles:rw
       - ./smart-contracts:/smart-contracts
+      - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-measurer/app/blockchain_interface.py:/app/blockchain_interface.py
     environment:
       - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
       - CONTAINER=robot2
@@ -176,7 +180,7 @@ services:
       - PROC_COMM=robot_state_pub
       - CONFIGSIDECAR=/jsonfiles/robot2.json
       - MEMORY_STORAGE_FILE=/measurements/robot2_measurements.json
-      - THRESHOLD=500
+      - THRESHOLD=100
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     pid: "container:robot2"
     depends_on:
@@ -237,6 +241,8 @@ services:
       - ./jsonfiles/:/jsonfiles:rw
       - ./binaryfiles/:/binaryfiles:rw
       - ./smart-contracts:/smart-contracts
+      - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-measurer/app/blockchain_interface.py:/app/blockchain_interface.py
     environment:
       - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
       - CONTAINER=robot3
@@ -248,7 +254,7 @@ services:
       - PROC_COMM=robot_state_pub
       - CONFIGSIDECAR=/jsonfiles/robot3.json
       - MEMORY_STORAGE_FILE=/measurements/robot3_measurements.json
-      - THRESHOLD=500
+      - THRESHOLD=100
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     pid: "container:robot2"
     depends_on:

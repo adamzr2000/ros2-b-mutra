@@ -47,19 +47,13 @@ def handle_agent_logic(eth_address, contract, seen_events, agent_uuid, web3_inst
         # GetAgentInfo(address agentAddress, address callAddress) returns (bytes16, bool, bytes32[] memory)
         agent_info = contract.functions.GetAgentInfo(eth_address, eth_address).call()
         is_registered = agent_info[1]
-    except Exception as e:
-        logging.error(f"Erreur lors de la vérification de l'enregistrement de l'agent: {str(e)}")
-        is_registered = False
-
-    if is_registered:
+        # if is_registered:
         logging.info("Agent déjà enregistré, demande d'attestation...")
         tx_hash = request_attestation(eth_address, contract, private_key, web3_instance)
         logging.info(f"Attestation demandée avec tx hash: {tx_hash}")
         return tx_hash
-    else:
-        tx_hash = register_agent(agent_uuid, eth_address, contract, web3_instance, private_key)
-        logging.info(f"Agent enregistré avec tx hash: {tx_hash}")
-        return tx_hash
+    except Exception as e:
+        raise Exception(f"Erreur lors de la vérification de l'enregistrement de l'agent: {str(e)}")
 
 def request_attestation(eth_address, contract, private_key, web3_instance):
     try:

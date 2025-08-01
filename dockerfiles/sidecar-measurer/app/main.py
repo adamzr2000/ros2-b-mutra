@@ -17,7 +17,7 @@ import sys
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
 from agent_logic import handle_agent_logic
-
+import blockchain_interface
 
 load_dotenv()
 
@@ -98,42 +98,14 @@ except Exception as e:
 
 logging.info(f"Configuration loaded from {json_file_path}")
 
-try:
-    if not eth_node_url or not contract_address:
-        logging.error("ETH_NODE_URL or CONTRACT_ADDRESS not set in environment.")
-        raise ValueError("ETH_NODE_URL or CONTRACT_ADDRESS not set.")
-    logging.info(f"Connecting to Ethereum node at {eth_node_url}")
-
-    # Auto detect protocol and clean URL
-    if eth_node_url.startswith("ws://"):
-        web3 = Web3(Web3.WebsocketProvider(eth_node_url))
-    elif eth_node_url.startswith("http://"):
-        web3 = Web3(Web3.HTTPProvider(eth_node_url))
-    else:
-        raise ValueError("eth_node_url must start with ws:// or http://")
-    
-    web3.middleware_onion.inject(geth_poa_middleware, layer=0)
-
-    if not web3.isConnected():
-        raise ConnectionError(f"Failed to connect to Ethereum node at {eth_node_url}")
-    logging.info(f"Connected to Ethereum node {eth_node_url} | Geth Version: {web3.clientVersion}")
-
-    with open(abi_path, "r") as abi_file:
-        contract_json = json.load(abi_file)
-        contract_abi = contract_json.get("abi", None)
-    logging.info(f"Smart contract loaded at address: {contract_address}")  
-
-    if not contract_abi:
-        raise ValueError("ABI not found in contract JSON file")
-    logging.info(f"Smart contract loaded at address: {contract_address}")
-
-    mas_contract = web3.eth.contract(address=Web3.toChecksumAddress(contract_address), abi=contract_abi)
-    logging.info(f"Smart contract loaded at address: {contract_address}")
-    nonce = web3.eth.getTransactionCount(eth_address)
-
-except Exception as e:
-    logging.error(f"Web3 or contract initialization failed: {str(e)}")
-    sys.exit(1)
+# Initialize Web3 + contract via blockchain_interface
+mas_contract=blockchain_interface.init_web3_interface(
+    _eth_address    = eth_address,
+    _private_key    = private_key,
+    eth_node_url    = eth_node_url,
+    abi_path        = abi_path,
+    contract_address= contract_address
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -259,16 +231,8 @@ def attestation_process_bootstrap():
         logging.info(f"Digest and timestamp stored in storage with key bootstrap_digest:{agent_name}")
         # --- Appel logique agent/prover ici ---
         # Exemple d'appel pour agent avec les paramètres web3 et private_key
-        handle_agent_logic(
-            eth_address=eth_address, 
-            contract=mas_contract, 
-            seen_events=None, 
-            agent_uuid=config_uuid,
-            web3_instance=web3,
-            private_key=private_key
-        )
-        # Exemple d'appel pour prover (commenté pour l'instant)
-        # handle_prover_logic(attestation_id, eth_address, mas_contract, seen_events=None, agent_uuid=config_uuid)
+        blockchain_interface.request_attestation(eth_address, mas_contract)
+        time.sleep(3)  # Attendre un peu pour s'assurer que l'attestation est traitée
 
     else:
         logging.error("Bootstrap attestation failed")
@@ -344,14 +308,9 @@ def attestation_process_continuous():
                     "timestamp": time.time()
                 })
 
-                handle_agent_logic(
-                    eth_address=eth_address, 
-                    contract=mas_contract, 
-                    seen_events=None, 
-                    agent_uuid=config_uuid,
-                    web3_instance=web3,
-                    private_key=private_key
-                )
+                logging.info("Requesting attestation...")
+                blockchain_interface.request_attestation(eth_address, mas_contract)
+                time.sleep(3)  # Attendre un peu pour s'assurer que l'attestation est traitée
 
                 
                 logging.info(f"Final digest stored in key: final_digests:{agent_name}")
@@ -384,6 +343,9 @@ def attestation_process_continuous():
 
 
 def start_attestation():
+
+    # TODO: 
+    # - append register agent function
     global measuring, attestation_thread
     if measuring and attestation_thread and attestation_thread.is_alive():
         logging.info("Attestation process already running")

@@ -91,7 +91,7 @@ contract MasMutualAttestation {
 
     function RemoveAgent() public {
         Agent storage currentAgent = agent[msg.sender];
-        require(currentAgent.registered, "Agent is not registered");
+        require(currentAgent.registered, "RemoveAgent : Agent is not registered");
         
         uint idx = indexOf[msg.sender];
         address last = participants[participants.length - 1];
@@ -131,14 +131,14 @@ contract MasMutualAttestation {
     function GetAgentInfo(address agentAddress, address callAddress) public view returns (bytes16, bool, bytes32[] memory) {
         Agent storage currentAgent = agent[callAddress];
         Agent storage agentToFind = agent[agentAddress];
-        require(currentAgent.registered || callAddress == secaas, "Agent is not registered");
+        require(currentAgent.registered || callAddress == secaas, "GetAgentInfo : Agent is not registered");
         return (agentToFind.uuid, agentToFind.registered, agentToFind.completedAttestations);
     } 
 
 
     function RequestAttestation() public {
         Agent storage currentAgent = agent[msg.sender];
-        require(currentAgent.registered, "Agent is not registered");
+        require(currentAgent.registered, "RequestAttestation : Agent is not registered");
 
         // Generate unique attestation ID
         bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
