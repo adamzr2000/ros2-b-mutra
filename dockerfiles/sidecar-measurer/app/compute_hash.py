@@ -1,6 +1,19 @@
 # compute_hash.py
 import subprocess
 import hashlib
+import os
+import logging
+
+# === Logging Setup ===
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+if LOG_LEVEL == "NONE":
+    logging.disable(logging.CRITICAL)
+else:
+    numeric_level = getattr(logging, LOG_LEVEL, logging.INFO)
+    logging.basicConfig(
+        level=numeric_level,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
 class ComputeHashError(Exception):
     """Base exception for compute hash operations"""
@@ -57,7 +70,6 @@ def compute_sha256(buffer):
     return sha256.hexdigest()
 
 def compute_program_hash(program_name, text_size, offset):
-    import logging
     logging.info(f"Computing hash for process '{program_name}' with text_size={text_size}, offset={offset}")
     
     pid = get_pid(program_name)

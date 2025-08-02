@@ -1,8 +1,18 @@
-import os
-import json
 import time
 import subprocess
+import os
 import logging
+
+# === Logging Setup ===
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+if LOG_LEVEL == "NONE":
+    logging.disable(logging.CRITICAL)
+else:
+    numeric_level = getattr(logging, LOG_LEVEL, logging.INFO)
+    logging.basicConfig(
+        level=numeric_level,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
 def pause_container_on_proc1():
     container = os.environ.get("CONTAINER", "")

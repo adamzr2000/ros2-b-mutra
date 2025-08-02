@@ -6,7 +6,7 @@ contract MasMutualAttestation {
     enum AttestationResult {None, Failure, Success}
 
     // Define the possible states of an attestation process
-    enum AttestationState {Open, ReadyForEvaluation, Closed}
+    enum AttestationState {Open, SecaasResponded, ProverResponded, ReadyForEvaluation, Closed}
 
     struct Agent {
         bytes16 uuid;
@@ -42,6 +42,8 @@ contract MasMutualAttestation {
     event AgentRegistered(address agent);
     event AgentRemoved(address agent);
     event AttestationStarted(bytes32 id);
+    event SecaasResponded(bytes32 id);
+    event ProverResponded(bytes32 id);
     event ReadyForEvaluation(bytes32 id);
     event AttestationCompleted(bytes32 id);
     event ChainReset();
@@ -70,6 +72,21 @@ contract MasMutualAttestation {
         indexOf[msg.sender] = participants.length;
         participants.push(msg.sender);
         emit AgentRegistered(msg.sender);
+
+        // // Generate a unique attestation ID
+        // bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
+
+        // MutualAttestation storage currentAttestation = attestation[id];
+        // currentAttestation.id = id;
+        // currentAttestation.verifier = currentVerifier;
+        // currentAttestation.prover = msg.sender;
+        // currentAttestation.fresh_signature = bytes32(0);
+        // currentAttestation.ref_signature = bytes32(0);
+        // currentAttestation.state = AttestationState.Open;
+        // currentAttestation.result = AttestationResult.None;
+        // currentAttestation.timestamp = 0; 
+
+        // emit AttestationStarted(id);
     }
 
     function RemoveAgent() public {
@@ -119,15 +136,18 @@ contract MasMutualAttestation {
     } 
 
 
-    function RequestAttestation(bytes32 id, bytes32 freshMeasurement) public {
+    function RequestAttestation(bytes32 id) public {
         Agent storage currentAgent = agent[msg.sender];
         require(currentAgent.registered, "RequestAttestation : Agent is not registered");
+
+        // // Generate unique attestation ID
+        // bytes32 id = keccak256(abi.encodePacked(msg.sender, block.timestamp));
 
         MutualAttestation storage currentAttestation = attestation[id];
         currentAttestation.id = id;
         currentAttestation.verifier = ElectVerifier(msg.sender);
         currentAttestation.prover = msg.sender;
-        currentAttestation.fresh_signature = freshMeasurement;
+        currentAttestation.fresh_signature = bytes32(0);
         currentAttestation.ref_signature = bytes32(0);
         currentAttestation.state = AttestationState.Open;
         currentAttestation.result = AttestationResult.None;
@@ -139,22 +159,46 @@ contract MasMutualAttestation {
     function GetProverUUID(bytes32 id, address callAddress) public view returns (bytes16) {
         require(callAddress == secaas, "You are not the SECaaS.");
         MutualAttestation storage currentAttestation = attestation[id];
-        require(currentAttestation.state == AttestationState.Open, "Attestation is closed or not exists");
+        require(currentAttestation.state == AttestationState.Open || currentAttestation.state == AttestationState.ProverResponded, "Attestation is closed or not exists");
         address proverAgentAddress = currentAttestation.prover;
         Agent storage currentAgent = agent[proverAgentAddress];
         return (currentAgent.uuid);
     }     
 
+    function SendFreshSignaure(bytes32 id, bytes32 measurement) public returns (bool) {
+        MutualAttestation storage currentAttestation = attestation[id];
+        require(currentAttestation.state == AttestationState.Open || currentAttestation.state == AttestationState.SecaasResponded, "Invalid state for fresh signature submission");
+        require(currentAttestation.prover == msg.sender, "You are not the prover.");
+        
+        currentAttestation.fresh_signature = measurement;
+    
+        if (currentAttestation.state == AttestationState.SecaasResponded) {
+            currentAttestation.state = AttestationState.ReadyForEvaluation;
+            emit ReadyForEvaluation(id);
+        } else {
+            currentAttestation.state = AttestationState.ProverResponded;
+            emit ProverResponded(id);
+        }
+
+        return true;
+    }
+
     function SendRefSignaure(bytes32 id, bytes32 measurement) public returns (bool) {
         require(msg.sender == secaas, "Only the SECaaS can send the reference signature");
         
         MutualAttestation storage currentAttestation = attestation[id];
-        require(currentAttestation.state == AttestationState.Open, "Invalid state for SECaaS response");
+        require(currentAttestation.state == AttestationState.Open || currentAttestation.state == AttestationState.ProverResponded, "Invalid state for SECaaS response");
         
         currentAttestation.ref_signature = measurement;
-        currentAttestation.state = AttestationState.ReadyForEvaluation;
+    
+        if (currentAttestation.state == AttestationState.ProverResponded) {
+            currentAttestation.state = AttestationState.ReadyForEvaluation;
+            emit ReadyForEvaluation(id);
+        } else {
+            currentAttestation.state = AttestationState.SecaasResponded;
+            emit SecaasResponded(id);
+        }
 
-        emit ReadyForEvaluation(id);
         return true;
     }
 

@@ -93,7 +93,6 @@ services:
       - ./binaryfiles/:/binaryfiles:rw
       - ./smart-contracts:/smart-contracts
       - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-measurer/app/blockchain_interface.py:/app/blockchain_interface.py
     environment:
       - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
       - CONTAINER=robot1
@@ -169,7 +168,6 @@ services:
       - ./binaryfiles/:/binaryfiles:rw
       - ./smart-contracts:/smart-contracts
       - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-measurer/app/blockchain_interface.py:/app/blockchain_interface.py
     environment:
       - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
       - CONTAINER=robot2
@@ -244,7 +242,6 @@ services:
       - ./binaryfiles/:/binaryfiles:rw
       - ./smart-contracts:/smart-contracts
       - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-measurer/app/blockchain_interface.py:/app/blockchain_interface.py
     environment:
       - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
       - CONTAINER=robot3

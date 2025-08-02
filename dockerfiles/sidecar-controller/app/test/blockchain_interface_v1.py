@@ -4,9 +4,7 @@ import json
 import uuid
 import time
 import logging
-import threading
-
-from enum import IntEnum, Enum
+from enum import Enum
 from web3 import Web3, WebsocketProvider, HTTPProvider
 from web3.middleware import geth_poa_middleware
 from prettytable import PrettyTable
@@ -14,15 +12,13 @@ from prettytable import PrettyTable
 logging.basicConfig(format='%(asctime)s - %(levelname)s - [%(threadName)s] %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class AttestationState(IntEnum):
-    Open = 0
-    ReadyForEvaluation = 1
-    Closed = 2
 
 class MasMutualAttestationContractEvents(str, Enum):
     AGENT_REGISTERED = "AgentRegistered"
     AGENT_REMOVED = "AgentRemoved"
     ATTESTATION_STARTED = "AttestationStarted"
+    SECAAS_RESPONDED = "SecaasResponded"
+    PROVER_RESPONDED = "ProverResponded"
     READY_FOR_EVALUATION = "ReadyForEvaluation"
     ATTESTATION_COMPLETED = "AttestationCompleted"
 
@@ -52,27 +48,21 @@ class BlockchainInterface:
         logger.info(f"Web3 initialized. Address: {self.eth_address}")
         logger.info(f"Connected to Ethereum node {eth_node_url} | Version: {self.web3.clientVersion}")
 
-        # Initialize local nonce and lock
-        self._nonce_lock = threading.Lock()
-        self._local_nonce = self.web3.eth.getTransactionCount(self.eth_address)
-
 
     def send_signed_transaction(self, build_transaction):
-        with self._nonce_lock:
-            build_transaction['nonce'] = self._local_nonce
-            self._local_nonce += 1
+        nonce = self.web3.eth.getTransactionCount(self.eth_address, 'pending')
+        build_transaction['nonce'] = nonce
 
         # Bump the gas price slightly to avoid underpriced errors
         # If not using EIP-1559, inject legacy gasPrice
         if 'maxFeePerGas' not in build_transaction and 'maxPriorityFeePerGas' not in build_transaction:
             base_gas_price = self.web3.eth.gas_price
-            build_transaction['gasPrice'] = int(base_gas_price * 1.25)
+            build_transaction['gasPrice'] = int(base_gas_price * 1.1)
 
         # Else (EIP-1559): Optional tweak to bump the maxFeePerGas slightly
         elif 'maxFeePerGas' in build_transaction:
-            build_transaction['maxFeePerGas'] = int(build_transaction['maxFeePerGas'] * 1.25)
-            
-        # print(f"nonce = {build_transaction['nonce']}, maxFeePerGas = {build_transaction['maxFeePerGas']}")
+            build_transaction['maxFeePerGas'] = int(build_transaction['maxFeePerGas'] * 1.1)
+
         signed_txn = self.web3.eth.account.signTransaction(build_transaction, self.private_key)
         tx_hash = self.web3.eth.sendRawTransaction(signed_txn.rawTransaction)
         return tx_hash.hex()
@@ -174,12 +164,9 @@ class BlockchainInterface:
         except Exception as e:
             raise Exception(f"An error occurred while calling the function: {str(e)}")
 
-    def request_attestation(self, attestation_id, fresh_signature):
+    def request_attestation(self, attestation_id):
         try:
-            tx_data = self.contract.functions.RequestAttestation(
-                self.web3.toBytes(text=attestation_id), 
-                self.web3.toBytes(hexstr=f"0x{fresh_signature}") 
-            ).buildTransaction({'from': self.eth_address})
+            tx_data = self.contract.functions.RequestAttestation(id=self.web3.toBytes(text=attestation_id)).buildTransaction({'from': self.eth_address})
             tx_hash = self.send_signed_transaction(tx_data)
             return tx_hash
         
@@ -227,6 +214,19 @@ class BlockchainInterface:
         except Exception as e:
             raise Exception(f"An error occurred while getting the verifier agent: {str(e)}")
     
+    def send_fresh_signature(self, attestation_id, fresh_signature):
+        try:
+            tx_data = self.contract.functions.SendFreshSignaure(
+                self.web3.toBytes(text=attestation_id), 
+                self.web3.toBytes(hexstr=f"0x{fresh_signature}") 
+            ).buildTransaction({'from': self.eth_address})
+            
+            tx_hash = self.send_signed_transaction(tx_data)
+            return tx_hash
+        
+        except Exception as e:
+            raise Exception(f"An error occurred while sending the fresh signature: {str(e)}")
+
     def send_reference_signature(self, attestation_id, reference_signature):
         try:
             tx_data = self.contract.functions.SendRefSignaure(
@@ -238,7 +238,7 @@ class BlockchainInterface:
             return tx_hash
         
         except Exception as e:
-            raise Exception(f"An error occurred while sending the reference signature: {str(e)}")
+            raise Exception(f"An error occurred while sending the fresh signature: {str(e)}")
     
     def get_attestation_measurements(self, attestation_id):
         try:
@@ -305,11 +305,18 @@ class BlockchainInterface:
 
     def display_attestation_state(self, attestation_id):  
         current_attestation_state = self.get_attestation_state(attestation_id)
-        try:
-            state_name = AttestationState(current_attestation_state).name
-            logger.info(f"Attestation state: {state_name}")
-        except ValueError:
-            logger.error(f"Unknown attestation state: {current_attestation_state}")
+        if current_attestation_state == 0:
+            logger.info("Attestation state: Open")
+        elif current_attestation_state == 1:
+            logger.info("Attestation state: SecaasResponded")
+        elif current_attestation_state == 2:
+            logger.info("Attestation state: ProverResponded")
+        elif current_attestation_state == 3:
+            logger.info("Attestation state: ReadyForEvaluation")
+        elif current_attestation_state == 4:
+            logger.info("Attestation state: Closed")                
+        else:
+            logger.error(f"Error: state for attestation {attestation_id} is {current_attestation_state}")
 
     def display_attestation_chain(self, last_n=10):
         attestation_chain = self.get_attestation_chain()
