@@ -1,0 +1,9 @@
+{
+    "name": "robot6",
+    "uuid": "a8ffe9a1-a9c7-48da-bb3c-a10434b5c2c0",
+    "eth_address": "0x8ebbe0b0e18681397a0c88f64b422650755a7269",
+    "private_key": "0x526e18548aad9c389e81807e078e56ca768faa28eaa7fc1904ad2c59ebbe077b",
+    "eth_node_url": "http://validator2:8545",
+    "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
+    "ref_signature": "d3cc38d83ffc4d0c78197eefeb3d5af9cdaf2eb3539eb97f8a7c4ec3869f3c31"
+}

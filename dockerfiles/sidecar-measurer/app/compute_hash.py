@@ -70,35 +70,35 @@ def compute_sha256(buffer):
     return sha256.hexdigest()
 
 def compute_program_hash(program_name, text_size, offset):
-    logging.info(f"Computing hash for process '{program_name}' with text_size={text_size}, offset={offset}")
+    # logging.info(f"Computing hash for process '{program_name}' with text_size={text_size}, offset={offset}")
     
     pid = get_pid(program_name)
     if pid is None:
         logging.error(f"Process '{program_name}' not found")
         raise ComputeHashError(f"Process {program_name} not found")
-    logging.debug(f"Found PID: {pid} for process '{program_name}'")
+    # logging.debug(f"Found PID: {pid} for process '{program_name}'")
         
     rx_address = get_first_rx_page_address(pid)
     if rx_address is None:
         logging.error(f"Failed to get RX page address for PID {pid}")
         raise ComputeHashError(f"Failed to get RX page address for PID {pid}")
-    logging.debug(f"Found RX page address: 0x{rx_address:x} for PID {pid}")
+    # logging.debug(f"Found RX page address: 0x{rx_address:x} for PID {pid}")
     
     # Ensure offset is an integer
     try:
         begin_offset = int(offset) if offset is not None else 0
-        logging.debug(f"Using offset: {begin_offset}")
+        # logging.debug(f"Using offset: {begin_offset}")
     except (ValueError, TypeError):
         logging.error(f"Invalid offset value: {offset}")
         raise ComputeHashError(f"Invalid offset value: {offset}")
     
     begin_address = rx_address + begin_offset
-    logging.debug(f"Calculated begin_address: 0x{begin_address:x}")
+    # logging.debug(f"Calculated begin_address: 0x{begin_address:x}")
     
     # Ensure text_size is an integer
     try:
         text_size = int(text_size) if text_size is not None else 0
-        logging.debug(f"Using text_size: {text_size}")
+        # logging.debug(f"Using text_size: {text_size}")
     except (ValueError, TypeError):
         logging.error(f"Invalid text_section_size value: {text_size}")
         raise ComputeHashError(f"Invalid text_section_size value: {text_size}")
@@ -107,8 +107,8 @@ def compute_program_hash(program_name, text_size, offset):
         logging.error(f"Invalid text_section_size: {text_size}")
         raise ComputeHashError(f"Invalid text_section_size: {text_size}")
     
-    logging.debug(f"Reading {text_size} bytes of memory from address 0x{begin_address:x} for PID {pid}")
+    # logging.debug(f"Reading {text_size} bytes of memory from address 0x{begin_address:x} for PID {pid}")
     memory_content = read_memory(pid, begin_address, text_size)
     hash_result = compute_sha256(memory_content)
-    logging.debug(f"Computed hash: {hash_result[:8]}...{hash_result[-8:]}")
+    # logging.debug(f"Computed hash: {hash_result[:8]}...{hash_result[-8:]}")
     return hash_result

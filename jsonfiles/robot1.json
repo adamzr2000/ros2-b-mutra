@@ -1,10 +1,6 @@
 {
 	"agent": 1,
 	"uuid": "885f3488-1031-4e0c-ad01-7ffd15ed8ef4",
-    "eth_address": "0x10119812363DDf83693797700cD2565f68eb91b2",
-    "private_key": "06cd4d2a77edf21f84eb3db7921db722cc244b5edd3da48efbfe3a3ac08dadb0",
-    "eth_node": "http://10.0.1.2:3335",
-    "contract_address": "0x6eFf06A09e208360AD229111d69a033EcEbDe972",
 	"agent_name": "robot1",
 	"cmd_name": "robot_state_publisher",
 	"text_section_size": 42223,

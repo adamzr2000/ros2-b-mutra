@@ -214,6 +214,7 @@ def attestation_process_bootstrap():
     logging.info("=== Bootstrap attestation process stopped ===")
 
 
+
 def attestation_process_continuous():
     """Fonction d'attestation pour le mode continu (en boucle)"""
     global measuring, digests, digests_count, final_digest
@@ -235,6 +236,7 @@ def attestation_process_continuous():
             logging.warning(f"Could not read uuid from {ConfigSidecar}: {e}")
     
     iteration = 0
+
     while measuring:
         iteration += 1
         try:
@@ -261,10 +263,11 @@ def attestation_process_continuous():
 
             aggregated_digests = "".join(digests)
             computed_digest = hashlib.sha256(aggregated_digests.encode()).hexdigest()
-            logging.debug(f"Current aggregated digest: {computed_digest[:8]}...{computed_digest[-8:]}")
+            # logging.debug(f"Current aggregated digest: {computed_digest[:8]}...{computed_digest[-8:]}")
 
             if digests_count >= threshold:
                 final_digest = computed_digest
+
                 logging.info(f"{GREEN}Threshold reached! Final digest: {final_digest[:16]}...{final_digest[-16:]}{RESET}")
                 storage.push_final_digest(f"final_digests:{agent_name}", {
                     "final_digest": final_digest,

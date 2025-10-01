@@ -64,7 +64,7 @@ contract MasMutualAttestation {
     function RegisterAgent(bytes16 uuid) public {
         require(uuid != bytes16(0), "UUID is not valid");
         Agent storage currentAgent = agent[msg.sender];
-        require(!currentAgent.registered, "Agent already registered");
+        // require(!currentAgent.registered, "Agent already registered");
         currentAgent.uuid = uuid;
         currentAgent.registered = true;
         indexOf[msg.sender] = participants.length;

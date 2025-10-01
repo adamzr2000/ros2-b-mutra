@@ -1,9 +1,9 @@
 {
     "name": "robot1",
-    "uuid": "885f3488-1031-4e0c-ad01-7ffd15ed8ef4",
-    "eth_address": "0x10119812363DDf83693797700cD2565f68eb91b2",
-    "private_key": "06cd4d2a77edf21f84eb3db7921db722cc244b5edd3da48efbfe3a3ac08dadb0",
-    "eth_node": "http://10.0.1.2:3335",
-    "contract_address": "0x6eFf06A09e208360AD229111d69a033EcEbDe972",
+    "uuid": "28395178-80fd-44b7-9fee-6635b665c1f0",
+    "eth_address": "0xb255c0555a18dfe7d2f748db75102e71c69b0249",
+    "private_key": "0xd7ccfebed10f4cbce7308bcbe69981ccbe4caf9fd4e96908f72d59832c9e2c61",
+    "eth_node_url": "http://validator4:8545",
+    "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "ref_signature": "60c550260bcd69de5404eb60e744ab1911ca324a6b8d08cf9b8115c7ce9e2979"
 }

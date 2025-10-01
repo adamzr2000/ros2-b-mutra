@@ -1,64 +1,64 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Initialize variables
-node_ip=""
-port=""
-protocol="ws"      # default
-network_id="2024"  # default
+# Initialize
+private_key=""
+rpc_url=""
+chain_id=""
 
-# Parse arguments
+# Default path if private_key not passed
+DEFAULT_KEY_PATH="blockchain/quorum-test-network/config/nodes/validator1/accountPrivateKey"
+
+usage() {
+  echo "Usage: $0 [--private_key <hexkey>] --rpc_url <url> --chain_id <id>"
+  echo "       If --private_key is not given, will try to read from:"
+  echo "       $DEFAULT_KEY_PATH"
+  exit 1
+}
+
+# Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --node-ip)
-      node_ip="$2"
-      shift 2
-      ;;
-    --port)
-      port="$2"
-      shift 2
-      ;;
-    --protocol)
-      protocol="$2"
-      shift 2
-      ;;
-    --network-id)
-      network_id="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown option: $1"
-      echo "Usage: $0 --node-ip <IP> --port <PORT> [--protocol ws|http] [--network-id <ID>]"
-      exit 1
-      ;;
+    --private_key) private_key="${2:-}"; shift 2 ;;
+    --rpc_url)     rpc_url="${2:-}";     shift 2 ;;
+    --chain_id)    chain_id="${2:-}";    shift 2 ;;
+    -h|--help)     usage ;;
+    *) echo "Unknown option: $1"; usage ;;
   esac
 done
 
-# Check required args
-if [[ -z "$node_ip" || -z "$port" ]]; then
-  echo "Error: --node-ip and --port are required."
-  echo "Usage: $0 --node-ip <IP> --port <PORT> [--protocol ws|http] [--network-id <ID>]"
-  exit 1
+# If private_key not provided, try default file
+if [[ -z "$private_key" ]]; then
+  if [[ -f "$DEFAULT_KEY_PATH" ]]; then
+    private_key=$(<"$DEFAULT_KEY_PATH")
+    echo "ℹ️  Loaded private key from $DEFAULT_KEY_PATH"
+  else
+    echo "❌ Error: no --private_key passed and default key file not found: $DEFAULT_KEY_PATH"
+    exit 1
+  fi
 fi
 
-echo "🚀 Starting Truffle container with:"
-echo " - Node IP    : $node_ip"
-echo " - Port       : $port"
-echo " - Protocol   : $protocol"
-echo " - Network ID : $network_id"
+# Validate required args
+if [[ -z "$rpc_url" || -z "$chain_id" ]]; then
+  echo "❌ Error: --rpc_url and --chain_id are required."
+  usage
+fi
 
-# Construct the command for the container
-START_CMD="./deploy.sh --node-ip $node_ip --port $port --protocol $protocol"
+echo "🚀 Deploying Federation contract"
+echo "Private Key: [HIDDEN]"
+echo "RPC URL    : $rpc_url"
+echo "Chain ID   : $chain_id"
 
-docker run \
-  -it \
-  --rm \
-  --name truffle \
-  --hostname truffle \
-  --network blockchain_network \
-  -v "$(pwd)/smart-contracts":/smart-contracts \
-  -e NODE_IP="$node_ip" \
-  -e PORT="$port" \
-  -e PROTOCOL="$protocol" \
-  -e NETWORK_ID="$network_id" \
-  truffle:latest \
-  bash -c "cd /smart-contracts && $START_CMD"
+# Run in Docker
+docker run -it --rm \
+  -v "$(pwd)/smart-contracts/scripts":/smart-contracts/scripts \
+  -v "$(pwd)/smart-contracts/deployments":/smart-contracts/deployments \
+  -v "$(pwd)/smart-contracts/contracts":/smart-contracts/contracts \
+  -v "$(pwd)/smart-contracts/test":/smart-contracts/test \
+  -v "$(pwd)/smart-contracts/artifacts":/smart-contracts/artifacts \
+  -v "$(pwd)/smart-contracts/hardhat.config.js":/smart-contracts/hardhat.config.js \
+  -e PRIVATE_KEY="$private_key" \
+  -e RPC_URL="$rpc_url" \
+  -e CHAIN_ID="$chain_id" \
+  hardhat:latest \
+  bash -lc "npx hardhat run scripts/deploy_contract.js --network besu"

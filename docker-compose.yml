@@ -26,7 +26,7 @@ services:
     stdin_open: true
     command: *gzserver_command
     networks:
-      - blockchain_network
+      - robots-net
 
   gazebo-client:
     image: gazebo-vnc:latest
@@ -43,11 +43,11 @@ services:
       - seccomp=unconfined
     restart: unless-stopped
     networks:
-      - blockchain_network
+      - robots-net
 
   secaas-verifier:
     container_name: secaas-verifier
-    image: sidecar-controller:latest
+    image: sidecar-verifier:latest
     environment:
       - PARTICIPANT=secaas
       - CONFIG_PATH=/config/secaas.json
@@ -55,12 +55,12 @@ services:
       - "./config/:/config:rw"
       - "./experiments/:/experiments:rw"
       - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/sidecar-controller/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-controller/app/blockchain_interface.py:/app/blockchain_interface.py
+      - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
     stdin_open: true
     tty: true 
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
 
   robot1:
     image: ros2-agent:latest
@@ -78,12 +78,11 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - blockchain_network
+      - robots-net
 
   sidecar-measurer-robot1:
     container_name: sidecar-measurer-robot1
-    build:
-      context: ./dockerfiles/sidecar-measurer
+    image: sidecar-measurer:latest
     ports:
       - "8081:8080"
     volumes:
@@ -91,7 +90,6 @@ services:
       - ./measurements/:/measurements:rw
       - ./jsonfiles/:/jsonfiles:rw
       - ./binaryfiles/:/binaryfiles:rw
-      - ./smart-contracts:/smart-contracts
       - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
     environment:
       - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
@@ -104,8 +102,8 @@ services:
       - PROC_COMM=robot_state_pub
       - CONFIGSIDECAR=/jsonfiles/robot1.json
       - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
-      - THRESHOLD=100
-      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-controller-robot1:8080
+      - THRESHOLD=${MEASURER_THRESHOLD}
+      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-verifier-robot1:8080
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     pid: "container:robot1"
     depends_on:
@@ -117,11 +115,11 @@ services:
         limits:
           cpus: '0.1'
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
 
-  sidecar-controller-robot1:
-    container_name: sidecar-controller-robot1
-    image: sidecar-controller:latest
+  sidecar-verifier-robot1:
+    container_name: sidecar-verifier-robot1
+    image: sidecar-verifier:latest
     environment:
       - PARTICIPANT=agent
       - CONFIG_PATH=/config/robot1.json
@@ -129,13 +127,13 @@ services:
     volumes:
       - "./config/robot1.json:/config/robot1.json"
       - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/sidecar-controller/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-controller/app/blockchain_interface.py:/app/blockchain_interface.py
+      - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
       - "./experiments/:/experiments:rw"
     stdin_open: true
     tty: true 
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
 
   robot2:
     image: ros2-agent:latest
@@ -153,12 +151,11 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - blockchain_network
+      - robots-net
 
   sidecar-measurer-robot2:
     container_name: sidecar-measurer-robot2
-    build:
-      context: ./dockerfiles/sidecar-measurer
+    image: sidecar-measurer:latest
     ports:
       - "8082:8080"
     volumes:
@@ -179,8 +176,8 @@ services:
       - PROC_COMM=robot_state_pub
       - CONFIGSIDECAR=/jsonfiles/robot2.json
       - MEMORY_STORAGE_FILE=/measurements/robot2_measurements.json
-      - THRESHOLD=100
-      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-controller-robot2:8080
+      - THRESHOLD=${MEASURER_THRESHOLD}
+      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-verifier-robot2:8080
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     pid: "container:robot2"
     depends_on:
@@ -192,11 +189,11 @@ services:
         limits:
           cpus: '0.1'
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
 
-  sidecar-controller-robot2:
-    container_name: sidecar-controller-robot2
-    image: sidecar-controller:latest
+  sidecar-verifier-robot2:
+    container_name: sidecar-verifier-robot2
+    image: sidecar-verifier:latest
     environment:
       - PARTICIPANT=agent
       - CONFIG_PATH=/config/robot2.json
@@ -204,13 +201,13 @@ services:
     volumes:
       - "./config/robot2.json:/config/robot2.json"
       - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/sidecar-controller/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-controller/app/blockchain_interface.py:/app/blockchain_interface.py
+      - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
       - "./experiments/:/experiments:rw"
     stdin_open: true
     tty: true 
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
 
   robot3:
     image: ros2-agent:latest
@@ -228,11 +225,10 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - blockchain_network
+      - robots-net
   sidecar-measurer-robot3:
     container_name: sidecar-measurer-robot3
-    build:
-      context: ./dockerfiles/sidecar-measurer
+    image: sidecar-measurer:latest
     ports:
       - "8083:8080"
     volumes:
@@ -253,8 +249,8 @@ services:
       - PROC_COMM=robot_state_pub
       - CONFIGSIDECAR=/jsonfiles/robot3.json
       - MEMORY_STORAGE_FILE=/measurements/robot3_measurements.json
-      - THRESHOLD=100
-      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-controller-robot3:8080
+      - THRESHOLD=${MEASURER_THRESHOLD}
+      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-verifier-robot3:8080
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     pid: "container:robot2"
     depends_on:
@@ -266,11 +262,11 @@ services:
         limits:
           cpus: '0.1'
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
 
-  sidecar-controller-robot3:
-    container_name: sidecar-controller-robot3
-    image: sidecar-controller:latest
+  sidecar-verifier-robot3:
+    container_name: sidecar-verifier-robot3
+    image: sidecar-verifier:latest
     environment:
       - PARTICIPANT=agent
       - CONFIG_PATH=/config/robot3.json
@@ -278,13 +274,13 @@ services:
     volumes:
       - "./config/robot3.json:/config/robot3.json"
       - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/sidecar-controller/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-controller/app/blockchain_interface.py:/app/blockchain_interface.py
+      - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
       - "./experiments/:/experiments:rw"
     stdin_open: true
     tty: true 
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
   db:
     image: postgres:12
     container_name: db
@@ -294,12 +290,12 @@ services:
     volumes:
       - ./postgresql_data:/var/lib/postgresql/data/pgdata
     environment:
-      - PGDATA=/var/lib/postgresql/data/pgdata
+      - PGDATA=${PGDATA}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_DB=${POSTGRES_DB}
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
 
   redis:
     image: redis:alpine
@@ -308,34 +304,39 @@ services:
     ports:
       - "6379:6379"
     networks:
-      - blockchain_network
+      - quorum-dev-quickstart
 
-  secaas-wrapper:
-    container_name: secaas-wrapper
-    build:
-      context: dockerfiles/secaas-wrapper
-    ports:
-      - "8001:8000"
-    depends_on:
-      - db
-      - redis
-    volumes:
-      - ./dockerfiles/secaas-wrapper:/code
-      - ./jsonfiles/:/jsonfiles
-      - ./binaryfiles:/binaryfiles
-    restart: unless-stopped
-    environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_PORT=${POSTGRES_PORT}
-      - POSTGRES_HOST=db
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    networks:
-      - blockchain_network
+  # secaas-wrapper:
+  #   container_name: secaas-wrapper
+  #   build:
+  #     context: dockerfiles/secaas-wrapper
+  #   ports:
+  #     - "8001:8000"
+  #   depends_on:
+  #     - db
+  #     - redis
+  #   volumes:
+  #     - ./dockerfiles/secaas-wrapper:/code
+  #     - ./jsonfiles/:/jsonfiles
+  #     - ./binaryfiles:/binaryfiles
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #     - POSTGRES_USER=${POSTGRES_USER}
+  #     - POSTGRES_DB=${POSTGRES_DB}
+  #     - POSTGRES_PORT=${POSTGRES_PORT}
+  #     - POSTGRES_HOST=db
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #   command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+  #   networks:
+  #     - quorum-dev-quickstart
 
 networks:
-  blockchain_network:
+  quorum-dev-quickstart:
     external: true
+
+  robots-net:
+    driver: bridge
+    internal: true
+    name: robots-net
