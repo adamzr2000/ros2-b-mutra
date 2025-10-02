@@ -56,6 +56,7 @@ services:
       - "./experiments/:/experiments:rw"
       - "./smart-contracts:/smart-contracts"
       - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-verifier/app/event_watcher.py:/app/event_watcher.py
       - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
     stdin_open: true
     tty: true 
@@ -128,6 +129,7 @@ services:
       - "./config/robot1.json:/config/robot1.json"
       - "./smart-contracts:/smart-contracts"
       - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-verifier/app/event_watcher.py:/app/event_watcher.py
       - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
       - "./experiments/:/experiments:rw"
     stdin_open: true
@@ -202,6 +204,7 @@ services:
       - "./config/robot2.json:/config/robot2.json"
       - "./smart-contracts:/smart-contracts"
       - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-verifier/app/event_watcher.py:/app/event_watcher.py
       - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
       - "./experiments/:/experiments:rw"
     stdin_open: true
@@ -275,6 +278,7 @@ services:
       - "./config/robot3.json:/config/robot3.json"
       - "./smart-contracts:/smart-contracts"
       - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
+      - ./dockerfiles/sidecar-verifier/app/event_watcher.py:/app/event_watcher.py
       - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
       - "./experiments/:/experiments:rw"
     stdin_open: true

@@ -10,7 +10,10 @@ import warnings
 from enum import IntEnum, Enum
 from web3 import Web3, WebsocketProvider, HTTPProvider
 from web3.middleware import geth_poa_middleware
+from web3._utils.events import event_abi_to_log_topic
+
 from prettytable import PrettyTable
+from typing import Optional
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - [%(threadName)s] %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -95,6 +98,27 @@ class BlockchainInterface:
         tx_hash = self.web3.eth.sendRawTransaction(signed_txn.rawTransaction)
         return tx_hash.hex()
 
+
+    def get_event_class(self, event_enum: MasMutualAttestationContractEvents):
+        """
+        Returns the web3 ContractEvent class for the given enum (e.g., contract.events.AttestationStarted)
+        """
+        return getattr(self.contract.events, event_enum.value)
+
+    def get_event_abi(self, event_enum: MasMutualAttestationContractEvents) -> dict:
+        """
+        Returns the ABI dict for the event (used by the watcher to decode logs).
+        """
+        return self.get_event_class(event_enum)._get_event_abi()
+
+    def get_event_topic(self, event_enum: MasMutualAttestationContractEvents) -> str:
+        """
+        Returns keccak(signature) topic for the event (topic0) from its ABI.
+        Compatible with web3.py==5.31.
+        """
+        abi = self.get_event_abi(event_enum)
+        return event_abi_to_log_topic(abi).hex()
+    
     def get_transaction_receipt(self, tx_hash: str) -> dict:
         """
         Retrieves details of the transaction receipt for the specified hash, including:
@@ -191,37 +215,6 @@ class BlockchainInterface:
                 return event_cls.createFilter(fromBlock=0, toBlock='latest')
             except Exception as inner:
                 raise Exception(f"Failed to create filter for event '{event_name}': {inner}") from e
-
-
-    # def create_event_filter(self, event_name: MasMutualAttestationContractEvents, last_n_blocks: int = None):
-    #     """
-    #     Creates a filter to catch the specified event emitted by the smart contract.
-    #     This function can be used to monitor events in real-time or from a certain number of past blocks.
-
-    #     Args:
-    #         contract: The contract instance to monitor events from.
-    #         event_name (MasMutualAttestationContractEvents): The name of the smart contract event to create a filter for.
-    #         last_n_blocks (int, optional): If provided, specifies the number of blocks to look back from the latest block.
-    #                                     If not provided, it listens from the latest block onward.
-
-    #     Returns:
-    #         Filter: A filter for catching the specified event.
-    #     """
-    #     try:
-    #         block = self.web3.eth.getBlock('latest')
-    #         block_number = block['number']
-            
-    #         # If last_n_blocks is provided, look back, otherwise start from the latest block
-    #         from_block = max(0, block_number - last_n_blocks) if last_n_blocks else block_number
-            
-    #         # Use the contract instance passed as an argument to access the events
-    #         event_filter = getattr(self.contract.events, event_name.value).createFilter(fromBlock=self.web3.toHex(from_block))
-    #         return event_filter
-    #     except AttributeError:
-    #         raise ValueError(f"Event '{event_name}' does not exist in the contract.")
-    #     except Exception as e:
-    #         raise Exception(f"An error occurred while creating the filter for event '{event_name}': {str(e)}")
-
     
     def reset_attestation_chain(self):
         try:

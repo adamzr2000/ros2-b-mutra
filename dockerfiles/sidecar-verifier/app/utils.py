@@ -5,6 +5,28 @@ import csv
 import time
 import random
 
+
+def get_env_int(*names, default: int = 0):
+    for n in names:
+        v = os.getenv(n)
+        if v is not None:
+            return int(v)
+    return int(default)
+
+def get_env_float(*names, default: float = 0.0):
+    for n in names:
+        v = os.getenv(n)
+        if v is not None:
+            return float(v)
+    return float(default)
+
+def get_env_str(*names, default: str = ""):
+    for n in names:
+        v = os.getenv(n)
+        if v is not None:
+            return v
+    return default
+
 def generate_attestation_id():
     timestamp = int(time.time())                     # 10 digits
     rand_suffix = f"{random.randint(1000, 9999)}"    # 4 digits
