@@ -12,13 +12,17 @@ cleanup() {
 # Trap SIGINT and SIGTERM
 trap cleanup SIGINT SIGTERM
 
-# Start blockchain and contract
-cd blockchain-network/geth-poa
-./start_geth_net.sh
-cd ../..
-./deploy_smart_contract.sh --node-ip 10.0.1.1 --port 3334 --protocol http
+# 1. Initialize the blockchain network
+cd blockchain/quorum-test-network
+./run.sh
 
-# Start Docker Compose in background
+sleep 5
+
+# 2. Deploy the smart contract
+cd ../..
+./deploy_smart_contract.sh --rpc_url http://10.5.99.99:21001 --chain_id 1337
+
+# 3. Start Docker Compose in background
 docker compose up &
 compose_pid=$!
 

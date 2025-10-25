@@ -61,14 +61,20 @@ def create_agent_config(agent_index: int, output_directory: str):
     eth_node_url = pick_random_eth_node_url()
     creds = read_credentials_from_dir(agent_dir, eth_node_url)
 
+    # TO BE REPLACED
+    fake_hash = generate_fake_hash(f"robot{agent_index}")
+
     agent_data = {
         "name": f"robot{agent_index}",
-        "uuid": str(uuid.uuid4()),
+        "cmd_name": "robot_state_publisher",
+	    "text_section_size": 42223,
+        "sha256": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
+	    "offset": 0, 
         "eth_address": creds["eth_address"],         # from keystore, with 0x
         "private_key": creds["private_key"],
         "eth_node_url": creds["eth_node_url"],       # random validator URL
         "contract_address": contract_data["address"],
-        "ref_signature": generate_fake_hash(f"robot{agent_index}"),
+        "ref_signatures": [fake_hash, fake_hash, fake_hash], # [robot, prover, verifier]
     }
 
     os.makedirs(output_directory, exist_ok=True)
@@ -98,15 +104,6 @@ def create_secaas_config(output_directory: str):
         json.dump(secaas_data, f, indent=4)
 
     print(f"Created secaas.json using validator1 (RPC: {eth_node_url}).")
-
-def calculate_position(agent_index: int):
-    spacing = 5
-    grid_size = math.ceil(math.sqrt(agent_index))
-    row = (agent_index - 1) // grid_size
-    col = (agent_index - 1) % grid_size
-    x_pose = col * spacing
-    y_pose = row * -spacing
-    return x_pose, y_pose
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create agent configs from Besu quickstart files.")

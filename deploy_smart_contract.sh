@@ -50,7 +50,7 @@ echo "RPC URL    : $rpc_url"
 echo "Chain ID   : $chain_id"
 
 # Run in Docker
-docker run -it --rm \
+docker run -it --rm --name hardhat \
   -v "$(pwd)/smart-contracts/scripts":/smart-contracts/scripts \
   -v "$(pwd)/smart-contracts/deployments":/smart-contracts/deployments \
   -v "$(pwd)/smart-contracts/contracts":/smart-contracts/contracts \

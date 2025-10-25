@@ -1,9 +1,16 @@
 {
     "name": "robot2",
-    "uuid": "d982a02f-1e24-49a5-8466-df07372f3c83",
+    "cmd_name": "robot_state_publisher",
+    "text_section_size": 42223,
+    "sha256": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
+    "offset": 0,
     "eth_address": "0x11bdd9da7d1f9d5495950d376288f62d428b5f0d",
     "private_key": "0xd55287f2775a68deace345c8557831d86ef1e88d2ef56a4c22e4a7a25977f005",
-    "eth_node_url": "http://validator1:8545",
+    "eth_node_url": "http://validator2:8545",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
-    "ref_signature": "37c0e3f7c3e2bf4bbdfd787eb5952db4edd5f663ce5e6bb745e22442686deddd"
+    "ref_signatures": [
+        "37c0e3f7c3e2bf4bbdfd787eb5952db4edd5f663ce5e6bb745e22442686deddd",
+        "37c0e3f7c3e2bf4bbdfd787eb5952db4edd5f663ce5e6bb745e22442686deddd",
+        "37c0e3f7c3e2bf4bbdfd787eb5952db4edd5f663ce5e6bb745e22442686deddd"
+    ]
 }

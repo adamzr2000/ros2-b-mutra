@@ -9,7 +9,7 @@ contract MasMutualAttestation {
     enum AttestationState {Open, ReadyForEvaluation, Closed}
 
     struct Agent {
-        bytes16 uuid;
+        string name;
         bool registered;
         bytes32[] completedAttestations; // Stores all attestation IDs the agent has completed
     }
@@ -18,8 +18,11 @@ contract MasMutualAttestation {
         bytes32 id;
         address verifier;
         address prover;
-        bytes32 fresh_signature;
-        bytes32 ref_signature;
+
+        // Fixed-size arrays: [agent, prover, verifier]
+        bytes32[3] fresh_signatures;
+        bytes32[3] ref_signatures;
+
         AttestationState state;
         AttestationResult result;
         uint256 timestamp; // Timestamp for attestation closure
@@ -61,11 +64,11 @@ contract MasMutualAttestation {
         emit ChainReset();
     }    
 
-    function RegisterAgent(bytes16 uuid) public {
-        require(uuid != bytes16(0), "UUID is not valid");
+    function RegisterAgent(string memory name) public {
+        require(bytes(name).length > 0, "Name is not valid");
         Agent storage currentAgent = agent[msg.sender];
         // require(!currentAgent.registered, "Agent already registered");
-        currentAgent.uuid = uuid;
+        currentAgent.name = name;
         currentAgent.registered = true;
         indexOf[msg.sender] = participants.length;
         participants.push(msg.sender);
@@ -111,24 +114,27 @@ contract MasMutualAttestation {
         return selected;
     }
 
-    function GetAgentInfo(address agentAddress, address callAddress) public view returns (bytes16, bool, bytes32[] memory) {
+    function GetAgentInfo(address agentAddress, address callAddress) public view returns (string memory, bool, bytes32[] memory) {
         Agent storage currentAgent = agent[callAddress];
         Agent storage agentToFind = agent[agentAddress];
         require(currentAgent.registered || callAddress == secaas, "GetAgentInfo : Agent is not registered");
-        return (agentToFind.uuid, agentToFind.registered, agentToFind.completedAttestations);
+        return (agentToFind.name, agentToFind.registered, agentToFind.completedAttestations);
     } 
 
 
-    function RequestAttestation(bytes32 id, bytes32 freshMeasurement) public {
+    function SendEvidence(bytes32 id, bytes32[3] memory freshMeasurements) public {
         Agent storage currentAgent = agent[msg.sender];
-        require(currentAgent.registered, "RequestAttestation : Agent is not registered");
+        require(currentAgent.registered, "SendEvidence : Agent is not registered");
 
         MutualAttestation storage currentAttestation = attestation[id];
         currentAttestation.id = id;
         currentAttestation.verifier = ElectVerifier(msg.sender);
         currentAttestation.prover = msg.sender;
-        currentAttestation.fresh_signature = freshMeasurement;
-        currentAttestation.ref_signature = bytes32(0);
+
+        // Assign fixed-size arrays
+        currentAttestation.fresh_signatures = freshMeasurements;
+        currentAttestation.ref_signatures = [bytes32(0), bytes32(0), bytes32(0)];
+
         currentAttestation.state = AttestationState.Open;
         currentAttestation.result = AttestationResult.None;
         currentAttestation.timestamp = 0; 
@@ -136,33 +142,32 @@ contract MasMutualAttestation {
         emit AttestationStarted(id);
     }
 
-    function GetProverUUID(bytes32 id, address callAddress) public view returns (bytes16) {
+    function GetProverAddress(bytes32 id, address callAddress) public view returns (address) {
         require(callAddress == secaas, "You are not the SECaaS.");
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.state == AttestationState.Open, "Attestation is closed or not exists");
         address proverAgentAddress = currentAttestation.prover;
-        Agent storage currentAgent = agent[proverAgentAddress];
-        return (currentAgent.uuid);
+        return (proverAgentAddress);
     }     
 
-    function SendRefSignaure(bytes32 id, bytes32 measurement) public returns (bool) {
+    function SendRefSignaures(bytes32 id, bytes32[3] memory refMeasurements) public returns (bool) {
         require(msg.sender == secaas, "Only the SECaaS can send the reference signature");
         
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.state == AttestationState.Open, "Invalid state for SECaaS response");
         
-        currentAttestation.ref_signature = measurement;
+        currentAttestation.ref_signatures = refMeasurements;
         currentAttestation.state = AttestationState.ReadyForEvaluation;
 
         emit ReadyForEvaluation(id);
         return true;
     }
 
-    function GetAttestationMeasurements(bytes32 id, address callAddress) public view returns (bytes32, bytes32) {
+    function GetAttestationSignatures(bytes32 id, address callAddress) public view returns (bytes32[3] memory, bytes32[3] memory) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.verifier == callAddress, "Only the verifier can retrieve the signatures");
         require(currentAttestation.state == AttestationState.ReadyForEvaluation, "Attestation process is not completed");
-        return (currentAttestation.fresh_signature, currentAttestation.ref_signature);
+        return (currentAttestation.fresh_signatures, currentAttestation.ref_signatures);
     }
 
     function GetAttestationInfo(bytes32 id) public view returns (address, address, AttestationResult, uint256) {
@@ -215,6 +220,10 @@ contract MasMutualAttestation {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.state != AttestationState.Closed, "Attestation process is closed or not exists");
         return currentAttestation.verifier == callAddress;
+    }
+    
+    function IsRegistered(address callAddress) public view returns (bool) {
+        return agent[callAddress].registered;
     }
 
 }

@@ -1,6 +1,0 @@
-redis
-fastapi
-uvicorn
-python-dotenv
-web3==5.31.3
-hexbytes

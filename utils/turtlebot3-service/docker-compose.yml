@@ -14,7 +14,7 @@ x-common-commands:
 
 services:
   gazebo-server:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: gazebo-server
     hostname: gazebo-server
     environment:
@@ -41,7 +41,7 @@ services:
       - seccomp=unconfined
     restart: unless-stopped
   robot1:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: robot1
     hostname: robot1
     volumes:
@@ -60,7 +60,7 @@ services:
     # command: *robot_entrypoint
 
   robot2:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: robot2
     hostname: robot2
     volumes:
@@ -79,7 +79,7 @@ services:
     # command: *robot_entrypoint
 
   robot3:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: robot3
     hostname: robot3
     volumes:
@@ -98,7 +98,7 @@ services:
     # command: *robot_entrypoint
 
   robot4:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: robot4
     hostname: robot4
     volumes:

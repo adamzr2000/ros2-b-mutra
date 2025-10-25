@@ -28,6 +28,6 @@ docker run \
     -v "${host_dir}:/home/agent/ros2_ws/src" \
     --rm \
     --privileged \
-    ros2-agent:latest
+    turtlebot3-simulation-ros2:latest
 
 echo "Done."

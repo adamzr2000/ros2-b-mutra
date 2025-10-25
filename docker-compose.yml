@@ -10,11 +10,23 @@ x-common-commands:
     bash -c "
     cd ~/scripts && ./start_turtlebot.sh
     "
-
 services:
+  docker-stats-collector:
+    image: docker-stats-collector:latest
+    container_name: docker-stats-collector
+    ports:
+      - "6666:5000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ./dockerfiles/docker-stats-collector/app:/app
+      - ./experiments:/experiments
+    restart: unless-stopped
+    networks:
+      - quorum-dev-quickstart
 
   gazebo-server:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: gazebo-server
     hostname: gazebo-server
     environment:
@@ -45,26 +57,53 @@ services:
     networks:
       - robots-net
 
-  secaas-verifier:
-    container_name: secaas-verifier
-    image: sidecar-verifier:latest
+  attestation-chain-display:
+    container_name: attestation-chain-display
+    image: attestation-sidecar:latest
     environment:
       - PARTICIPANT=secaas
       - CONFIG_PATH=/config/secaas.json
+      - CHAIN_DISPLAY=TRUE
+      - CHAIN_DISPLAY_N=10
+      - CHAIN_DISPLAY_SEC=5
+    volumes:
+      - "./config/:/config:rw"
+      - "./smart-contracts:/smart-contracts"
+      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
+      - ./dockerfiles/attestation-sidecar/app/blockchain_client.py:/app/blockchain_client.py
+      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
+      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
+      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
+      - ./dockerfiles/attestation-sidecar/app/secaas.py:/app/secaas.py
+    networks:
+      - quorum-dev-quickstart
+
+  secaas-sidecar:
+    container_name: secaas-sidecar
+    image: attestation-sidecar:latest
+    environment:
+      - PARTICIPANT=secaas
+      - CONFIG_PATH=/config/secaas.json
+      - AUTO_START=${AUTO_START}
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+    ports:
+      - "8080:8080"
     volumes:
       - "./config/:/config:rw"
       - "./experiments/:/experiments:rw"
       - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-verifier/app/event_watcher.py:/app/event_watcher.py
-      - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
-    stdin_open: true
-    tty: true 
+      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
+      - ./dockerfiles/attestation-sidecar/app/blockchain_client.py:/app/blockchain_client.py
+      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
+      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
+      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
+      - ./dockerfiles/attestation-sidecar/app/secaas.py:/app/secaas.py
     networks:
       - quorum-dev-quickstart
 
   robot1:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: robot1
     hostname: robot1
     environment:
@@ -81,31 +120,36 @@ services:
     networks:
       - robots-net
 
-  sidecar-measurer-robot1:
-    container_name: sidecar-measurer-robot1
-    image: sidecar-measurer:latest
+  robot1-sidecar:
+    container_name: robot1-sidecar
+    image: attestation-sidecar:latest
+    environment:
+      - PARTICIPANT=agent
+      - CONFIG_PATH=/config/robot1.json
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+      - USE_REDIS=${USE_REDIS}
+      - BOOTSTRAP=${BOOTSTRAP}
+      - AUTO_START=${AUTO_START}
+      - PROC_COMM=robot_state_pub
+      - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
+      - THRESHOLD=${PROVER_THRESHOLD}
     ports:
       - "8081:8080"
     volumes:
+      - ./config/robot1.json:/config/robot1.json
+      - ./smart-contracts:/smart-contracts
+      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
+      - ./dockerfiles/attestation-sidecar/app/blockchain_client.py:/app/blockchain_client.py
+      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
+      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
+      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
+      - ./dockerfiles/attestation-sidecar/app/secaas.py:/app/secaas.py
+      - ./dockerfiles/attestation-sidecar/app/compute_hash.py:/app/compute_hash.py
+      - ./experiments/:/experiments:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
-      - ./jsonfiles/:/jsonfiles:rw
       - ./binaryfiles/:/binaryfiles:rw
-      - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
-    environment:
-      - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
-      - CONTAINER=robot1
-      - AGENT_NAME=robot1
-      - LOG_LEVEL=debug # or "debug", "warning", "error", "critical", or leave empty to disable custom level
-      - USE_REDIS=FALSE
-      - BOOTSTRAP=FALSE
-      - AUTO_START=TRUE
-      - PROC_COMM=robot_state_pub
-      - CONFIGSIDECAR=/jsonfiles/robot1.json
-      - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
-      - THRESHOLD=${MEASURER_THRESHOLD}
-      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-verifier-robot1:8080
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     pid: "container:robot1"
     depends_on:
       - robot1
@@ -114,31 +158,12 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
-    networks:
-      - quorum-dev-quickstart
-
-  sidecar-verifier-robot1:
-    container_name: sidecar-verifier-robot1
-    image: sidecar-verifier:latest
-    environment:
-      - PARTICIPANT=agent
-      - CONFIG_PATH=/config/robot1.json
-      - EXPORT_RESULTS=FALSE
-    volumes:
-      - "./config/robot1.json:/config/robot1.json"
-      - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-verifier/app/event_watcher.py:/app/event_watcher.py
-      - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
-      - "./experiments/:/experiments:rw"
-    stdin_open: true
-    tty: true 
+          cpus: '0.2'
     networks:
       - quorum-dev-quickstart
 
   robot2:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: robot2
     hostname: robot2
     environment:
@@ -155,32 +180,36 @@ services:
     networks:
       - robots-net
 
-  sidecar-measurer-robot2:
-    container_name: sidecar-measurer-robot2
-    image: sidecar-measurer:latest
+  robot2-sidecar:
+    container_name: robot2-sidecar
+    image: attestation-sidecar:latest
+    environment:
+      - PARTICIPANT=agent
+      - CONFIG_PATH=/config/robot2.json
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+      - USE_REDIS=${USE_REDIS}
+      - BOOTSTRAP=${BOOTSTRAP}
+      - AUTO_START=${AUTO_START}
+      - PROC_COMM=robot_state_pub
+      - MEMORY_STORAGE_FILE=/measurements/robot2_measurements.json
+      - THRESHOLD=${PROVER_THRESHOLD}
     ports:
       - "8082:8080"
     volumes:
+      - ./config/robot2.json:/config/robot2.json
+      - ./smart-contracts:/smart-contracts
+      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
+      - ./dockerfiles/attestation-sidecar/app/blockchain_client.py:/app/blockchain_client.py
+      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
+      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
+      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
+      - ./dockerfiles/attestation-sidecar/app/secaas.py:/app/secaas.py
+      - ./dockerfiles/attestation-sidecar/app/compute_hash.py:/app/compute_hash.py
+      - ./experiments/:/experiments:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
-      - ./jsonfiles/:/jsonfiles:rw
       - ./binaryfiles/:/binaryfiles:rw
-      - ./smart-contracts:/smart-contracts
-      - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
-    environment:
-      - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
-      - CONTAINER=robot2
-      - AGENT_NAME=robot2
-      - LOG_LEVEL=debug # or "debug", "warning", "error", "critical", or leave empty to disable custom level
-      - USE_REDIS=FALSE
-      - BOOTSTRAP=FALSE
-      - AUTO_START=TRUE
-      - PROC_COMM=robot_state_pub
-      - CONFIGSIDECAR=/jsonfiles/robot2.json
-      - MEMORY_STORAGE_FILE=/measurements/robot2_measurements.json
-      - THRESHOLD=${MEASURER_THRESHOLD}
-      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-verifier-robot2:8080
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     pid: "container:robot2"
     depends_on:
       - robot2
@@ -189,31 +218,12 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
-    networks:
-      - quorum-dev-quickstart
-
-  sidecar-verifier-robot2:
-    container_name: sidecar-verifier-robot2
-    image: sidecar-verifier:latest
-    environment:
-      - PARTICIPANT=agent
-      - CONFIG_PATH=/config/robot2.json
-      - EXPORT_RESULTS=FALSE
-    volumes:
-      - "./config/robot2.json:/config/robot2.json"
-      - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-verifier/app/event_watcher.py:/app/event_watcher.py
-      - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
-      - "./experiments/:/experiments:rw"
-    stdin_open: true
-    tty: true 
+          cpus: '0.2'
     networks:
       - quorum-dev-quickstart
 
   robot3:
-    image: ros2-agent:latest
+    image: turtlebot3-simulation-ros2
     container_name: robot3
     hostname: robot3
     environment:
@@ -229,33 +239,37 @@ services:
     tty: true
     networks:
       - robots-net
-  sidecar-measurer-robot3:
-    container_name: sidecar-measurer-robot3
-    image: sidecar-measurer:latest
+  robot3-sidecar:
+    container_name: robot3-sidecar
+    image: attestation-sidecar:latest
+    environment:
+      - PARTICIPANT=agent
+      - CONFIG_PATH=/config/robot3.json
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+      - USE_REDIS=${USE_REDIS}
+      - BOOTSTRAP=${BOOTSTRAP}
+      - AUTO_START=${AUTO_START}
+      - PROC_COMM=robot_state_pub
+      - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
+      - THRESHOLD=${PROVER_THRESHOLD}
     ports:
       - "8083:8080"
     volumes:
+      - ./config/robot3.json:/config/robot3.json
+      - ./smart-contracts:/smart-contracts
+      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
+      - ./dockerfiles/attestation-sidecar/app/blockchain_client.py:/app/blockchain_client.py
+      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
+      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
+      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
+      - ./dockerfiles/attestation-sidecar/app/secaas.py:/app/secaas.py
+      - ./dockerfiles/attestation-sidecar/app/compute_hash.py:/app/compute_hash.py
+      - ./experiments/:/experiments:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
-      - ./jsonfiles/:/jsonfiles:rw
       - ./binaryfiles/:/binaryfiles:rw
-      - ./smart-contracts:/smart-contracts
-      - ./dockerfiles/sidecar-measurer/app/main.py:/app/main.py
-    environment:
-      - CONTRACT_ABI_PATH=/smart-contracts/build/contracts/MasMutualAttestation.json
-      - CONTAINER=robot3
-      - AGENT_NAME=robot3
-      - LOG_LEVEL=debug # or "debug", "warning", "error", "critical", or leave empty to disable custom level
-      - USE_REDIS=FALSE
-      - BOOTSTRAP=FALSE
-      - AUTO_START=TRUE
-      - PROC_COMM=robot_state_pub
-      - CONFIGSIDECAR=/jsonfiles/robot3.json
-      - MEMORY_STORAGE_FILE=/measurements/robot3_measurements.json
-      - THRESHOLD=${MEASURER_THRESHOLD}
-      - SIDECAR_CONTROLLER_ENDPOINT=http://sidecar-verifier-robot3:8080
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
-    pid: "container:robot2"
+    pid: "container:robot3"
     depends_on:
       - robot3
     cap_add:
@@ -263,26 +277,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
-    networks:
-      - quorum-dev-quickstart
-
-  sidecar-verifier-robot3:
-    container_name: sidecar-verifier-robot3
-    image: sidecar-verifier:latest
-    environment:
-      - PARTICIPANT=agent
-      - CONFIG_PATH=/config/robot3.json
-      - EXPORT_RESULTS=FALSE
-    volumes:
-      - "./config/robot3.json:/config/robot3.json"
-      - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/sidecar-verifier/app/main.py:/app/main.py
-      - ./dockerfiles/sidecar-verifier/app/event_watcher.py:/app/event_watcher.py
-      - ./dockerfiles/sidecar-verifier/app/blockchain_interface.py:/app/blockchain_interface.py
-      - "./experiments/:/experiments:rw"
-    stdin_open: true
-    tty: true 
+          cpus: '0.2'
     networks:
       - quorum-dev-quickstart
   db:

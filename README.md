@@ -15,11 +15,10 @@ Go to the [dockerfiles](./dockerfiles) directory and run the `./build.sh` script
 
 | Module                 | Description                                                                                                     | Status       |
 |------------------------|-----------------------------------------------------------------------------------------------------------------|--------------|
-| **HARDHAT**            | Development framework for Ethereum-based blockchain applications ([details](./dockerfiles/hardhat))         | ✅ Available |
+| **hardhat**            | Development framework for Ethereum-based blockchain applications ([details](./dockerfiles/hardhat))         | ✅ Available |
 | **gazebo-vnc**         | Robot simulation tool ([details](./dockerfiles/gazebo-vnc))       | ✅ Available |
 | **turtlebot3**         | Robot simulation model in Gazebo ([details](./dockerfiles/turtlebot3)) | ✅ Available |
-| **sidecar-measurer**   | ... ([details](./dockerfiles/sidecar-measurer)) | ✅ Available |
-| **sidecar-verifier**   | ... ([details](./dockerfiles/sidecar-verifier)) | ✅ Available |
+| **attestation-sidecar**   | ... ([details](./dockerfiles/attestation-sidecar)) | ✅ Available |
 | **secaas-wrapper**   | ... ([details](./dockerfiles/secaas-wrapper)) | ✅ Available |
 
 ---
@@ -33,14 +32,14 @@ python3 create_agent_configurations.py --num-agents 10 --output ./config
 Start the full experiment with all services:
 - **4-node Private Ethereum-based blockchain** with [Hyperledger Besu](https://besu.hyperledger.org/private-networks) platform running [QBFT](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft) consensus algorithm
 - **Gazebo** robot simulator
-- **Robot(s)** with `turtlebot3` ros2 simulation, `sidecar-measurer`, and `sidecar-verifier`
-- **SECaaS** with `sidecar-verifier` and `secaas-wrapper`
+- **Robot(s)** with `turtlebot3` ros2 simulation, and `attestation-sidecar`
+- **SECaaS** with `attestation-sidecar` and `secaas-wrapper`
 
 ```bash
 ./run_full_experiment.sh
 ```
 
-> Note: This will start all required containers and start processing attestations.
+> Note: This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
 
 ---
 
@@ -69,4 +68,50 @@ Services exposed:
 ```bash
 cd blockchain/quorum-test-network
 ./remove.sh
+```
+
+---
+
+## Runtime Attestation Setup (Manual)
+1. Start containers:
+```bash
+docker compose up -d
+```
+
+2. Start docker stats data collection
+```shell
+curl -X POST localhost:6666/monitor/start \
+  -H 'Content-Type: application/json' \
+  -d '{"containers": ["secaas-sidecar","robot1-sidecar","robot2-sidecar", "robot3-sidecar"],
+  "interval":1.0,"csv_dir":"/experiments/data/docker-stats/test","stdout":true}' | jq
+```
+> Check status:
+```bash
+curl localhost:6666/monitor/status | jq
+```
+
+3. Start attestation:
+```bash
+for p in 8080 8081 8082 8083; do
+  echo "Stopping attestation on sidecar with port $p..."
+  curl -X POST "http://localhost:${p}/start" | jq
+done
+```
+
+4. Stop attestation
+```bash
+for p in 8080 8081 8082 8083; do
+  echo "Starting attestation on sidecar with port $p..."
+  curl -X POST "http://localhost:${p}/stop" | jq
+done
+```
+
+5. Stop docker stats data collection
+```shell
+curl -X POST "http://localhost:6666/monitor/stop" | jq
+```
+
+6. Stop workflow
+```bash
+docker compose down
 ```
