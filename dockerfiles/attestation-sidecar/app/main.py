@@ -1,18 +1,17 @@
 import logging
 import json
 import utils
-from blockchain_client import BlockchainClient
+from blockchain_manager import BlockchainManager
 
 import os
 import threading
-
+import glob, re
 from web3 import Web3
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from prover import run_prover_logic_continuous_mode
 from verifier import run_verifier_logic_sequential
-from secaas import run_secaas_logic
 from RedisStorageBackend import RedisStorageBackend
 from MemoryStorageBackend import MemoryStorageBackend
 
@@ -33,6 +32,25 @@ else:
 app = FastAPI()
 logger = logging.getLogger(__name__)
 
+def _next_run_json(results_dir: str, participant: str) -> str:
+    os.makedirs(results_dir, exist_ok=True)
+    base = results_dir.rstrip("/")
+    safe = participant  # names already controlled; adjust if needed
+    pattern = os.path.join(base, f"{safe}-run*.json")
+    existing = glob.glob(pattern)
+    max_idx = 0
+    rx = re.compile(rf"{re.escape(safe)}-run(\d+)\.json$")
+    for p in existing:
+        m = rx.search(os.path.basename(p))
+        if m:
+            try:
+                idx = int(m.group(1))
+                if idx > max_idx:
+                    max_idx = idx
+            except ValueError:
+                pass
+    return os.path.join(base, f"{safe}-run{max_idx+1}.json")
+
 def start_attestation(app: FastAPI):
     # Create stop event / threads list if not present (idempotent)
     if not hasattr(app.state, "stop_event"):
@@ -44,34 +62,38 @@ def start_attestation(app: FastAPI):
     app.state.stop_event.clear()
 
     if app.state.export_enabled:
-        utils.ensure_results_initialized(app.state.results_dir, app.state.participant_name)
+        # Ensure per-run JSON path is set, then init file
+        if not getattr(app.state, "results_file", None):
+            # Fallback only (should rarely happen now)
+            app.state.results_file = _next_run_json(app.state.results_dir, app.state.participant_name)
+            logger.info(f"Results file selected (fallback): {app.state.results_file}")
 
-    if app.state.participant == "secaas":
-        logger.info("SECaaS attestation loop started")
-        t = threading.Thread(target=run_secaas_logic, args=(app, app.state.stop_event), name="SECaaS", daemon=True)
-        t.start()
-        app.state.threads.append(t)
-    elif app.state.participant == "agent":
-        if app.state.measuring:
-            logger.info("Agent attestation already running; ignoring start request")
-            return
-        app.state.measuring = True
+        utils.ensure_results_initialized(
+            app.state.results_dir,
+            app.state.participant_name,
+            json_path=app.state.results_file
+        )
 
-        logger.info("Agent attestation loop started")
-        t1 = threading.Thread(
-            target=run_prover_logic_continuous_mode,
-            args=(app, app.state.stop_event),
-            name=app.state.participant_name,
-            daemon=True
-        )
-        t2 = threading.Thread(
-            target=run_verifier_logic_sequential,
-            args=(app, app.state.stop_event),
-            name=app.state.participant_name,
-            daemon=True
-        )
-        t1.start(); t2.start()
-        app.state.threads.extend([t1, t2])
+    if app.state.measuring:
+        logger.info("Agent attestation already running; ignoring start request")
+        return
+    app.state.measuring = True
+
+    logger.info("Agent attestation loop started")
+    t1 = threading.Thread(
+        target=run_prover_logic_continuous_mode,
+        args=(app, app.state.stop_event),
+        name=app.state.participant_name,
+        daemon=True
+    )
+    t2 = threading.Thread(
+        target=run_verifier_logic_sequential,
+        args=(app, app.state.stop_event),
+        name=app.state.participant_name,
+        daemon=True
+    )
+    t1.start(); t2.start()
+    app.state.threads.extend([t1, t2])
 
 def stop_attestation(app: FastAPI):
     # Stop prover measuring background
@@ -93,17 +115,14 @@ def stop_attestation(app: FastAPI):
         app.state.threads.clear()
 
     if app.state.export_enabled:
-        utils.mark_experiment_stop(app.state.results_dir, app.state.participant_name)
+        utils.mark_experiment_stop(
+            app.state.results_dir, 
+            app.state.participant_name, 
+            json_path=getattr(app.state, "results_file", None)
+        )
 
 @app.on_event("startup")
-async def startup():
-
-    # Read env & config
-    PARTICIPANT = utils.get_env_str("PARTICIPANT", default="agent")
-    if PARTICIPANT not in ["agent", "secaas"]:
-        logger.error('PARTICIPANT must be set to either "agent" or "secaas".')
-        raise SystemExit(1)
-    
+async def startup():    
     JSON_FILE_PATH = utils.get_env_str("CONFIG_PATH", default="")
     if not JSON_FILE_PATH:
         logger.error("CONFIG_PATH environment variable is required.")
@@ -117,23 +136,19 @@ async def startup():
         eth_node_url = data["eth_node_url"]
         contract_address = Web3.toChecksumAddress(data["contract_address"])
         if 'cmd_name' in data:
-            cmd_name = data['cmd_name']
-            app.state.cmd_name = cmd_name
-
+            app.state.cmd_name = data['cmd_name']
         if 'text_section_size' in data:
-            text_section_size = int(data['text_section_size'])
-            app.state.text_section_size = text_section_size
-
+            app.state.text_section_size = int(data['text_section_size'])
         if 'offset' in data:
-            offset = int(data['offset'])
-            app.state.offset = offset
+            app.state.offset = int(data['offset'])
     except Exception as e:
         logger.error(f"Configuration error: {str(e)}")
         raise SystemExit(1)
 
     # App state
-    app.state.participant = PARTICIPANT
-    app.state.blockchain_client = BlockchainClient(
+    app.state.participant = "agent"
+
+    app.state.blockchain_manager = BlockchainManager(
         eth_address=eth_address,
         private_key=private_key,
         eth_node_url=eth_node_url,
@@ -142,12 +157,12 @@ async def startup():
     )
     app.state.active_attestations = {}   # attestation_id → Thread
     app.state.export_enabled = os.getenv("EXPORT_RESULTS", "false").lower() == "true"
-    app.state.participant_name = (data["name"] if PARTICIPANT == "agent" else "secaas")
+    app.state.participant_name = data["name"]  # agent name from config
     app.state.results_dir = utils.get_env_str("RESULTS_DIR", default="/experiments/data/attestation-times")
     app.state.fail_attestation_flag = os.getenv("FAIL_ATTESTATION", "false").lower() == "true"
-    app.state.event_confirmations = utils.get_env_int("EVENT_CONFIRMATIONS", default=2)
-    app.state.event_batch_size = utils.get_env_int("EVENT_BATCH_SIZE", default=2000)
-    app.state.event_poll_interval = utils.get_env_float("EVENT_POLL_INTERVAL", default=0.5)
+    app.state.event_confirmations = utils.get_env_int("EVENT_CONFIRMATIONS", default=1)
+    app.state.event_batch_size = utils.get_env_int("EVENT_BATCH_SIZE", default=1000)
+    app.state.event_poll_interval = utils.get_env_float("EVENT_POLL_INTERVAL", default=1)
     app.state.event_lookback_blocks = utils.get_env_int("EVENT_LOOKBACK_BLOCKS", default=0)
     app.state.event_checkpoint_dir = utils.get_env_str("EVENT_CHECKPOINT_DIR", default="/checkpoints")
     app.state.chain_display = utils.get_env_str("CHAIN_DISPLAY", default="false").strip().lower() in ("true", "yes", "1")
@@ -168,10 +183,24 @@ async def startup():
     app.state.final_digest = ""
     AUTO_START = os.getenv("AUTO_START", "false").lower() == "true"
 
+    # Precompute results file path for this run when exporting is enabled
+    app.state.results_file = None
+    if app.state.export_enabled:
+        run_id = os.getenv("RUN_ID", "").strip()
+        if run_id:
+            app.state.results_file = os.path.join(
+                app.state.results_dir,
+                f"{app.state.participant_name}-run{run_id}.json"
+            )
+            logger.info(f"Preselected results file (RUN_ID={run_id}): {app.state.results_file}")
+        else:
+            app.state.results_file = _next_run_json(app.state.results_dir, app.state.participant_name)
+            logger.info(f"Preselected results file (auto): {app.state.results_file}")
+
     # Start background roles
     if app.state.chain_display:
         chain_display_thread = threading.Thread(
-            target=app.state.blockchain_client.periodic_attestation_chain_display,
+            target=app.state.blockchain_manager.periodic_attestation_chain_display,
             args=(app.state.chain_display_n, app.state.chain_display_sec),
             name="ChainDisplay",
             daemon=True
@@ -179,10 +208,11 @@ async def startup():
         chain_display_thread.start()
         app.state.threads.append(chain_display_thread)
     else:
-        if PARTICIPANT == "agent" and not app.state.blockchain_client.is_registered():
+        if not app.state.blockchain_manager.is_registered():
             logger.info(f"Registering agent '{app.state.participant_name}' ({eth_address}) ...")
-            tx_hash = app.state.blockchain_client.register_agent(app.state.participant_name, wait=True, timeout=30)
+            tx_hash = app.state.blockchain_manager.register_agent(app.state.participant_name, wait=True, timeout=30)
             logger.info(f"{app.state.participant_name} registered (Tx: {tx_hash})")
+        
         if AUTO_START:
             start_attestation(app)
 
@@ -200,20 +230,9 @@ def stop_endpoint():
     stop_attestation(app)
     return {"message": "Attestation stopped."}
     
-@app.post("/reset")
-def reset_attestation_chain():
-    if app.state.participant != "secaas":
-        return JSONResponse(status_code=403, content={"error": "Only SECaaS can reset the chain."})
-    try:
-        blockchain_client = app.state.blockchain_client
-        tx_hash = blockchain_client.reset_attestation_chain()
-        return {"message": "Chain reset", "tx_hash": tx_hash}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-    
 @app.on_event("shutdown")
 async def shutdown():
     stop_attestation(app)
 
     # graceful cleanup
-    getattr(app.state.blockchain_client, "close", lambda: None)()
+    getattr(app.state.blockchain_manager, "close", lambda: None)()

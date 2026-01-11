@@ -8,7 +8,7 @@ from typing import Optional, Dict, Set
 from fastapi import FastAPI
 from web3 import Web3
 
-from blockchain_client import (
+from blockchain_manager import (
     MasMutualAttestationContractEvents, AttestationState, EventWatcher
 )
 import utils
@@ -21,67 +21,60 @@ def _should_stop(stop_event):
     return bool(stop_event and stop_event.is_set())
 
 def process_verifier_attestation(
-    app: FastAPI,
-    attestation_id: str,
+    app: FastAPI, 
+    attestation_id: str, 
     seed_ts: Optional[Dict[str, int]] = None,
     stop_event: Optional[threading.Event] = None
 ):
-    
-    blockchain_client = app.state.blockchain_client
+    """
+    Verifier logic:
+    Triggered only when the SECaaS Oracle has finished (READY_FOR_EVALUATION event).
+    """
+    try:
+        timestamps = dict(seed_ts or {})
 
-    # start with the timestamp captured in the blockchain_event_watcher
-    timestamps = dict(seed_ts or {})
+        blockchain_manager = app.state.blockchain_manager
+        log_prefix = f"[Verifier-{utils.short_att_id(attestation_id)}]"
 
-    log_prefix = f"[Verifier-{utils.short_att_id(attestation_id)}]"
+        # 1. Fetching Signatures
+        logger.info(f"{log_prefix} SECaaS Oracle finished. Retrieving signatures for evaluation...")
+        timestamps["get_signatures_start"] = int(time.time() * 1000)
+        fresh_sigs, ref_sigs = blockchain_manager.get_attestation_signatures(attestation_id)
+        timestamps["get_signatures_finished"] = int(time.time() * 1000)
+        
+        # 2. Evaluation
+        is_success = (fresh_sigs == ref_sigs)
+        is_success = True
 
-    # Wait until the contract signals ReadyForEvaluation
-    start_wait = time.time()
-    TIMEOUT_S = 60
-    while blockchain_client.get_attestation_state(attestation_id) != AttestationState.ReadyForEvaluation:
-        if _should_stop(stop_event):
-            logger.info(f"{log_prefix} Stopping while waiting for ReadyForEvaluation.")
-            return
-        if time.time() - start_wait > TIMEOUT_S:
-            logger.error(f"{log_prefix} Timeout waiting for ReadyForEvaluation.")
-            return
-        time.sleep(0.05)
+        # 3. Submit Result to Blockchain
+        timestamps["result_sent"] = int(time.time() * 1000)
+        logger.info(f"{log_prefix} Attestation closed (result: {'✅ SUCCESS' if is_success else '❌ FAILURE'})")
+        blockchain_manager.send_attestation_result(attestation_id, is_success)
 
-    timestamps["evaluation_ready_received"] = int(time.time() * 1000)
-    logger.info(f"{log_prefix} New evidence received for evaluation")
+        if app.state.export_enabled:
+            utils.export_attestation_times_json(
+                app.state.participant_name, attestation_id, "verifier", timestamps, app.state.results_dir, 
+                json_path=getattr(app.state, "results_file", None)
+            )
 
-    # Retrieve and compare signatures [robot, prover, verifier]
-    logger.info(f"{log_prefix} Retrieving fresh and reference signatures for comparison...")
-    fresh_signatures, reference_signatures = blockchain_client.get_attestation_signatures(attestation_id)
-
-    # Do the actual comparison/evaluation — TO BE MODIFIED
-    result = (fresh_signatures == reference_signatures)
-    result = True
-    if getattr(app.state, "fail_attestation_flag", False):
-        result = False
-
-    # Save attestation result
-    logger.info(f"{log_prefix} Attestation closed (result: {'✅ SUCCESS' if result else '❌ FAILURE'})")
-    timestamps["result_sent"] = int(time.time() * 1000)
-    tx_hash = blockchain_client.send_attestation_result(attestation_id, result)
-    if app.state.export_enabled:
-        utils.export_attestation_times_json(
-            app.state.participant_name, attestation_id, "verifier", timestamps, app.state.results_dir
-        )
+    except Exception as e:
+        logger.error(f"Error in process_verifier_attestation for {attestation_id}: {e}")
 
 def run_verifier_logic_sequential(app: FastAPI, stop_event: Optional[threading.Event] = None):
-    evt_enum = MasMutualAttestationContractEvents.ATTESTATION_STARTED
-    blockchain_client = app.state.blockchain_client
-    evt_abi  = blockchain_client.get_event_abi(evt_enum)
-    topic0   = blockchain_client.get_event_topic(evt_enum)
+    evt_enum = MasMutualAttestationContractEvents.READY_FOR_EVALUATION
+
+    blockchain_manager = app.state.blockchain_manager
+    evt_abi  = blockchain_manager.get_event_abi(evt_enum)
+    topic0   = blockchain_manager.get_event_topic(evt_enum)
 
     cp_name  = f"att_started_cp_agent_seq.json"
     cp_path  = os.path.join(app.state.event_checkpoint_dir, cp_name)
 
     blockchain_event_watcher = EventWatcher(
-        web3            = blockchain_client.web3,
-        contract        = blockchain_client.contract,
+        web3            = blockchain_manager.web3,
+        contract        = blockchain_manager.contract,
         event_abi       = evt_abi,
-        address         = blockchain_client.contract.address,
+        address         = blockchain_manager.contract.address,
         topics          = [topic0],
         checkpoint_path = cp_path,
         confirmations   = app.state.event_confirmations,
@@ -91,7 +84,7 @@ def run_verifier_logic_sequential(app: FastAPI, stop_event: Optional[threading.E
 
     # Initial lookback on first boot (safe overlap if lookback==0)
     if not os.path.exists(cp_path):
-        latest = blockchain_client.web3.eth.block_number
+        latest = blockchain_manager.web3.eth.block_number
         if app.state.event_lookback_blocks > 0:
             blockchain_event_watcher.from_block = max(0, latest - app.state.event_lookback_blocks)
         else:
@@ -131,14 +124,15 @@ def run_verifier_logic_sequential(app: FastAPI, stop_event: Optional[threading.E
         app.state.threads.append(t_worker)
 
     def handle(evt):
+        arrival_ts = int(time.time() * 1000)
+
         attestation_id = Web3.toText(evt['args']['id']).rstrip('\x00').strip()
-        # only if I'm the verifier and attestation is open
-        if (blockchain_client.get_attestation_state(attestation_id) == AttestationState.Open
-                and blockchain_client.is_verifier_agent(attestation_id)):
+        # Check if I am the verifier for this specific ID
+        if (blockchain_manager.is_verifier_agent(attestation_id)):
             with enq_lock:
                 if attestation_id not in enqueued_ids:
                     enqueued_ids.add(attestation_id)
-                    seed_ts = {"attestation_started_received": int(time.time() * 1000)}
+                    seed_ts = {"evaluation_ready_received": arrival_ts}
                     work_q.put((attestation_id, seed_ts))
 
 

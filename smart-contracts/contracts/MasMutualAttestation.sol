@@ -60,6 +60,10 @@ contract MasMutualAttestation {
 
         delete attestationChain;
         rrIndex = 0;
+
+        for (uint i = 0; i < participants.length; i++) {
+            lastSuccess[participants[i]] = 0;
+        }
         
         emit ChainReset();
     }    

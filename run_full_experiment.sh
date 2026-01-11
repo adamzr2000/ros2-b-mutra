@@ -1,40 +1,61 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
-# 1. Initialize the blockchain network
-cd blockchain/quorum-test-network
+# --- Paths ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/.env"
+
+# --- Ensure .env has desired values BEFORE anything else ---
+upsert_env () {
+  local key="$1"
+  local val="$2"
+  if grep -qE "^[[:space:]]*$key=" "$ENV_FILE"; then
+    # replace existing line
+    sed -i "s|^[[:space:]]*$key=.*|$key=$val|g" "$ENV_FILE"
+  else
+    # append new key
+    echo "$key=$val" >> "$ENV_FILE"
+  fi
+}
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "Creating missing .env at $ENV_FILE"
+  touch "$ENV_FILE"
+fi
+
+# Set required flags
+upsert_env "EXPORT_RESULTS" "FALSE"
+upsert_env "AUTO_START" "TRUE"
+
+echo "✅ .env updated:"
+grep -E '^(EXPORT_RESULTS|AUTO_START)=' "$ENV_FILE" || true
+echo
+
+# Reset EventWatcher checkpoints (seen_keys/from_block) before starting experiment
+CHECKPOINT_DIR="$SCRIPT_DIR/checkpoints"
+RESET_SCRIPT="$CHECKPOINT_DIR/reset_event_watcher.sh"
+
+if [[ -d "$CHECKPOINT_DIR" && -f "$RESET_SCRIPT" ]]; then
+  echo "🧹 Resetting EventWatcher checkpoints..."
+  ( cd "$CHECKPOINT_DIR" && bash "./$(basename "$RESET_SCRIPT")" )
+  echo
+else
+  echo "⚠️  Skipping reset (missing $RESET_SCRIPT or directory $CHECKPOINT_DIR)"
+  echo
+fi
+
+# Initialize the blockchain network
+cd "$SCRIPT_DIR/blockchain/quorum-test-network"
 ./run.sh
-
-sleep 5
-
-# 2. Deploy the smart contract
-cd ../..
-./deploy_smart_contract.sh --rpc_url http://10.5.99.99:21001 --chain_id 1337
-
-# 3. Start containers
-docker compose up -d
 
 sleep 10
 
-# 4. Start docker stats data collection
-curl -X POST localhost:6666/monitor/start \
-  -H 'Content-Type: application/json' \
-  -d '{"containers": ["secaas-sidecar","robot1-sidecar","robot2-sidecar", "robot3-sidecar"],
-  "interval":1.0,"csv_dir":"/experiments/data/docker-stats/test","stdout":true}' | jq
-  
-# Map sidecars (names) to ports — edit to match yours
-declare -A SIDECAR_PORTS=(
-  [secaas]=8080
-  [robot1]=8081
-  [robot2]=8082
-  [robot3]=8083
-)
+# Deploy the smart contract
+cd "$SCRIPT_DIR"
+./deploy_smart_contract.sh --rpc_url http://10.5.99.99:21001 --chain_id 1337
 
-base_url="http://localhost"
+# Start containers (docker compose will read the updated .env)
+docker compose up -d
 
-# Start attestation on all sidecars
-for name in "${!SIDECAR_PORTS[@]}"; do
-    p=${SIDECAR_PORTS[$name]}
-    echo "▶️  Starting attestation on $name (port $p)..."
-    curl -X POST "$base_url:$p/start" | jq
-  done
+echo "🎉 All done."

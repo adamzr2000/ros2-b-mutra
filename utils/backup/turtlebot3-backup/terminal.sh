@@ -1,1 +1,0 @@
-docker exec -it ros2-agent /bin/bash

@@ -2,7 +2,9 @@
 import logging
 from typing import Dict, List, Optional
 from contextlib import asynccontextmanager
-
+import os
+import re
+import glob
 import docker
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -76,12 +78,33 @@ def _ensure_no_conflict(app: FastAPI, ref: str):
     if mon and mon.is_running():
         raise HTTPException(status_code=409, detail={"success": False, "message": f"Monitoring already running for '{ref}'. Stop it first."})
 
+def _sanitize_ref(ref: str) -> str:
+    """Make a filename-safe container ref."""
+    return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in ref)
+
+def _next_run_csv(csv_dir: str, ref: str) -> str:
+    safe = _sanitize_ref(ref)
+    base = csv_dir.rstrip("/")
+    # Find existing <safe>-run*.csv and compute next index
+    pattern = os.path.join(base, f"{safe}-run*.csv")
+    existing = glob.glob(pattern)
+    max_idx = 0
+    rx = re.compile(rf"{re.escape(safe)}-run(\d+)\.csv$")
+    for path in existing:
+        fname = os.path.basename(path)
+        m = rx.search(fname)
+        if m:
+            try:
+                idx = int(m.group(1))
+                if idx > max_idx:
+                    max_idx = idx
+            except ValueError:
+                pass
+    next_idx = max_idx + 1
+    return os.path.join(base, f"{safe}-run{next_idx}.csv")
+
 def _make_csv_path(csv_dir: Optional[str], ref: str) -> Optional[str]:
-    if not csv_dir:
-        return None
-    # sanitize filename a bit
-    safe = "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in ref)
-    return f"{csv_dir.rstrip('/')}/{safe}.csv"
+    return None if not csv_dir else _next_run_csv(csv_dir, ref)
 
 # ---------- Endpoints ----------
 @app.post(
@@ -95,13 +118,18 @@ def monitor_start(req: StartRequest):
     for ref in req.containers:
         try:
             _ensure_no_conflict(app, ref)
+            csv_path = _make_csv_path(req.csv_dir, ref)
+            if csv_path:
+                logger.info("CSV path for '%s': %s", ref, csv_path)
+
             mon = DockerContainerMonitor(
                 container_ref=ref,
                 interval=req.interval,
-                csv_path=_make_csv_path(req.csv_dir, ref),
+                csv_path=csv_path,
                 write_header=req.write_header,
                 stdout=req.stdout,
             )
+
             mon.start()
             app.state.monitors[ref] = mon
             started.append(ref)

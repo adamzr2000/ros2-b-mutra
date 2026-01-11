@@ -7,39 +7,60 @@ import tempfile
 import random
 from typing import Optional, Dict, Any
 import re
-
 import logging
 
 logger = logging.getLogger(__name__)
 
 # One lock per agent file (process-local)
 _JSON_FILE_LOCKS = {}
+_GLOBAL_LOCK_CREATION = threading.Lock()
 
 def _get_json_lock(path):
-    lock = _JSON_FILE_LOCKS.get(path)
-    if lock is None:
-        lock = threading.Lock()
-        _JSON_FILE_LOCKS[path] = lock
-    return lock
+    """
+    Thread-safe retrieval of a Named Lock for a specific file path.
+    Prevents two threads from creating different locks for the same file.
+    """
+    with _GLOBAL_LOCK_CREATION:
+        lock = _JSON_FILE_LOCKS.get(path)
+        if lock is None:
+            lock = threading.Lock()
+            _JSON_FILE_LOCKS[path] = lock
+        return lock
+
+def _upsert_by_attestation_id(role_list: list, att: dict):
+    """
+    Insert or update an attestation record in role_list based on attestation_id.
+    """
+    att_id = att.get("attestation_id")
+    if not att_id:
+        role_list.append(att)
+        return
+
+    for i, existing in enumerate(role_list):
+        if isinstance(existing, dict) and existing.get("attestation_id") == att_id:
+            merged = dict(existing)
+            merged.update(att)
+            role_list[i] = merged
+            return
+
+    role_list.append(att)
 
 def _ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)
 
 def _atomic_write_json(path: str, data: dict):
     dirpath = os.path.dirname(path) or "."
-    # ensure dir is accessible
     os.makedirs(dirpath, exist_ok=True)
-    # optional: make sure dir perms are OK for reading
     try:
         os.chmod(dirpath, 0o755)
     except PermissionError:
         pass
 
+    # Write to temp file then rename (Atomic on POSIX)
     with tempfile.NamedTemporaryFile("w", dir=dirpath, delete=False) as tmp:
         json.dump(data, tmp, separators=(",", ":"), ensure_ascii=False)
         tmp.flush()
         os.fsync(tmp.fileno())
-        # ensure final file is 0644 regardless of umask
         try:
             os.fchmod(tmp.fileno(), 0o644)
         except AttributeError:
@@ -66,9 +87,9 @@ def _load_or_init_results(json_path: str, participant: str, now_ms: int):
         "oracle": [], 
     }
 
-def ensure_results_initialized(json_dir: str, participant: str):
+def ensure_results_initialized(json_dir: str, participant: str, json_path: str = None):
     _ensure_dir(json_dir)
-    json_path = os.path.join(json_dir, f"{participant}.json")
+    json_path = json_path or os.path.join(json_dir, f"{participant}.json")
     lock = _get_json_lock(json_path)
     now_ms = int(time.time() * 1000)
     with lock:
@@ -96,10 +117,11 @@ def export_attestation_times_json(participant_name: str,
                                   attestation_id: str,
                                   role: str,           # "prover" | "verifier" | "oracle"
                                   timestamps: dict,            # ms dict
-                                  json_dir: str):
+                                  json_dir: str,
+                                  json_path: str = None):
 
     _ensure_dir(json_dir)
-    json_path = os.path.join(json_dir, f"{participant_name}.json")
+    json_path = json_path or os.path.join(json_dir, f"{participant_name}.json")
     lock = _get_json_lock(json_path)
 
     # Build role-specific record
@@ -116,6 +138,10 @@ def export_attestation_times_json(participant_name: str,
             att["t_attestation_started_received"] = timestamps["attestation_started_received"]
         if "evaluation_ready_received" in timestamps:
             att["t_evaluation_ready_received"] = timestamps["evaluation_ready_received"]
+        if "get_signatures_start" in timestamps:
+            att["t_get_signatures_start"] = timestamps["get_signatures_start"]
+        if "get_signatures_finished" in timestamps:
+            att["t_get_signatures_finished"] = timestamps["get_signatures_finished"]
         if "result_sent" in timestamps:
             att["t_result_sent"] = timestamps["result_sent"]
     
@@ -139,16 +165,17 @@ def export_attestation_times_json(participant_name: str,
 
 
     now_ms = int(time.time() * 1000)
-
+    
+    # Thread-Safe Write Block
     with lock:
         data = _load_or_init_results(json_path, participant_name, now_ms)
-        # optional hard stop gate:
         if data.get("stopped"):
             return
-        # ensure list exists in case old files don’t have it yet
+
         if role not in data:
             data[role] = []
-        data[role].append(att)
+
+        _upsert_by_attestation_id(data[role], att)
         data["last_write_ms"] = now_ms
         _atomic_write_json(json_path, data)
 
@@ -157,8 +184,8 @@ def export_attestation_times_json(participant_name: str,
     except Exception:
         pass
 
-def mark_experiment_stop(json_dir: str, participant: str):
-    json_path = os.path.join(json_dir, f"{participant}.json")
+def mark_experiment_stop(json_dir: str, participant: str, json_path: str = None):
+    json_path = json_path or os.path.join(json_dir, f"{participant}.json")
     lock = _get_json_lock(json_path)
     now_ms = int(time.time() * 1000)
     with lock:
@@ -167,7 +194,6 @@ def mark_experiment_stop(json_dir: str, participant: str):
             data["t_end"] = now_ms
             data["stopped"] = True
             _atomic_write_json(json_path, data)
-        # else: already stopped → no-op (idempotent)
 
 def get_env_int(*names, default: int = 0):
     for n in names:

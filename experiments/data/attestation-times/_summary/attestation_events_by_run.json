@@ -1,0 +1,2990 @@
+{
+  "meta": {
+    "selected_first_N_per_robot_per_run": 8,
+    "time_unit": "s",
+    "reference": "run_t0 = min(t_start across all participants in the same run)",
+    "note": "Relative times computed as (t_* - run_t0) in seconds. IDs mapped via first-N prover order per robot/run; verifier/oracle entries filtered to selected ids per run."
+  },
+  "by_run": {
+    "run1": {
+      "SECaaS": {
+        "oracle": {
+          "att1-Robot1": {
+            "t_attestation_started_received": 19.830000000000002,
+            "t_get_prover_addr_start": 20.022000000000002,
+            "t_get_prover_addr_finished": 20.039,
+            "t_ref_signatures_db_start": 20.039,
+            "t_ref_signatures_db_finished": 20.04,
+            "t_ref_signatures_sent": 20.072
+          },
+          "att1-Robot2": {
+            "t_attestation_started_received": 19.889,
+            "t_get_prover_addr_start": 21.941,
+            "t_get_prover_addr_finished": 21.962,
+            "t_ref_signatures_db_start": 21.962,
+            "t_ref_signatures_db_finished": 21.963,
+            "t_ref_signatures_sent": 22.003
+          },
+          "att1-Robot3": {
+            "t_attestation_started_received": 17.896,
+            "t_get_prover_addr_start": 17.92,
+            "t_get_prover_addr_finished": 17.945,
+            "t_ref_signatures_db_start": 17.945,
+            "t_ref_signatures_db_finished": 17.946,
+            "t_ref_signatures_sent": 17.989
+          },
+          "att1-Robot4": {
+            "t_attestation_started_received": 19.926000000000002,
+            "t_get_prover_addr_start": 23.84,
+            "t_get_prover_addr_finished": 23.855,
+            "t_ref_signatures_db_start": 23.855,
+            "t_ref_signatures_db_finished": 23.856,
+            "t_ref_signatures_sent": 23.907
+          },
+          "att2-Robot1": {
+            "t_attestation_started_received": 37.841,
+            "t_get_prover_addr_start": 37.868,
+            "t_get_prover_addr_finished": 37.902,
+            "t_ref_signatures_db_start": 37.902,
+            "t_ref_signatures_db_finished": 37.908,
+            "t_ref_signatures_sent": 37.965
+          },
+          "att2-Robot2": {
+            "t_attestation_started_received": 37.897,
+            "t_get_prover_addr_start": 38.236000000000004,
+            "t_get_prover_addr_finished": 38.252,
+            "t_ref_signatures_db_start": 38.252,
+            "t_ref_signatures_db_finished": 38.253,
+            "t_ref_signatures_sent": 38.286
+          },
+          "att2-Robot3": {
+            "t_attestation_started_received": 37.918,
+            "t_get_prover_addr_start": 38.357,
+            "t_get_prover_addr_finished": 38.381,
+            "t_ref_signatures_db_start": 38.381,
+            "t_ref_signatures_db_finished": 38.382,
+            "t_ref_signatures_sent": 38.42
+          },
+          "att2-Robot4": {
+            "t_attestation_started_received": 37.866,
+            "t_get_prover_addr_start": 38.068,
+            "t_get_prover_addr_finished": 38.09,
+            "t_ref_signatures_db_start": 38.09,
+            "t_ref_signatures_db_finished": 38.091,
+            "t_ref_signatures_sent": 38.125
+          },
+          "att3-Robot1": {
+            "t_attestation_started_received": 55.793,
+            "t_get_prover_addr_start": 55.824,
+            "t_get_prover_addr_finished": 55.856,
+            "t_ref_signatures_db_start": 55.856,
+            "t_ref_signatures_db_finished": 55.857,
+            "t_ref_signatures_sent": 55.921
+          },
+          "att3-Robot2": {
+            "t_attestation_started_received": 55.852000000000004,
+            "t_get_prover_addr_start": 56.148,
+            "t_get_prover_addr_finished": 56.165,
+            "t_ref_signatures_db_start": 56.165,
+            "t_ref_signatures_db_finished": 56.166000000000004,
+            "t_ref_signatures_sent": 56.194
+          },
+          "att3-Robot3": {
+            "t_attestation_started_received": 55.891,
+            "t_get_prover_addr_start": 56.266,
+            "t_get_prover_addr_finished": 56.357,
+            "t_ref_signatures_db_start": 56.357,
+            "t_ref_signatures_db_finished": 56.358000000000004,
+            "t_ref_signatures_sent": 56.392
+          },
+          "att3-Robot4": {
+            "t_attestation_started_received": 55.822,
+            "t_get_prover_addr_start": 56.022,
+            "t_get_prover_addr_finished": 56.036,
+            "t_ref_signatures_db_start": 56.036,
+            "t_ref_signatures_db_finished": 56.037,
+            "t_ref_signatures_sent": 56.067
+          },
+          "att4-Robot1": {
+            "t_attestation_started_received": 73.964,
+            "t_get_prover_addr_start": 74.26,
+            "t_get_prover_addr_finished": 74.282,
+            "t_ref_signatures_db_start": 74.282,
+            "t_ref_signatures_db_finished": 74.284,
+            "t_ref_signatures_sent": 74.311
+          },
+          "att4-Robot2": {
+            "t_attestation_started_received": 73.936,
+            "t_get_prover_addr_start": 74.118,
+            "t_get_prover_addr_finished": 74.134,
+            "t_ref_signatures_db_start": 74.134,
+            "t_ref_signatures_db_finished": 74.135,
+            "t_ref_signatures_sent": 74.167
+          },
+          "att4-Robot3": {
+            "t_attestation_started_received": 73.987,
+            "t_get_prover_addr_start": 74.377,
+            "t_get_prover_addr_finished": 74.393,
+            "t_ref_signatures_db_start": 74.393,
+            "t_ref_signatures_db_finished": 74.393,
+            "t_ref_signatures_sent": 74.423
+          },
+          "att4-Robot4": {
+            "t_attestation_started_received": 73.915,
+            "t_get_prover_addr_start": 73.935,
+            "t_get_prover_addr_finished": 73.96900000000001,
+            "t_ref_signatures_db_start": 73.96900000000001,
+            "t_ref_signatures_db_finished": 73.97200000000001,
+            "t_ref_signatures_sent": 74.028
+          },
+          "att5-Robot1": {
+            "t_attestation_started_received": 93.735,
+            "t_get_prover_addr_start": 93.75,
+            "t_get_prover_addr_finished": 93.77,
+            "t_ref_signatures_db_start": 93.77,
+            "t_ref_signatures_db_finished": 93.771,
+            "t_ref_signatures_sent": 93.811
+          },
+          "att5-Robot2": {
+            "t_attestation_started_received": 93.78,
+            "t_get_prover_addr_start": 94.024,
+            "t_get_prover_addr_finished": 94.041,
+            "t_ref_signatures_db_start": 94.041,
+            "t_ref_signatures_db_finished": 94.042,
+            "t_ref_signatures_sent": 94.071
+          },
+          "att5-Robot3": {
+            "t_attestation_started_received": 91.84,
+            "t_get_prover_addr_start": 91.86,
+            "t_get_prover_addr_finished": 91.886,
+            "t_ref_signatures_db_start": 91.886,
+            "t_ref_signatures_db_finished": 91.887,
+            "t_ref_signatures_sent": 91.912
+          },
+          "att5-Robot4": {
+            "t_attestation_started_received": 93.749,
+            "t_get_prover_addr_start": 93.89,
+            "t_get_prover_addr_finished": 93.908,
+            "t_ref_signatures_db_start": 93.908,
+            "t_ref_signatures_db_finished": 93.909,
+            "t_ref_signatures_sent": 93.933
+          },
+          "att6-Robot1": {
+            "t_attestation_started_received": 111.82600000000001,
+            "t_get_prover_addr_start": 111.985,
+            "t_get_prover_addr_finished": 111.99900000000001,
+            "t_ref_signatures_db_start": 111.99900000000001,
+            "t_ref_signatures_db_finished": 112.0,
+            "t_ref_signatures_sent": 112.022
+          },
+          "att6-Robot2": {
+            "t_attestation_started_received": 111.845,
+            "t_get_prover_addr_start": 112.096,
+            "t_get_prover_addr_finished": 112.111,
+            "t_ref_signatures_db_start": 112.111,
+            "t_ref_signatures_db_finished": 112.111,
+            "t_ref_signatures_sent": 112.134
+          },
+          "att6-Robot3": {
+            "t_attestation_started_received": 111.87100000000001,
+            "t_get_prover_addr_start": 112.221,
+            "t_get_prover_addr_finished": 112.233,
+            "t_ref_signatures_db_start": 112.233,
+            "t_ref_signatures_db_finished": 112.23400000000001,
+            "t_ref_signatures_sent": 112.256
+          },
+          "att6-Robot4": {
+            "t_attestation_started_received": 111.804,
+            "t_get_prover_addr_start": 111.827,
+            "t_get_prover_addr_finished": 111.854,
+            "t_ref_signatures_db_start": 111.854,
+            "t_ref_signatures_db_finished": 111.85600000000001,
+            "t_ref_signatures_sent": 111.903
+          },
+          "att7-Robot1": {
+            "t_attestation_started_received": 129.924,
+            "t_get_prover_addr_start": 130.089,
+            "t_get_prover_addr_finished": 130.102,
+            "t_ref_signatures_db_start": 130.102,
+            "t_ref_signatures_db_finished": 130.103,
+            "t_ref_signatures_sent": 130.126
+          },
+          "att7-Robot2": {
+            "t_attestation_started_received": 129.947,
+            "t_get_prover_addr_start": 130.204,
+            "t_get_prover_addr_finished": 130.224,
+            "t_ref_signatures_db_start": 130.224,
+            "t_ref_signatures_db_finished": 130.225,
+            "t_ref_signatures_sent": 130.247
+          },
+          "att7-Robot3": {
+            "t_attestation_started_received": 129.969,
+            "t_get_prover_addr_start": 130.311,
+            "t_get_prover_addr_finished": 130.325,
+            "t_ref_signatures_db_start": 130.325,
+            "t_ref_signatures_db_finished": 130.326,
+            "t_ref_signatures_sent": 130.347
+          },
+          "att7-Robot4": {
+            "t_attestation_started_received": 129.9,
+            "t_get_prover_addr_start": 129.925,
+            "t_get_prover_addr_finished": 129.962,
+            "t_ref_signatures_db_start": 129.962,
+            "t_ref_signatures_db_finished": 129.98,
+            "t_ref_signatures_sent": 130.01500000000001
+          },
+          "att8-Robot1": {
+            "t_attestation_started_received": 149.90200000000002,
+            "t_get_prover_addr_start": 150.022,
+            "t_get_prover_addr_finished": 150.034,
+            "t_ref_signatures_db_start": 150.034,
+            "t_ref_signatures_db_finished": 150.034,
+            "t_ref_signatures_sent": 150.06
+          },
+          "att8-Robot2": {
+            "t_attestation_started_received": 147.778,
+            "t_get_prover_addr_start": 147.945,
+            "t_get_prover_addr_finished": 147.957,
+            "t_ref_signatures_db_start": 147.957,
+            "t_ref_signatures_db_finished": 147.958,
+            "t_ref_signatures_sent": 147.992
+          },
+          "att8-Robot3": {
+            "t_attestation_started_received": 147.764,
+            "t_get_prover_addr_start": 147.77700000000002,
+            "t_get_prover_addr_finished": 147.8,
+            "t_ref_signatures_db_start": 147.8,
+            "t_ref_signatures_db_finished": 147.80100000000002,
+            "t_ref_signatures_sent": 147.826
+          },
+          "att8-Robot4": {
+            "t_attestation_started_received": 149.87800000000001,
+            "t_get_prover_addr_start": 149.9,
+            "t_get_prover_addr_finished": 149.924,
+            "t_ref_signatures_db_start": 149.924,
+            "t_ref_signatures_db_finished": 149.925,
+            "t_ref_signatures_sent": 149.948
+          }
+        },
+        "verifier": {
+          "att1-Robot1": {
+            "t_result_sent": 21.848
+          },
+          "att1-Robot2": {
+            "t_result_sent": 23.751
+          },
+          "att1-Robot3": {
+            "t_result_sent": 19.883
+          },
+          "att1-Robot4": {
+            "t_result_sent": 25.758
+          }
+        }
+      },
+      "Robot1": {
+        "prover": {
+          "att1-Robot1": {
+            "t_evidence_sent": 17.742,
+            "t_result_received": 23.748
+          },
+          "att2-Robot1": {
+            "t_evidence_sent": 36.093,
+            "t_result_received": 41.915
+          },
+          "att3-Robot1": {
+            "t_evidence_sent": 55.054,
+            "t_result_received": 59.837
+          },
+          "att4-Robot1": {
+            "t_evidence_sent": 73.268,
+            "t_result_received": 77.776
+          },
+          "att5-Robot1": {
+            "t_evidence_sent": 91.929,
+            "t_result_received": 97.798
+          },
+          "att6-Robot1": {
+            "t_evidence_sent": 110.32000000000001,
+            "t_result_received": 115.901
+          },
+          "att7-Robot1": {
+            "t_evidence_sent": 129.16,
+            "t_result_received": 133.75300000000001
+          },
+          "att8-Robot1": {
+            "t_evidence_sent": 148.139,
+            "t_result_received": 153.806
+          }
+        },
+        "verifier": {
+          "att2-Robot4": {
+            "t_evaluation_ready_received": 39.895,
+            "t_get_signatures_start": 40.0,
+            "t_get_signatures_finished": 40.183,
+            "t_result_sent": 40.183
+          },
+          "att4-Robot3": {
+            "t_evaluation_ready_received": 76.379,
+            "t_get_signatures_start": 76.413,
+            "t_get_signatures_finished": 76.47800000000001,
+            "t_result_sent": 76.47800000000001
+          },
+          "att6-Robot4": {
+            "t_evaluation_ready_received": 113.794,
+            "t_get_signatures_start": 113.881,
+            "t_get_signatures_finished": 113.977,
+            "t_result_sent": 113.977
+          },
+          "att7-Robot2": {
+            "t_evaluation_ready_received": 131.991,
+            "t_get_signatures_start": 132.18200000000002,
+            "t_get_signatures_finished": 132.321,
+            "t_result_sent": 132.321
+          },
+          "att7-Robot3": {
+            "t_evaluation_ready_received": 132.177,
+            "t_get_signatures_start": 132.587,
+            "t_get_signatures_finished": 132.757,
+            "t_result_sent": 132.757
+          },
+          "att8-Robot2": {
+            "t_evaluation_ready_received": 150.058,
+            "t_get_signatures_start": 150.285,
+            "t_get_signatures_finished": 150.366,
+            "t_result_sent": 150.366
+          }
+        }
+      },
+      "Robot2": {
+        "prover": {
+          "att1-Robot2": {
+            "t_evidence_sent": 17.641000000000002,
+            "t_result_received": 25.879
+          },
+          "att2-Robot2": {
+            "t_evidence_sent": 35.916000000000004,
+            "t_result_received": 41.799
+          },
+          "att3-Robot2": {
+            "t_evidence_sent": 54.344,
+            "t_result_received": 59.966
+          },
+          "att4-Robot2": {
+            "t_evidence_sent": 73.322,
+            "t_result_received": 77.89
+          },
+          "att5-Robot2": {
+            "t_evidence_sent": 91.818,
+            "t_result_received": 97.809
+          },
+          "att6-Robot2": {
+            "t_evidence_sent": 110.267,
+            "t_result_received": 115.797
+          },
+          "att7-Robot2": {
+            "t_evidence_sent": 128.997,
+            "t_result_received": 133.761
+          },
+          "att8-Robot2": {
+            "t_evidence_sent": 147.53900000000002,
+            "t_result_received": 151.88400000000001
+          }
+        },
+        "verifier": {
+          "att3-Robot1": {
+            "t_evaluation_ready_received": 57.76,
+            "t_get_signatures_start": 57.885,
+            "t_get_signatures_finished": 57.981,
+            "t_result_sent": 57.981
+          },
+          "att3-Robot3": {
+            "t_evaluation_ready_received": 58.289,
+            "t_get_signatures_start": 58.4,
+            "t_get_signatures_finished": 58.491,
+            "t_result_sent": 58.491
+          },
+          "att4-Robot1": {
+            "t_evaluation_ready_received": 76.179,
+            "t_get_signatures_start": 76.29,
+            "t_get_signatures_finished": 76.458,
+            "t_result_sent": 76.458
+          },
+          "att5-Robot1": {
+            "t_evaluation_ready_received": 95.779,
+            "t_get_signatures_start": 95.811,
+            "t_get_signatures_finished": 95.976,
+            "t_result_sent": 95.976
+          },
+          "att6-Robot3": {
+            "t_evaluation_ready_received": 114.184,
+            "t_get_signatures_start": 114.258,
+            "t_get_signatures_finished": 114.287,
+            "t_result_sent": 114.287
+          }
+        }
+      },
+      "Robot3": {
+        "prover": {
+          "att1-Robot3": {
+            "t_evidence_sent": 17.375,
+            "t_result_received": 21.919
+          },
+          "att2-Robot3": {
+            "t_evidence_sent": 35.682,
+            "t_result_received": 41.756
+          },
+          "att3-Robot3": {
+            "t_evidence_sent": 54.141,
+            "t_result_received": 59.959
+          },
+          "att4-Robot3": {
+            "t_evidence_sent": 72.696,
+            "t_result_received": 77.72500000000001
+          },
+          "att5-Robot3": {
+            "t_evidence_sent": 91.428,
+            "t_result_received": 95.834
+          },
+          "att6-Robot3": {
+            "t_evidence_sent": 109.93900000000001,
+            "t_result_received": 115.784
+          },
+          "att7-Robot3": {
+            "t_evidence_sent": 128.492,
+            "t_result_received": 133.893
+          },
+          "att8-Robot3": {
+            "t_evidence_sent": 147.014,
+            "t_result_received": 151.712
+          }
+        },
+        "verifier": {
+          "att2-Robot2": {
+            "t_evaluation_ready_received": 40.096000000000004,
+            "t_get_signatures_start": 40.202,
+            "t_get_signatures_finished": 40.395,
+            "t_result_sent": 40.395
+          },
+          "att3-Robot4": {
+            "t_evaluation_ready_received": 58.099000000000004,
+            "t_get_signatures_start": 58.188,
+            "t_get_signatures_finished": 58.357,
+            "t_result_sent": 58.357
+          },
+          "att4-Robot4": {
+            "t_evaluation_ready_received": 75.72500000000001,
+            "t_get_signatures_start": 75.819,
+            "t_get_signatures_finished": 75.96300000000001,
+            "t_result_sent": 75.96300000000001
+          },
+          "att5-Robot4": {
+            "t_evaluation_ready_received": 95.98100000000001,
+            "t_get_signatures_start": 96.07600000000001,
+            "t_get_signatures_finished": 96.183,
+            "t_result_sent": 96.183
+          },
+          "att6-Robot1": {
+            "t_evaluation_ready_received": 113.797,
+            "t_get_signatures_start": 113.98,
+            "t_get_signatures_finished": 114.089,
+            "t_result_sent": 114.089
+          },
+          "att7-Robot4": {
+            "t_evaluation_ready_received": 131.874,
+            "t_get_signatures_start": 131.975,
+            "t_get_signatures_finished": 132.079,
+            "t_result_sent": 132.079
+          },
+          "att8-Robot4": {
+            "t_evaluation_ready_received": 151.775,
+            "t_get_signatures_start": 151.805,
+            "t_get_signatures_finished": 151.892,
+            "t_result_sent": 151.892
+          }
+        }
+      },
+      "Robot4": {
+        "prover": {
+          "att1-Robot4": {
+            "t_evidence_sent": 17.607,
+            "t_result_received": 27.811
+          },
+          "att2-Robot4": {
+            "t_evidence_sent": 35.966,
+            "t_result_received": 41.765
+          },
+          "att3-Robot4": {
+            "t_evidence_sent": 55.0,
+            "t_result_received": 59.968
+          },
+          "att4-Robot4": {
+            "t_evidence_sent": 73.402,
+            "t_result_received": 77.818
+          },
+          "att5-Robot4": {
+            "t_evidence_sent": 91.822,
+            "t_result_received": 97.895
+          },
+          "att6-Robot4": {
+            "t_evidence_sent": 110.69500000000001,
+            "t_result_received": 115.891
+          },
+          "att7-Robot4": {
+            "t_evidence_sent": 129.507,
+            "t_result_received": 133.745
+          },
+          "att8-Robot4": {
+            "t_evidence_sent": 148.05700000000002,
+            "t_result_received": 153.741
+          }
+        },
+        "verifier": {
+          "att2-Robot1": {
+            "t_evaluation_ready_received": 39.741,
+            "t_get_signatures_start": 39.804,
+            "t_get_signatures_finished": 39.917,
+            "t_result_sent": 39.917
+          },
+          "att2-Robot3": {
+            "t_evaluation_ready_received": 40.488,
+            "t_get_signatures_start": 40.673,
+            "t_get_signatures_finished": 40.855000000000004,
+            "t_result_sent": 40.855000000000004
+          },
+          "att3-Robot2": {
+            "t_evaluation_ready_received": 58.183,
+            "t_get_signatures_start": 58.289,
+            "t_get_signatures_finished": 58.39,
+            "t_result_sent": 58.39
+          },
+          "att4-Robot2": {
+            "t_evaluation_ready_received": 75.867,
+            "t_get_signatures_start": 75.903,
+            "t_get_signatures_finished": 76.164,
+            "t_result_sent": 76.164
+          },
+          "att5-Robot2": {
+            "t_evaluation_ready_received": 95.986,
+            "t_get_signatures_start": 96.078,
+            "t_get_signatures_finished": 96.09700000000001,
+            "t_result_sent": 96.09700000000001
+          },
+          "att5-Robot3": {
+            "t_evaluation_ready_received": 93.877,
+            "t_get_signatures_start": 93.992,
+            "t_get_signatures_finished": 94.005,
+            "t_result_sent": 94.005
+          },
+          "att6-Robot2": {
+            "t_evaluation_ready_received": 113.99600000000001,
+            "t_get_signatures_start": 114.182,
+            "t_get_signatures_finished": 114.361,
+            "t_result_sent": 114.361
+          },
+          "att7-Robot1": {
+            "t_evaluation_ready_received": 131.887,
+            "t_get_signatures_start": 132.052,
+            "t_get_signatures_finished": 132.089,
+            "t_result_sent": 132.089
+          },
+          "att8-Robot1": {
+            "t_evaluation_ready_received": 151.787,
+            "t_get_signatures_start": 151.873,
+            "t_get_signatures_finished": 151.897,
+            "t_result_sent": 151.897
+          },
+          "att8-Robot3": {
+            "t_evaluation_ready_received": 149.972,
+            "t_get_signatures_start": 150.191,
+            "t_get_signatures_finished": 150.264,
+            "t_result_sent": 150.264
+          }
+        }
+      }
+    },
+    "run2": {
+      "SECaaS": {
+        "oracle": {
+          "att1-Robot1": {
+            "t_attestation_started_received": 17.998,
+            "t_get_prover_addr_start": 18.023,
+            "t_get_prover_addr_finished": 18.052,
+            "t_ref_signatures_db_start": 18.052,
+            "t_ref_signatures_db_finished": 18.059,
+            "t_ref_signatures_sent": 18.1
+          },
+          "att1-Robot2": {
+            "t_attestation_started_received": 18.047,
+            "t_get_prover_addr_start": 22.01,
+            "t_get_prover_addr_finished": 22.024,
+            "t_ref_signatures_db_start": 22.024,
+            "t_ref_signatures_db_finished": 22.025000000000002,
+            "t_ref_signatures_sent": 22.045
+          },
+          "att1-Robot3": {
+            "t_attestation_started_received": 18.024,
+            "t_get_prover_addr_start": 20.072,
+            "t_get_prover_addr_finished": 20.09,
+            "t_ref_signatures_db_start": 20.09,
+            "t_ref_signatures_db_finished": 20.09,
+            "t_ref_signatures_sent": 20.112000000000002
+          },
+          "att1-Robot4": {
+            "t_attestation_started_received": 18.065,
+            "t_get_prover_addr_start": 24.02,
+            "t_get_prover_addr_finished": 24.034,
+            "t_ref_signatures_db_start": 24.034,
+            "t_ref_signatures_db_finished": 24.035,
+            "t_ref_signatures_sent": 24.059
+          },
+          "att2-Robot1": {
+            "t_attestation_started_received": 36.025,
+            "t_get_prover_addr_start": 36.042,
+            "t_get_prover_addr_finished": 36.068,
+            "t_ref_signatures_db_start": 36.068,
+            "t_ref_signatures_db_finished": 36.07,
+            "t_ref_signatures_sent": 36.101
+          },
+          "att2-Robot2": {
+            "t_attestation_started_received": 37.928,
+            "t_get_prover_addr_start": 37.948,
+            "t_get_prover_addr_finished": 37.97,
+            "t_ref_signatures_db_start": 37.97,
+            "t_ref_signatures_db_finished": 37.971000000000004,
+            "t_ref_signatures_sent": 37.991
+          },
+          "att2-Robot3": {
+            "t_attestation_started_received": 36.043,
+            "t_get_prover_addr_start": 36.202,
+            "t_get_prover_addr_finished": 36.225,
+            "t_ref_signatures_db_start": 36.225,
+            "t_ref_signatures_db_finished": 36.225,
+            "t_ref_signatures_sent": 36.253
+          },
+          "att2-Robot4": {
+            "t_attestation_started_received": 37.948,
+            "t_get_prover_addr_start": 38.07,
+            "t_get_prover_addr_finished": 38.085,
+            "t_ref_signatures_db_start": 38.085,
+            "t_ref_signatures_db_finished": 38.086,
+            "t_ref_signatures_sent": 38.115
+          },
+          "att3-Robot1": {
+            "t_attestation_started_received": 54.033,
+            "t_get_prover_addr_start": 54.043,
+            "t_get_prover_addr_finished": 54.059000000000005,
+            "t_ref_signatures_db_start": 54.059000000000005,
+            "t_ref_signatures_db_finished": 54.06,
+            "t_ref_signatures_sent": 54.091
+          },
+          "att3-Robot2": {
+            "t_attestation_started_received": 56.133,
+            "t_get_prover_addr_start": 56.258,
+            "t_get_prover_addr_finished": 56.271,
+            "t_ref_signatures_db_start": 56.271,
+            "t_ref_signatures_db_finished": 56.272,
+            "t_ref_signatures_sent": 56.296
+          },
+          "att3-Robot3": {
+            "t_attestation_started_received": 56.11,
+            "t_get_prover_addr_start": 56.137,
+            "t_get_prover_addr_finished": 56.156,
+            "t_ref_signatures_db_start": 56.156,
+            "t_ref_signatures_db_finished": 56.160000000000004,
+            "t_ref_signatures_sent": 56.199
+          },
+          "att3-Robot4": {
+            "t_attestation_started_received": 56.153,
+            "t_get_prover_addr_start": 56.358000000000004,
+            "t_get_prover_addr_finished": 56.372,
+            "t_ref_signatures_db_start": 56.372,
+            "t_ref_signatures_db_finished": 56.373000000000005,
+            "t_ref_signatures_sent": 56.453
+          },
+          "att4-Robot1": {
+            "t_attestation_started_received": 73.995,
+            "t_get_prover_addr_start": 74.299,
+            "t_get_prover_addr_finished": 74.312,
+            "t_ref_signatures_db_start": 74.312,
+            "t_ref_signatures_db_finished": 74.313,
+            "t_ref_signatures_sent": 74.337
+          },
+          "att4-Robot2": {
+            "t_attestation_started_received": 73.93,
+            "t_get_prover_addr_start": 73.95,
+            "t_get_prover_addr_finished": 73.97,
+            "t_ref_signatures_db_start": 73.97,
+            "t_ref_signatures_db_finished": 73.971,
+            "t_ref_signatures_sent": 74.023
+          },
+          "att4-Robot3": {
+            "t_attestation_started_received": 73.973,
+            "t_get_prover_addr_start": 74.20100000000001,
+            "t_get_prover_addr_finished": 74.21600000000001,
+            "t_ref_signatures_db_start": 74.21600000000001,
+            "t_ref_signatures_db_finished": 74.217,
+            "t_ref_signatures_sent": 74.24
+          },
+          "att4-Robot4": {
+            "t_attestation_started_received": 73.947,
+            "t_get_prover_addr_start": 74.096,
+            "t_get_prover_addr_finished": 74.108,
+            "t_ref_signatures_db_start": 74.108,
+            "t_ref_signatures_db_finished": 74.109,
+            "t_ref_signatures_sent": 74.128
+          },
+          "att5-Robot1": {
+            "t_attestation_started_received": 91.979,
+            "t_get_prover_addr_start": 92.23400000000001,
+            "t_get_prover_addr_finished": 92.246,
+            "t_ref_signatures_db_start": 92.246,
+            "t_ref_signatures_db_finished": 92.247,
+            "t_ref_signatures_sent": 92.283
+          },
+          "att5-Robot2": {
+            "t_attestation_started_received": 91.947,
+            "t_get_prover_addr_start": 91.962,
+            "t_get_prover_addr_finished": 91.989,
+            "t_ref_signatures_db_start": 91.989,
+            "t_ref_signatures_db_finished": 91.989,
+            "t_ref_signatures_sent": 92.027
+          },
+          "att5-Robot3": {
+            "t_attestation_started_received": 91.995,
+            "t_get_prover_addr_start": 92.361,
+            "t_get_prover_addr_finished": 92.375,
+            "t_ref_signatures_db_start": 92.375,
+            "t_ref_signatures_db_finished": 92.375,
+            "t_ref_signatures_sent": 92.395
+          },
+          "att5-Robot4": {
+            "t_attestation_started_received": 91.959,
+            "t_get_prover_addr_start": 92.09,
+            "t_get_prover_addr_finished": 92.104,
+            "t_ref_signatures_db_start": 92.104,
+            "t_ref_signatures_db_finished": 92.105,
+            "t_ref_signatures_sent": 92.147
+          },
+          "att6-Robot1": {
+            "t_attestation_started_received": 109.97,
+            "t_get_prover_addr_start": 110.281,
+            "t_get_prover_addr_finished": 110.295,
+            "t_ref_signatures_db_start": 110.295,
+            "t_ref_signatures_db_finished": 110.296,
+            "t_ref_signatures_sent": 110.33200000000001
+          },
+          "att6-Robot2": {
+            "t_attestation_started_received": 109.919,
+            "t_get_prover_addr_start": 109.937,
+            "t_get_prover_addr_finished": 109.959,
+            "t_ref_signatures_db_start": 109.959,
+            "t_ref_signatures_db_finished": 109.962,
+            "t_ref_signatures_sent": 110.002
+          },
+          "att6-Robot3": {
+            "t_attestation_started_received": 109.933,
+            "t_get_prover_addr_start": 110.074,
+            "t_get_prover_addr_finished": 110.086,
+            "t_ref_signatures_db_start": 110.086,
+            "t_ref_signatures_db_finished": 110.087,
+            "t_ref_signatures_sent": 110.108
+          },
+          "att6-Robot4": {
+            "t_attestation_started_received": 109.95400000000001,
+            "t_get_prover_addr_start": 110.169,
+            "t_get_prover_addr_finished": 110.186,
+            "t_ref_signatures_db_start": 110.186,
+            "t_ref_signatures_db_finished": 110.188,
+            "t_ref_signatures_sent": 110.221
+          },
+          "att7-Robot1": {
+            "t_attestation_started_received": 130.076,
+            "t_get_prover_addr_start": 130.354,
+            "t_get_prover_addr_finished": 130.367,
+            "t_ref_signatures_db_start": 130.367,
+            "t_ref_signatures_db_finished": 130.368,
+            "t_ref_signatures_sent": 130.387
+          },
+          "att7-Robot2": {
+            "t_attestation_started_received": 130.00300000000001,
+            "t_get_prover_addr_start": 130.031,
+            "t_get_prover_addr_finished": 130.05700000000002,
+            "t_ref_signatures_db_start": 130.05700000000002,
+            "t_ref_signatures_db_finished": 130.067,
+            "t_ref_signatures_sent": 130.099
+          },
+          "att7-Robot3": {
+            "t_attestation_started_received": 130.03300000000002,
+            "t_get_prover_addr_start": 130.161,
+            "t_get_prover_addr_finished": 130.174,
+            "t_ref_signatures_db_start": 130.174,
+            "t_ref_signatures_db_finished": 130.175,
+            "t_ref_signatures_sent": 130.193
+          },
+          "att7-Robot4": {
+            "t_attestation_started_received": 130.059,
+            "t_get_prover_addr_start": 130.247,
+            "t_get_prover_addr_finished": 130.25900000000001,
+            "t_ref_signatures_db_start": 130.25900000000001,
+            "t_ref_signatures_db_finished": 130.261,
+            "t_ref_signatures_sent": 130.281
+          },
+          "att8-Robot1": {
+            "t_attestation_started_received": 148.073,
+            "t_get_prover_addr_start": 148.328,
+            "t_get_prover_addr_finished": 148.349,
+            "t_ref_signatures_db_start": 148.349,
+            "t_ref_signatures_db_finished": 148.352,
+            "t_ref_signatures_sent": 148.37800000000001
+          },
+          "att8-Robot2": {
+            "t_attestation_started_received": 148.03,
+            "t_get_prover_addr_start": 148.04500000000002,
+            "t_get_prover_addr_finished": 148.093,
+            "t_ref_signatures_db_start": 148.093,
+            "t_ref_signatures_db_finished": 148.101,
+            "t_ref_signatures_sent": 148.15
+          },
+          "att8-Robot3": {
+            "t_attestation_started_received": 148.108,
+            "t_get_prover_addr_start": 148.446,
+            "t_get_prover_addr_finished": 148.462,
+            "t_ref_signatures_db_start": 148.462,
+            "t_ref_signatures_db_finished": 148.463,
+            "t_ref_signatures_sent": 148.484
+          },
+          "att8-Robot4": {
+            "t_attestation_started_received": 148.043,
+            "t_get_prover_addr_start": 148.224,
+            "t_get_prover_addr_finished": 148.238,
+            "t_ref_signatures_db_start": 148.238,
+            "t_ref_signatures_db_finished": 148.239,
+            "t_ref_signatures_sent": 148.261
+          }
+        },
+        "verifier": {
+          "att1-Robot1": {
+            "t_result_sent": 20.005
+          },
+          "att1-Robot2": {
+            "t_result_sent": 23.948
+          },
+          "att1-Robot3": {
+            "t_result_sent": 21.93
+          },
+          "att1-Robot4": {
+            "t_result_sent": 25.965
+          }
+        }
+      },
+      "Robot1": {
+        "prover": {
+          "att1-Robot1": {
+            "t_evidence_sent": 17.538,
+            "t_result_received": 21.913
+          },
+          "att2-Robot1": {
+            "t_evidence_sent": 35.57,
+            "t_result_received": 39.899
+          },
+          "att3-Robot1": {
+            "t_evidence_sent": 53.555,
+            "t_result_received": 58.176
+          },
+          "att4-Robot1": {
+            "t_evidence_sent": 72.141,
+            "t_result_received": 77.958
+          },
+          "att5-Robot1": {
+            "t_evidence_sent": 90.532,
+            "t_result_received": 95.991
+          },
+          "att6-Robot1": {
+            "t_evidence_sent": 109.035,
+            "t_result_received": 113.913
+          },
+          "att7-Robot1": {
+            "t_evidence_sent": 127.577,
+            "t_result_received": 134.094
+          },
+          "att8-Robot1": {
+            "t_evidence_sent": 146.233,
+            "t_result_received": 152.07500000000002
+          }
+        },
+        "verifier": {
+          "att3-Robot3": {
+            "t_evaluation_ready_received": 57.927,
+            "t_get_signatures_start": 57.977000000000004,
+            "t_get_signatures_finished": 58.107,
+            "t_result_sent": 58.107
+          },
+          "att3-Robot4": {
+            "t_evaluation_ready_received": 58.191,
+            "t_get_signatures_start": 58.469,
+            "t_get_signatures_finished": 58.485,
+            "t_result_sent": 58.485
+          },
+          "att5-Robot4": {
+            "t_evaluation_ready_received": 94.089,
+            "t_get_signatures_start": 94.355,
+            "t_get_signatures_finished": 94.48,
+            "t_result_sent": 94.48
+          },
+          "att6-Robot2": {
+            "t_evaluation_ready_received": 112.01,
+            "t_get_signatures_start": 112.093,
+            "t_get_signatures_finished": 112.159,
+            "t_result_sent": 112.159
+          },
+          "att6-Robot3": {
+            "t_evaluation_ready_received": 112.09,
+            "t_get_signatures_start": 112.789,
+            "t_get_signatures_finished": 112.855,
+            "t_result_sent": 112.855
+          },
+          "att7-Robot4": {
+            "t_evaluation_ready_received": 132.093,
+            "t_get_signatures_start": 132.27100000000002,
+            "t_get_signatures_finished": 132.36,
+            "t_result_sent": 132.36
+          },
+          "att8-Robot4": {
+            "t_evaluation_ready_received": 150.168,
+            "t_get_signatures_start": 150.192,
+            "t_get_signatures_finished": 150.286,
+            "t_result_sent": 150.286
+          }
+        }
+      },
+      "Robot2": {
+        "prover": {
+          "att1-Robot2": {
+            "t_evidence_sent": 17.478,
+            "t_result_received": 25.906
+          },
+          "att2-Robot2": {
+            "t_evidence_sent": 35.848,
+            "t_result_received": 41.903
+          },
+          "att3-Robot2": {
+            "t_evidence_sent": 54.405,
+            "t_result_received": 59.965
+          },
+          "att4-Robot2": {
+            "t_evidence_sent": 72.723,
+            "t_result_received": 78.081
+          },
+          "att5-Robot2": {
+            "t_evidence_sent": 91.409,
+            "t_result_received": 96.065
+          },
+          "att6-Robot2": {
+            "t_evidence_sent": 109.58200000000001,
+            "t_result_received": 114.089
+          },
+          "att7-Robot2": {
+            "t_evidence_sent": 128.132,
+            "t_result_received": 134.03
+          },
+          "att8-Robot2": {
+            "t_evidence_sent": 146.513,
+            "t_result_received": 152.171
+          }
+        },
+        "verifier": {
+          "att2-Robot3": {
+            "t_evaluation_ready_received": 38.164,
+            "t_get_signatures_start": 38.255,
+            "t_get_signatures_finished": 38.373,
+            "t_result_sent": 38.373
+          },
+          "att2-Robot4": {
+            "t_evaluation_ready_received": 40.003,
+            "t_get_signatures_start": 40.074,
+            "t_get_signatures_finished": 40.091,
+            "t_result_sent": 40.091
+          },
+          "att3-Robot1": {
+            "t_evaluation_ready_received": 56.017,
+            "t_get_signatures_start": 56.171,
+            "t_get_signatures_finished": 56.189,
+            "t_result_sent": 56.189
+          },
+          "att4-Robot3": {
+            "t_evaluation_ready_received": 76.308,
+            "t_get_signatures_start": 76.875,
+            "t_get_signatures_finished": 76.893,
+            "t_result_sent": 76.893
+          },
+          "att4-Robot4": {
+            "t_evaluation_ready_received": 76.07600000000001,
+            "t_get_signatures_start": 76.305,
+            "t_get_signatures_finished": 76.38,
+            "t_result_sent": 76.38
+          },
+          "att6-Robot1": {
+            "t_evaluation_ready_received": 112.187,
+            "t_get_signatures_start": 112.781,
+            "t_get_signatures_finished": 112.795,
+            "t_result_sent": 112.795
+          },
+          "att6-Robot4": {
+            "t_evaluation_ready_received": 112.08500000000001,
+            "t_get_signatures_start": 112.191,
+            "t_get_signatures_finished": 112.285,
+            "t_result_sent": 112.285
+          }
+        }
+      },
+      "Robot3": {
+        "prover": {
+          "att1-Robot3": {
+            "t_evidence_sent": 17.482,
+            "t_result_received": 23.921
+          },
+          "att2-Robot3": {
+            "t_evidence_sent": 35.714,
+            "t_result_received": 39.908
+          },
+          "att3-Robot3": {
+            "t_evidence_sent": 54.054,
+            "t_result_received": 59.969
+          },
+          "att4-Robot3": {
+            "t_evidence_sent": 72.366,
+            "t_result_received": 78.084
+          },
+          "att5-Robot3": {
+            "t_evidence_sent": 90.94500000000001,
+            "t_result_received": 96.014
+          },
+          "att6-Robot3": {
+            "t_evidence_sent": 109.38,
+            "t_result_received": 113.918
+          },
+          "att7-Robot3": {
+            "t_evidence_sent": 127.72,
+            "t_result_received": 134.05100000000002
+          },
+          "att8-Robot3": {
+            "t_evidence_sent": 146.268,
+            "t_result_received": 152.079
+          }
+        },
+        "verifier": {
+          "att2-Robot2": {
+            "t_evaluation_ready_received": 40.0,
+            "t_get_signatures_start": 40.076,
+            "t_get_signatures_finished": 40.164,
+            "t_result_sent": 40.164
+          },
+          "att4-Robot1": {
+            "t_evaluation_ready_received": 76.665,
+            "t_get_signatures_start": 76.979,
+            "t_get_signatures_finished": 77.075,
+            "t_result_sent": 77.075
+          },
+          "att4-Robot2": {
+            "t_evaluation_ready_received": 76.08500000000001,
+            "t_get_signatures_start": 76.271,
+            "t_get_signatures_finished": 76.383,
+            "t_result_sent": 76.383
+          },
+          "att5-Robot1": {
+            "t_evaluation_ready_received": 94.003,
+            "t_get_signatures_start": 94.083,
+            "t_get_signatures_finished": 94.275,
+            "t_result_sent": 94.275
+          },
+          "att7-Robot1": {
+            "t_evaluation_ready_received": 132.398,
+            "t_get_signatures_start": 132.67600000000002,
+            "t_get_signatures_finished": 132.959,
+            "t_result_sent": 132.959
+          },
+          "att7-Robot2": {
+            "t_evaluation_ready_received": 132.049,
+            "t_get_signatures_start": 132.083,
+            "t_get_signatures_finished": 132.177,
+            "t_result_sent": 132.177
+          },
+          "att8-Robot1": {
+            "t_evaluation_ready_received": 150.201,
+            "t_get_signatures_start": 150.382,
+            "t_get_signatures_finished": 150.472,
+            "t_result_sent": 150.472
+          }
+        }
+      },
+      "Robot4": {
+        "prover": {
+          "att1-Robot4": {
+            "t_evidence_sent": 17.435,
+            "t_result_received": 27.990000000000002
+          },
+          "att2-Robot4": {
+            "t_evidence_sent": 35.904,
+            "t_result_received": 41.901
+          },
+          "att3-Robot4": {
+            "t_evidence_sent": 54.17,
+            "t_result_received": 59.977000000000004
+          },
+          "att4-Robot4": {
+            "t_evidence_sent": 72.547,
+            "t_result_received": 77.95700000000001
+          },
+          "att5-Robot4": {
+            "t_evidence_sent": 90.84,
+            "t_result_received": 95.916
+          },
+          "att6-Robot4": {
+            "t_evidence_sent": 109.33800000000001,
+            "t_result_received": 113.98700000000001
+          },
+          "att7-Robot4": {
+            "t_evidence_sent": 127.756,
+            "t_result_received": 133.993
+          },
+          "att8-Robot4": {
+            "t_evidence_sent": 146.425,
+            "t_result_received": 152.008
+          }
+        },
+        "verifier": {
+          "att2-Robot1": {
+            "t_evaluation_ready_received": 37.943,
+            "t_get_signatures_start": 38.067,
+            "t_get_signatures_finished": 38.1,
+            "t_result_sent": 38.1
+          },
+          "att3-Robot2": {
+            "t_evaluation_ready_received": 58.19,
+            "t_get_signatures_start": 58.271,
+            "t_get_signatures_finished": 58.371,
+            "t_result_sent": 58.371
+          },
+          "att5-Robot2": {
+            "t_evaluation_ready_received": 94.001,
+            "t_get_signatures_start": 94.069,
+            "t_get_signatures_finished": 94.268,
+            "t_result_sent": 94.268
+          },
+          "att5-Robot3": {
+            "t_evaluation_ready_received": 94.681,
+            "t_get_signatures_start": 94.789,
+            "t_get_signatures_finished": 94.865,
+            "t_result_sent": 94.865
+          },
+          "att7-Robot3": {
+            "t_evaluation_ready_received": 132.078,
+            "t_get_signatures_start": 132.099,
+            "t_get_signatures_finished": 132.261,
+            "t_result_sent": 132.261
+          },
+          "att8-Robot2": {
+            "t_evaluation_ready_received": 150.092,
+            "t_get_signatures_start": 150.186,
+            "t_get_signatures_finished": 150.279,
+            "t_result_sent": 150.279
+          },
+          "att8-Robot3": {
+            "t_evaluation_ready_received": 150.488,
+            "t_get_signatures_start": 150.782,
+            "t_get_signatures_finished": 150.796,
+            "t_result_sent": 150.796
+          }
+        }
+      }
+    },
+    "run3": {
+      "SECaaS": {
+        "oracle": {
+          "att1-Robot1": {
+            "t_attestation_started_received": 17.913,
+            "t_get_prover_addr_start": 17.925,
+            "t_get_prover_addr_finished": 17.944,
+            "t_ref_signatures_db_start": 17.944,
+            "t_ref_signatures_db_finished": 17.954,
+            "t_ref_signatures_sent": 17.983
+          },
+          "att1-Robot2": {
+            "t_attestation_started_received": 17.946,
+            "t_get_prover_addr_start": 22.04,
+            "t_get_prover_addr_finished": 22.056,
+            "t_ref_signatures_db_start": 22.056,
+            "t_ref_signatures_db_finished": 22.057000000000002,
+            "t_ref_signatures_sent": 22.077
+          },
+          "att1-Robot3": {
+            "t_attestation_started_received": 17.959,
+            "t_get_prover_addr_start": 24.018,
+            "t_get_prover_addr_finished": 24.029,
+            "t_ref_signatures_db_start": 24.029,
+            "t_ref_signatures_db_finished": 24.029,
+            "t_ref_signatures_sent": 24.05
+          },
+          "att1-Robot4": {
+            "t_attestation_started_received": 17.928,
+            "t_get_prover_addr_start": 20.058,
+            "t_get_prover_addr_finished": 20.069,
+            "t_ref_signatures_db_start": 20.069,
+            "t_ref_signatures_db_finished": 20.069,
+            "t_ref_signatures_sent": 20.091
+          },
+          "att2-Robot1": {
+            "t_attestation_started_received": 35.892,
+            "t_get_prover_addr_start": 35.907000000000004,
+            "t_get_prover_addr_finished": 35.929,
+            "t_ref_signatures_db_start": 35.929,
+            "t_ref_signatures_db_finished": 35.93,
+            "t_ref_signatures_sent": 35.952
+          },
+          "att2-Robot2": {
+            "t_attestation_started_received": 37.996,
+            "t_get_prover_addr_start": 38.111000000000004,
+            "t_get_prover_addr_finished": 38.121,
+            "t_ref_signatures_db_start": 38.121,
+            "t_ref_signatures_db_finished": 38.122,
+            "t_ref_signatures_sent": 38.14
+          },
+          "att2-Robot3": {
+            "t_attestation_started_received": 37.983000000000004,
+            "t_get_prover_addr_start": 38.002,
+            "t_get_prover_addr_finished": 38.02,
+            "t_ref_signatures_db_start": 38.02,
+            "t_ref_signatures_db_finished": 38.02,
+            "t_ref_signatures_sent": 38.04
+          },
+          "att2-Robot4": {
+            "t_attestation_started_received": 35.906,
+            "t_get_prover_addr_start": 36.027,
+            "t_get_prover_addr_finished": 36.039,
+            "t_ref_signatures_db_start": 36.039,
+            "t_ref_signatures_db_finished": 36.041000000000004,
+            "t_ref_signatures_sent": 36.067
+          },
+          "att3-Robot1": {
+            "t_attestation_started_received": 55.942,
+            "t_get_prover_addr_start": 56.132,
+            "t_get_prover_addr_finished": 56.145,
+            "t_ref_signatures_db_start": 56.145,
+            "t_ref_signatures_db_finished": 56.146,
+            "t_ref_signatures_sent": 56.167
+          },
+          "att3-Robot2": {
+            "t_attestation_started_received": 55.898,
+            "t_get_prover_addr_start": 55.913000000000004,
+            "t_get_prover_addr_finished": 55.926,
+            "t_ref_signatures_db_start": 55.926,
+            "t_ref_signatures_db_finished": 55.926,
+            "t_ref_signatures_sent": 55.961
+          },
+          "att3-Robot3": {
+            "t_attestation_started_received": 55.96,
+            "t_get_prover_addr_start": 56.225,
+            "t_get_prover_addr_finished": 56.237,
+            "t_ref_signatures_db_start": 56.237,
+            "t_ref_signatures_db_finished": 56.237,
+            "t_ref_signatures_sent": 56.257
+          },
+          "att3-Robot4": {
+            "t_attestation_started_received": 55.92,
+            "t_get_prover_addr_start": 56.034,
+            "t_get_prover_addr_finished": 56.047000000000004,
+            "t_ref_signatures_db_start": 56.047000000000004,
+            "t_ref_signatures_db_finished": 56.048,
+            "t_ref_signatures_sent": 56.078
+          },
+          "att4-Robot1": {
+            "t_attestation_started_received": 74.093,
+            "t_get_prover_addr_start": 74.22800000000001,
+            "t_get_prover_addr_finished": 74.24,
+            "t_ref_signatures_db_start": 74.24,
+            "t_ref_signatures_db_finished": 74.242,
+            "t_ref_signatures_sent": 74.263
+          },
+          "att4-Robot2": {
+            "t_attestation_started_received": 74.075,
+            "t_get_prover_addr_start": 74.095,
+            "t_get_prover_addr_finished": 74.112,
+            "t_ref_signatures_db_start": 74.112,
+            "t_ref_signatures_db_finished": 74.122,
+            "t_ref_signatures_sent": 74.164
+          },
+          "att4-Robot3": {
+            "t_attestation_started_received": 74.114,
+            "t_get_prover_addr_start": 74.316,
+            "t_get_prover_addr_finished": 74.328,
+            "t_ref_signatures_db_start": 74.328,
+            "t_ref_signatures_db_finished": 74.328,
+            "t_ref_signatures_sent": 74.34700000000001
+          },
+          "att4-Robot4": {
+            "t_attestation_started_received": 74.127,
+            "t_get_prover_addr_start": 74.404,
+            "t_get_prover_addr_finished": 74.421,
+            "t_ref_signatures_db_start": 74.421,
+            "t_ref_signatures_db_finished": 74.422,
+            "t_ref_signatures_sent": 74.441
+          },
+          "att5-Robot1": {
+            "t_attestation_started_received": 92.133,
+            "t_get_prover_addr_start": 92.409,
+            "t_get_prover_addr_finished": 92.421,
+            "t_ref_signatures_db_start": 92.421,
+            "t_ref_signatures_db_finished": 92.422,
+            "t_ref_signatures_sent": 92.441
+          },
+          "att5-Robot2": {
+            "t_attestation_started_received": 92.075,
+            "t_get_prover_addr_start": 92.215,
+            "t_get_prover_addr_finished": 92.22500000000001,
+            "t_ref_signatures_db_start": 92.22500000000001,
+            "t_ref_signatures_db_finished": 92.226,
+            "t_ref_signatures_sent": 92.247
+          },
+          "att5-Robot3": {
+            "t_attestation_started_received": 92.05,
+            "t_get_prover_addr_start": 92.075,
+            "t_get_prover_addr_finished": 92.098,
+            "t_ref_signatures_db_start": 92.098,
+            "t_ref_signatures_db_finished": 92.099,
+            "t_ref_signatures_sent": 92.155
+          },
+          "att5-Robot4": {
+            "t_attestation_started_received": 92.10900000000001,
+            "t_get_prover_addr_start": 92.305,
+            "t_get_prover_addr_finished": 92.321,
+            "t_ref_signatures_db_start": 92.321,
+            "t_ref_signatures_db_finished": 92.322,
+            "t_ref_signatures_sent": 92.34100000000001
+          },
+          "att6-Robot1": {
+            "t_attestation_started_received": 112.107,
+            "t_get_prover_addr_start": 112.232,
+            "t_get_prover_addr_finished": 112.24300000000001,
+            "t_ref_signatures_db_start": 112.24300000000001,
+            "t_ref_signatures_db_finished": 112.245,
+            "t_ref_signatures_sent": 112.278
+          },
+          "att6-Robot2": {
+            "t_attestation_started_received": 110.009,
+            "t_get_prover_addr_start": 110.021,
+            "t_get_prover_addr_finished": 110.032,
+            "t_ref_signatures_db_start": 110.032,
+            "t_ref_signatures_db_finished": 110.033,
+            "t_ref_signatures_sent": 110.051
+          },
+          "att6-Robot3": {
+            "t_attestation_started_received": 112.122,
+            "t_get_prover_addr_start": 112.336,
+            "t_get_prover_addr_finished": 112.351,
+            "t_ref_signatures_db_start": 112.351,
+            "t_ref_signatures_db_finished": 112.352,
+            "t_ref_signatures_sent": 112.387
+          },
+          "att6-Robot4": {
+            "t_attestation_started_received": 112.09,
+            "t_get_prover_addr_start": 112.11200000000001,
+            "t_get_prover_addr_finished": 112.146,
+            "t_ref_signatures_db_start": 112.146,
+            "t_ref_signatures_db_finished": 112.148,
+            "t_ref_signatures_sent": 112.177
+          },
+          "att7-Robot1": {
+            "t_attestation_started_received": 130.042,
+            "t_get_prover_addr_start": 130.055,
+            "t_get_prover_addr_finished": 130.083,
+            "t_ref_signatures_db_start": 130.083,
+            "t_ref_signatures_db_finished": 130.091,
+            "t_ref_signatures_sent": 130.12800000000001
+          },
+          "att7-Robot2": {
+            "t_attestation_started_received": 130.098,
+            "t_get_prover_addr_start": 130.386,
+            "t_get_prover_addr_finished": 130.399,
+            "t_ref_signatures_db_start": 130.399,
+            "t_ref_signatures_db_finished": 130.4,
+            "t_ref_signatures_sent": 130.423
+          },
+          "att7-Robot3": {
+            "t_attestation_started_received": 130.08,
+            "t_get_prover_addr_start": 130.288,
+            "t_get_prover_addr_finished": 130.302,
+            "t_ref_signatures_db_start": 130.302,
+            "t_ref_signatures_db_finished": 130.303,
+            "t_ref_signatures_sent": 130.32
+          },
+          "att7-Robot4": {
+            "t_attestation_started_received": 130.055,
+            "t_get_prover_addr_start": 130.197,
+            "t_get_prover_addr_finished": 130.208,
+            "t_ref_signatures_db_start": 130.208,
+            "t_ref_signatures_db_finished": 130.209,
+            "t_ref_signatures_sent": 130.228
+          },
+          "att8-Robot1": {
+            "t_attestation_started_received": 148.011,
+            "t_get_prover_addr_start": 148.131,
+            "t_get_prover_addr_finished": 148.143,
+            "t_ref_signatures_db_start": 148.143,
+            "t_ref_signatures_db_finished": 148.144,
+            "t_ref_signatures_sent": 148.16400000000002
+          },
+          "att8-Robot2": {
+            "t_attestation_started_received": 148.028,
+            "t_get_prover_addr_start": 148.22,
+            "t_get_prover_addr_finished": 148.232,
+            "t_ref_signatures_db_start": 148.232,
+            "t_ref_signatures_db_finished": 148.233,
+            "t_ref_signatures_sent": 148.251
+          },
+          "att8-Robot3": {
+            "t_attestation_started_received": 148.001,
+            "t_get_prover_addr_start": 148.01,
+            "t_get_prover_addr_finished": 148.03300000000002,
+            "t_ref_signatures_db_start": 148.03300000000002,
+            "t_ref_signatures_db_finished": 148.036,
+            "t_ref_signatures_sent": 148.076
+          },
+          "att8-Robot4": {
+            "t_attestation_started_received": 148.046,
+            "t_get_prover_addr_start": 148.318,
+            "t_get_prover_addr_finished": 148.332,
+            "t_ref_signatures_db_start": 148.332,
+            "t_ref_signatures_db_finished": 148.333,
+            "t_ref_signatures_sent": 148.354
+          }
+        },
+        "verifier": {
+          "att1-Robot1": {
+            "t_result_sent": 19.978
+          },
+          "att1-Robot2": {
+            "t_result_sent": 23.955000000000002
+          },
+          "att1-Robot3": {
+            "t_result_sent": 25.963
+          },
+          "att1-Robot4": {
+            "t_result_sent": 21.968
+          }
+        }
+      },
+      "Robot1": {
+        "prover": {
+          "att1-Robot1": {
+            "t_evidence_sent": 17.573,
+            "t_result_received": 22.001
+          },
+          "att2-Robot1": {
+            "t_evidence_sent": 35.657000000000004,
+            "t_result_received": 40.138
+          },
+          "att3-Robot1": {
+            "t_evidence_sent": 54.162,
+            "t_result_received": 59.951
+          },
+          "att4-Robot1": {
+            "t_evidence_sent": 72.75,
+            "t_result_received": 77.936
+          },
+          "att5-Robot1": {
+            "t_evidence_sent": 91.211,
+            "t_result_received": 95.915
+          },
+          "att6-Robot1": {
+            "t_evidence_sent": 109.739,
+            "t_result_received": 115.958
+          },
+          "att7-Robot1": {
+            "t_evidence_sent": 128.225,
+            "t_result_received": 133.88400000000001
+          },
+          "att8-Robot1": {
+            "t_evidence_sent": 146.463,
+            "t_result_received": 152.052
+          }
+        },
+        "verifier": {
+          "att2-Robot3": {
+            "t_evaluation_ready_received": 39.958,
+            "t_get_signatures_start": 40.050000000000004,
+            "t_get_signatures_finished": 40.163000000000004,
+            "t_result_sent": 40.163000000000004
+          },
+          "att2-Robot4": {
+            "t_evaluation_ready_received": 37.964,
+            "t_get_signatures_start": 38.054,
+            "t_get_signatures_finished": 38.148,
+            "t_result_sent": 38.148
+          },
+          "att3-Robot2": {
+            "t_evaluation_ready_received": 57.924,
+            "t_get_signatures_start": 57.959,
+            "t_get_signatures_finished": 58.064,
+            "t_result_sent": 58.064
+          },
+          "att5-Robot2": {
+            "t_evaluation_ready_received": 94.059,
+            "t_get_signatures_start": 94.15,
+            "t_get_signatures_finished": 94.462,
+            "t_result_sent": 94.462
+          },
+          "att6-Robot2": {
+            "t_evaluation_ready_received": 112.038,
+            "t_get_signatures_start": 112.072,
+            "t_get_signatures_finished": 112.162,
+            "t_result_sent": 112.162
+          }
+        }
+      },
+      "Robot2": {
+        "prover": {
+          "att1-Robot2": {
+            "t_evidence_sent": 17.459,
+            "t_result_received": 25.965
+          },
+          "att2-Robot2": {
+            "t_evidence_sent": 35.777,
+            "t_result_received": 41.968
+          },
+          "att3-Robot2": {
+            "t_evidence_sent": 54.145,
+            "t_result_received": 60.157000000000004
+          },
+          "att4-Robot2": {
+            "t_evidence_sent": 72.756,
+            "t_result_received": 78.053
+          },
+          "att5-Robot2": {
+            "t_evidence_sent": 91.444,
+            "t_result_received": 95.989
+          },
+          "att6-Robot2": {
+            "t_evidence_sent": 109.616,
+            "t_result_received": 113.98100000000001
+          },
+          "att7-Robot2": {
+            "t_evidence_sent": 128.0,
+            "t_result_received": 133.969
+          },
+          "att8-Robot2": {
+            "t_evidence_sent": 146.55,
+            "t_result_received": 152.03900000000002
+          }
+        },
+        "verifier": {
+          "att3-Robot3": {
+            "t_evaluation_ready_received": 58.28,
+            "t_get_signatures_start": 58.456,
+            "t_get_signatures_finished": 58.536,
+            "t_result_sent": 58.536
+          },
+          "att4-Robot3": {
+            "t_evaluation_ready_received": 76.253,
+            "t_get_signatures_start": 76.352,
+            "t_get_signatures_finished": 76.377,
+            "t_result_sent": 76.377
+          },
+          "att6-Robot3": {
+            "t_evaluation_ready_received": 114.172,
+            "t_get_signatures_start": 114.263,
+            "t_get_signatures_finished": 114.35000000000001,
+            "t_result_sent": 114.35000000000001
+          },
+          "att7-Robot3": {
+            "t_evaluation_ready_received": 132.15200000000002,
+            "t_get_signatures_start": 132.742,
+            "t_get_signatures_finished": 132.848,
+            "t_result_sent": 132.848
+          },
+          "att7-Robot4": {
+            "t_evaluation_ready_received": 132.053,
+            "t_get_signatures_start": 132.154,
+            "t_get_signatures_finished": 132.251,
+            "t_result_sent": 132.251
+          },
+          "att8-Robot1": {
+            "t_evaluation_ready_received": 150.255,
+            "t_get_signatures_start": 150.27700000000002,
+            "t_get_signatures_finished": 150.362,
+            "t_result_sent": 150.362
+          },
+          "att8-Robot4": {
+            "t_evaluation_ready_received": 150.44400000000002,
+            "t_get_signatures_start": 150.775,
+            "t_get_signatures_finished": 150.946,
+            "t_result_sent": 150.946
+          }
+        }
+      },
+      "Robot3": {
+        "prover": {
+          "att1-Robot3": {
+            "t_evidence_sent": 17.404,
+            "t_result_received": 27.973
+          },
+          "att2-Robot3": {
+            "t_evidence_sent": 35.829,
+            "t_result_received": 41.962
+          },
+          "att3-Robot3": {
+            "t_evidence_sent": 54.215,
+            "t_result_received": 60.072
+          },
+          "att4-Robot3": {
+            "t_evidence_sent": 72.729,
+            "t_result_received": 77.889
+          },
+          "att5-Robot3": {
+            "t_evidence_sent": 91.473,
+            "t_result_received": 95.944
+          },
+          "att6-Robot3": {
+            "t_evidence_sent": 109.73400000000001,
+            "t_result_received": 115.99900000000001
+          },
+          "att7-Robot3": {
+            "t_evidence_sent": 128.163,
+            "t_result_received": 134.065
+          },
+          "att8-Robot3": {
+            "t_evidence_sent": 146.871,
+            "t_result_received": 152.071
+          }
+        },
+        "verifier": {
+          "att3-Robot4": {
+            "t_evaluation_ready_received": 58.039,
+            "t_get_signatures_start": 58.093,
+            "t_get_signatures_finished": 58.29,
+            "t_result_sent": 58.29
+          },
+          "att4-Robot2": {
+            "t_evaluation_ready_received": 75.883,
+            "t_get_signatures_start": 75.947,
+            "t_get_signatures_finished": 76.24,
+            "t_result_sent": 76.24
+          },
+          "att4-Robot4": {
+            "t_evaluation_ready_received": 76.375,
+            "t_get_signatures_start": 76.663,
+            "t_get_signatures_finished": 76.678,
+            "t_result_sent": 76.678
+          },
+          "att5-Robot4": {
+            "t_evaluation_ready_received": 94.146,
+            "t_get_signatures_start": 94.452,
+            "t_get_signatures_finished": 94.565,
+            "t_result_sent": 94.565
+          },
+          "att6-Robot4": {
+            "t_evaluation_ready_received": 113.96900000000001,
+            "t_get_signatures_start": 114.037,
+            "t_get_signatures_finished": 114.143,
+            "t_result_sent": 114.143
+          },
+          "att7-Robot1": {
+            "t_evaluation_ready_received": 132.00300000000001,
+            "t_get_signatures_start": 132.05,
+            "t_get_signatures_finished": 132.147,
+            "t_result_sent": 132.147
+          },
+          "att7-Robot2": {
+            "t_evaluation_ready_received": 132.365,
+            "t_get_signatures_start": 132.559,
+            "t_get_signatures_finished": 132.579,
+            "t_result_sent": 132.579
+          },
+          "att8-Robot2": {
+            "t_evaluation_ready_received": 150.237,
+            "t_get_signatures_start": 150.268,
+            "t_get_signatures_finished": 150.44,
+            "t_result_sent": 150.44
+          }
+        }
+      },
+      "Robot4": {
+        "prover": {
+          "att1-Robot4": {
+            "t_evidence_sent": 17.511,
+            "t_result_received": 24.05
+          },
+          "att2-Robot4": {
+            "t_evidence_sent": 35.601,
+            "t_result_received": 39.892
+          },
+          "att3-Robot4": {
+            "t_evidence_sent": 54.156,
+            "t_result_received": 60.09
+          },
+          "att4-Robot4": {
+            "t_evidence_sent": 72.671,
+            "t_result_received": 77.95100000000001
+          },
+          "att5-Robot4": {
+            "t_evidence_sent": 91.074,
+            "t_result_received": 96.022
+          },
+          "att6-Robot4": {
+            "t_evidence_sent": 109.733,
+            "t_result_received": 116.01
+          },
+          "att7-Robot4": {
+            "t_evidence_sent": 128.217,
+            "t_result_received": 133.903
+          },
+          "att8-Robot4": {
+            "t_evidence_sent": 146.376,
+            "t_result_received": 151.963
+          }
+        },
+        "verifier": {
+          "att2-Robot1": {
+            "t_evaluation_ready_received": 37.966,
+            "t_get_signatures_start": 38.071,
+            "t_get_signatures_finished": 38.239000000000004,
+            "t_result_sent": 38.239000000000004
+          },
+          "att2-Robot2": {
+            "t_evaluation_ready_received": 40.047000000000004,
+            "t_get_signatures_start": 40.145,
+            "t_get_signatures_finished": 40.165,
+            "t_result_sent": 40.165
+          },
+          "att3-Robot1": {
+            "t_evaluation_ready_received": 58.083,
+            "t_get_signatures_start": 58.179,
+            "t_get_signatures_finished": 58.275,
+            "t_result_sent": 58.275
+          },
+          "att4-Robot1": {
+            "t_evaluation_ready_received": 76.175,
+            "t_get_signatures_start": 76.357,
+            "t_get_signatures_finished": 76.45,
+            "t_result_sent": 76.45
+          },
+          "att5-Robot1": {
+            "t_evaluation_ready_received": 94.656,
+            "t_get_signatures_start": 94.85600000000001,
+            "t_get_signatures_finished": 94.874,
+            "t_result_sent": 94.874
+          },
+          "att5-Robot3": {
+            "t_evaluation_ready_received": 94.041,
+            "t_get_signatures_start": 94.083,
+            "t_get_signatures_finished": 94.258,
+            "t_result_sent": 94.258
+          },
+          "att6-Robot1": {
+            "t_evaluation_ready_received": 114.045,
+            "t_get_signatures_start": 114.08,
+            "t_get_signatures_finished": 114.24600000000001,
+            "t_result_sent": 114.24600000000001
+          },
+          "att8-Robot3": {
+            "t_evaluation_ready_received": 149.953,
+            "t_get_signatures_start": 149.975,
+            "t_get_signatures_finished": 150.141,
+            "t_result_sent": 150.141
+          }
+        }
+      }
+    },
+    "run4": {
+      "SECaaS": {
+        "oracle": {
+          "att1-Robot1": {
+            "t_attestation_started_received": 19.766000000000002,
+            "t_get_prover_addr_start": 19.78,
+            "t_get_prover_addr_finished": 19.81,
+            "t_ref_signatures_db_start": 19.81,
+            "t_ref_signatures_db_finished": 19.818,
+            "t_ref_signatures_sent": 19.843
+          },
+          "att1-Robot2": {
+            "t_attestation_started_received": 19.782,
+            "t_get_prover_addr_start": 21.691,
+            "t_get_prover_addr_finished": 21.71,
+            "t_ref_signatures_db_start": 21.71,
+            "t_ref_signatures_db_finished": 21.71,
+            "t_ref_signatures_sent": 21.731
+          },
+          "att1-Robot3": {
+            "t_attestation_started_received": 19.814,
+            "t_get_prover_addr_start": 25.675,
+            "t_get_prover_addr_finished": 25.688,
+            "t_ref_signatures_db_start": 25.688,
+            "t_ref_signatures_db_finished": 25.689,
+            "t_ref_signatures_sent": 25.717000000000002
+          },
+          "att1-Robot4": {
+            "t_attestation_started_received": 19.802,
+            "t_get_prover_addr_start": 23.79,
+            "t_get_prover_addr_finished": 23.803,
+            "t_ref_signatures_db_start": 23.803,
+            "t_ref_signatures_db_finished": 23.804000000000002,
+            "t_ref_signatures_sent": 23.827
+          },
+          "att2-Robot1": {
+            "t_attestation_started_received": 37.794000000000004,
+            "t_get_prover_addr_start": 38.068,
+            "t_get_prover_addr_finished": 38.083,
+            "t_ref_signatures_db_start": 38.083,
+            "t_ref_signatures_db_finished": 38.085,
+            "t_ref_signatures_sent": 38.106
+          },
+          "att2-Robot2": {
+            "t_attestation_started_received": 37.75,
+            "t_get_prover_addr_start": 37.893,
+            "t_get_prover_addr_finished": 37.904,
+            "t_ref_signatures_db_start": 37.904,
+            "t_ref_signatures_db_finished": 37.904,
+            "t_ref_signatures_sent": 37.928
+          },
+          "att2-Robot3": {
+            "t_attestation_started_received": 37.74,
+            "t_get_prover_addr_start": 37.749,
+            "t_get_prover_addr_finished": 37.788000000000004,
+            "t_ref_signatures_db_start": 37.788000000000004,
+            "t_ref_signatures_db_finished": 37.788000000000004,
+            "t_ref_signatures_sent": 37.824
+          },
+          "att2-Robot4": {
+            "t_attestation_started_received": 37.772,
+            "t_get_prover_addr_start": 37.980000000000004,
+            "t_get_prover_addr_finished": 37.991,
+            "t_ref_signatures_db_start": 37.991,
+            "t_ref_signatures_db_finished": 37.992,
+            "t_ref_signatures_sent": 38.01
+          },
+          "att3-Robot1": {
+            "t_attestation_started_received": 55.768,
+            "t_get_prover_addr_start": 56.036,
+            "t_get_prover_addr_finished": 56.048,
+            "t_ref_signatures_db_start": 56.048,
+            "t_ref_signatures_db_finished": 56.048,
+            "t_ref_signatures_sent": 56.067
+          },
+          "att3-Robot2": {
+            "t_attestation_started_received": 55.744,
+            "t_get_prover_addr_start": 55.947,
+            "t_get_prover_addr_finished": 55.958,
+            "t_ref_signatures_db_start": 55.958,
+            "t_ref_signatures_db_finished": 55.959,
+            "t_ref_signatures_sent": 55.980000000000004
+          },
+          "att3-Robot3": {
+            "t_attestation_started_received": 55.704,
+            "t_get_prover_addr_start": 55.72,
+            "t_get_prover_addr_finished": 55.742000000000004,
+            "t_ref_signatures_db_start": 55.742000000000004,
+            "t_ref_signatures_db_finished": 55.748000000000005,
+            "t_ref_signatures_sent": 55.791000000000004
+          },
+          "att3-Robot4": {
+            "t_attestation_started_received": 55.715,
+            "t_get_prover_addr_start": 55.847,
+            "t_get_prover_addr_finished": 55.861000000000004,
+            "t_ref_signatures_db_start": 55.861000000000004,
+            "t_ref_signatures_db_finished": 55.863,
+            "t_ref_signatures_sent": 55.893
+          },
+          "att4-Robot1": {
+            "t_attestation_started_received": 73.828,
+            "t_get_prover_addr_start": 74.126,
+            "t_get_prover_addr_finished": 74.138,
+            "t_ref_signatures_db_start": 74.138,
+            "t_ref_signatures_db_finished": 74.139,
+            "t_ref_signatures_sent": 74.157
+          },
+          "att4-Robot2": {
+            "t_attestation_started_received": 73.807,
+            "t_get_prover_addr_start": 74.034,
+            "t_get_prover_addr_finished": 74.044,
+            "t_ref_signatures_db_start": 74.044,
+            "t_ref_signatures_db_finished": 74.045,
+            "t_ref_signatures_sent": 74.071
+          },
+          "att4-Robot3": {
+            "t_attestation_started_received": 73.774,
+            "t_get_prover_addr_start": 73.783,
+            "t_get_prover_addr_finished": 73.812,
+            "t_ref_signatures_db_start": 73.812,
+            "t_ref_signatures_db_finished": 73.813,
+            "t_ref_signatures_sent": 73.84700000000001
+          },
+          "att4-Robot4": {
+            "t_attestation_started_received": 73.784,
+            "t_get_prover_addr_start": 73.934,
+            "t_get_prover_addr_finished": 73.94500000000001,
+            "t_ref_signatures_db_start": 73.94500000000001,
+            "t_ref_signatures_db_finished": 73.946,
+            "t_ref_signatures_sent": 73.976
+          },
+          "att5-Robot1": {
+            "t_attestation_started_received": 91.751,
+            "t_get_prover_addr_start": 91.94800000000001,
+            "t_get_prover_addr_finished": 91.959,
+            "t_ref_signatures_db_start": 91.959,
+            "t_ref_signatures_db_finished": 91.96000000000001,
+            "t_ref_signatures_sent": 91.97800000000001
+          },
+          "att5-Robot2": {
+            "t_attestation_started_received": 91.732,
+            "t_get_prover_addr_start": 91.861,
+            "t_get_prover_addr_finished": 91.872,
+            "t_ref_signatures_db_start": 91.872,
+            "t_ref_signatures_db_finished": 91.873,
+            "t_ref_signatures_sent": 91.893
+          },
+          "att5-Robot3": {
+            "t_attestation_started_received": 91.77,
+            "t_get_prover_addr_start": 92.038,
+            "t_get_prover_addr_finished": 92.049,
+            "t_ref_signatures_db_start": 92.049,
+            "t_ref_signatures_db_finished": 92.05,
+            "t_ref_signatures_sent": 92.069
+          },
+          "att5-Robot4": {
+            "t_attestation_started_received": 91.71900000000001,
+            "t_get_prover_addr_start": 91.73100000000001,
+            "t_get_prover_addr_finished": 91.758,
+            "t_ref_signatures_db_start": 91.758,
+            "t_ref_signatures_db_finished": 91.774,
+            "t_ref_signatures_sent": 91.801
+          },
+          "att6-Robot1": {
+            "t_attestation_started_received": 109.686,
+            "t_get_prover_addr_start": 109.896,
+            "t_get_prover_addr_finished": 109.91,
+            "t_ref_signatures_db_start": 109.91,
+            "t_ref_signatures_db_finished": 109.911,
+            "t_ref_signatures_sent": 109.932
+          },
+          "att6-Robot2": {
+            "t_attestation_started_received": 111.758,
+            "t_get_prover_addr_start": 111.769,
+            "t_get_prover_addr_finished": 111.787,
+            "t_ref_signatures_db_start": 111.787,
+            "t_ref_signatures_db_finished": 111.788,
+            "t_ref_signatures_sent": 111.812
+          },
+          "att6-Robot3": {
+            "t_attestation_started_received": 109.663,
+            "t_get_prover_addr_start": 109.803,
+            "t_get_prover_addr_finished": 109.815,
+            "t_ref_signatures_db_start": 109.815,
+            "t_ref_signatures_db_finished": 109.816,
+            "t_ref_signatures_sent": 109.836
+          },
+          "att6-Robot4": {
+            "t_attestation_started_received": 109.651,
+            "t_get_prover_addr_start": 109.662,
+            "t_get_prover_addr_finished": 109.691,
+            "t_ref_signatures_db_start": 109.691,
+            "t_ref_signatures_db_finished": 109.696,
+            "t_ref_signatures_sent": 109.723
+          },
+          "att7-Robot1": {
+            "t_attestation_started_received": 129.68,
+            "t_get_prover_addr_start": 129.821,
+            "t_get_prover_addr_finished": 129.833,
+            "t_ref_signatures_db_start": 129.833,
+            "t_ref_signatures_db_finished": 129.834,
+            "t_ref_signatures_sent": 129.853
+          },
+          "att7-Robot2": {
+            "t_attestation_started_received": 129.702,
+            "t_get_prover_addr_start": 129.93,
+            "t_get_prover_addr_finished": 129.94400000000002,
+            "t_ref_signatures_db_start": 129.94400000000002,
+            "t_ref_signatures_db_finished": 129.945,
+            "t_ref_signatures_sent": 129.964
+          },
+          "att7-Robot3": {
+            "t_attestation_started_received": 129.654,
+            "t_get_prover_addr_start": 129.681,
+            "t_get_prover_addr_finished": 129.706,
+            "t_ref_signatures_db_start": 129.706,
+            "t_ref_signatures_db_finished": 129.707,
+            "t_ref_signatures_sent": 129.741
+          },
+          "att7-Robot4": {
+            "t_attestation_started_received": 129.72,
+            "t_get_prover_addr_start": 130.026,
+            "t_get_prover_addr_finished": 130.038,
+            "t_ref_signatures_db_start": 130.038,
+            "t_ref_signatures_db_finished": 130.03900000000002,
+            "t_ref_signatures_sent": 130.058
+          },
+          "att8-Robot1": {
+            "t_attestation_started_received": 147.611,
+            "t_get_prover_addr_start": 147.626,
+            "t_get_prover_addr_finished": 147.653,
+            "t_ref_signatures_db_start": 147.653,
+            "t_ref_signatures_db_finished": 147.657,
+            "t_ref_signatures_sent": 147.702
+          },
+          "att8-Robot2": {
+            "t_attestation_started_received": 147.64600000000002,
+            "t_get_prover_addr_start": 147.879,
+            "t_get_prover_addr_finished": 147.891,
+            "t_ref_signatures_db_start": 147.891,
+            "t_ref_signatures_db_finished": 147.892,
+            "t_ref_signatures_sent": 147.911
+          },
+          "att8-Robot3": {
+            "t_attestation_started_received": 147.66,
+            "t_get_prover_addr_start": 147.971,
+            "t_get_prover_addr_finished": 147.982,
+            "t_ref_signatures_db_start": 147.982,
+            "t_ref_signatures_db_finished": 147.982,
+            "t_ref_signatures_sent": 148.002
+          },
+          "att8-Robot4": {
+            "t_attestation_started_received": 147.624,
+            "t_get_prover_addr_start": 147.778,
+            "t_get_prover_addr_finished": 147.79500000000002,
+            "t_ref_signatures_db_start": 147.79500000000002,
+            "t_ref_signatures_db_finished": 147.797,
+            "t_ref_signatures_sent": 147.82
+          }
+        },
+        "verifier": {
+          "att1-Robot1": {
+            "t_result_sent": 21.619
+          },
+          "att1-Robot2": {
+            "t_result_sent": 23.722
+          },
+          "att1-Robot3": {
+            "t_result_sent": 27.7
+          },
+          "att1-Robot4": {
+            "t_result_sent": 25.615000000000002
+          }
+        }
+      },
+      "Robot1": {
+        "prover": {
+          "att1-Robot1": {
+            "t_evidence_sent": 17.465,
+            "t_result_received": 23.676000000000002
+          },
+          "att2-Robot1": {
+            "t_evidence_sent": 35.381,
+            "t_result_received": 41.794000000000004
+          },
+          "att3-Robot1": {
+            "t_evidence_sent": 53.813,
+            "t_result_received": 59.604
+          },
+          "att4-Robot1": {
+            "t_evidence_sent": 71.956,
+            "t_result_received": 77.717
+          },
+          "att5-Robot1": {
+            "t_evidence_sent": 90.56,
+            "t_result_received": 95.729
+          },
+          "att6-Robot1": {
+            "t_evidence_sent": 108.983,
+            "t_result_received": 113.85900000000001
+          },
+          "att7-Robot1": {
+            "t_evidence_sent": 127.72,
+            "t_result_received": 133.631
+          },
+          "att8-Robot1": {
+            "t_evidence_sent": 146.654,
+            "t_result_received": 151.717
+          }
+        },
+        "verifier": {
+          "att2-Robot2": {
+            "t_evaluation_ready_received": 39.776,
+            "t_get_signatures_start": 39.89,
+            "t_get_signatures_finished": 40.054,
+            "t_result_sent": 40.054
+          },
+          "att4-Robot2": {
+            "t_evaluation_ready_received": 76.066,
+            "t_get_signatures_start": 76.455,
+            "t_get_signatures_finished": 76.49,
+            "t_result_sent": 76.49
+          },
+          "att4-Robot3": {
+            "t_evaluation_ready_received": 75.641,
+            "t_get_signatures_start": 75.68900000000001,
+            "t_get_signatures_finished": 75.778,
+            "t_result_sent": 75.778
+          },
+          "att5-Robot2": {
+            "t_evaluation_ready_received": 93.782,
+            "t_get_signatures_start": 93.881,
+            "t_get_signatures_finished": 93.986,
+            "t_result_sent": 93.986
+          },
+          "att6-Robot2": {
+            "t_evaluation_ready_received": 113.596,
+            "t_get_signatures_start": 113.661,
+            "t_get_signatures_finished": 113.681,
+            "t_result_sent": 113.681
+          },
+          "att6-Robot3": {
+            "t_evaluation_ready_received": 111.739,
+            "t_get_signatures_start": 112.32900000000001,
+            "t_get_signatures_finished": 112.355,
+            "t_result_sent": 112.355
+          },
+          "att6-Robot4": {
+            "t_evaluation_ready_received": 111.718,
+            "t_get_signatures_start": 111.741,
+            "t_get_signatures_finished": 111.79,
+            "t_result_sent": 111.79
+          },
+          "att7-Robot2": {
+            "t_evaluation_ready_received": 132.154,
+            "t_get_signatures_start": 132.769,
+            "t_get_signatures_finished": 132.879,
+            "t_result_sent": 132.879
+          },
+          "att7-Robot3": {
+            "t_evaluation_ready_received": 131.778,
+            "t_get_signatures_start": 131.954,
+            "t_get_signatures_finished": 132.071,
+            "t_result_sent": 132.071
+          },
+          "att8-Robot4": {
+            "t_evaluation_ready_received": 149.68,
+            "t_get_signatures_start": 149.772,
+            "t_get_signatures_finished": 150.064,
+            "t_result_sent": 150.064
+          }
+        }
+      },
+      "Robot2": {
+        "prover": {
+          "att1-Robot2": {
+            "t_evidence_sent": 17.528,
+            "t_result_received": 25.622
+          },
+          "att2-Robot2": {
+            "t_evidence_sent": 35.684,
+            "t_result_received": 41.673
+          },
+          "att3-Robot2": {
+            "t_evidence_sent": 53.877,
+            "t_result_received": 59.635
+          },
+          "att4-Robot2": {
+            "t_evidence_sent": 72.415,
+            "t_result_received": 77.615
+          },
+          "att5-Robot2": {
+            "t_evidence_sent": 90.786,
+            "t_result_received": 95.72500000000001
+          },
+          "att6-Robot2": {
+            "t_evidence_sent": 109.267,
+            "t_result_received": 115.70700000000001
+          },
+          "att7-Robot2": {
+            "t_evidence_sent": 127.599,
+            "t_result_received": 133.757
+          },
+          "att8-Robot2": {
+            "t_evidence_sent": 146.204,
+            "t_result_received": 151.647
+          }
+        },
+        "verifier": {
+          "att3-Robot1": {
+            "t_evaluation_ready_received": 58.069,
+            "t_get_signatures_start": 58.279,
+            "t_get_signatures_finished": 58.293,
+            "t_result_sent": 58.293
+          },
+          "att3-Robot3": {
+            "t_evaluation_ready_received": 57.636,
+            "t_get_signatures_start": 57.673,
+            "t_get_signatures_finished": 57.698,
+            "t_result_sent": 57.698
+          },
+          "att4-Robot4": {
+            "t_evaluation_ready_received": 75.779,
+            "t_get_signatures_start": 75.866,
+            "t_get_signatures_finished": 76.058,
+            "t_result_sent": 76.058
+          },
+          "att5-Robot4": {
+            "t_evaluation_ready_received": 93.805,
+            "t_get_signatures_start": 93.873,
+            "t_get_signatures_finished": 93.97500000000001,
+            "t_result_sent": 93.97500000000001
+          }
+        }
+      },
+      "Robot3": {
+        "prover": {
+          "att1-Robot3": {
+            "t_evidence_sent": 17.449,
+            "t_result_received": 29.698
+          },
+          "att2-Robot3": {
+            "t_evidence_sent": 35.86,
+            "t_result_received": 41.682
+          },
+          "att3-Robot3": {
+            "t_evidence_sent": 54.156,
+            "t_result_received": 59.606
+          },
+          "att4-Robot3": {
+            "t_evidence_sent": 72.702,
+            "t_result_received": 77.657
+          },
+          "att5-Robot3": {
+            "t_evidence_sent": 90.96600000000001,
+            "t_result_received": 95.789
+          },
+          "att6-Robot3": {
+            "t_evidence_sent": 109.325,
+            "t_result_received": 113.803
+          },
+          "att7-Robot3": {
+            "t_evidence_sent": 127.66,
+            "t_result_received": 133.784
+          },
+          "att8-Robot3": {
+            "t_evidence_sent": 146.302,
+            "t_result_received": 151.671
+          }
+        },
+        "verifier": {
+          "att2-Robot4": {
+            "t_evaluation_ready_received": 39.879,
+            "t_get_signatures_start": 39.972,
+            "t_get_signatures_finished": 40.076,
+            "t_result_sent": 40.076
+          },
+          "att3-Robot4": {
+            "t_evaluation_ready_received": 57.688,
+            "t_get_signatures_start": 57.869,
+            "t_get_signatures_finished": 57.995000000000005,
+            "t_result_sent": 57.995000000000005
+          },
+          "att4-Robot1": {
+            "t_evaluation_ready_received": 76.275,
+            "t_get_signatures_start": 76.372,
+            "t_get_signatures_finished": 76.393,
+            "t_result_sent": 76.393
+          },
+          "att5-Robot1": {
+            "t_evaluation_ready_received": 93.97800000000001,
+            "t_get_signatures_start": 94.078,
+            "t_get_signatures_finished": 94.361,
+            "t_result_sent": 94.361
+          },
+          "att7-Robot4": {
+            "t_evaluation_ready_received": 132.075,
+            "t_get_signatures_start": 132.189,
+            "t_get_signatures_finished": 132.356,
+            "t_result_sent": 132.356
+          },
+          "att8-Robot2": {
+            "t_evaluation_ready_received": 149.791,
+            "t_get_signatures_start": 150.08100000000002,
+            "t_get_signatures_finished": 150.17000000000002,
+            "t_result_sent": 150.17000000000002
+          }
+        }
+      },
+      "Robot4": {
+        "prover": {
+          "att1-Robot4": {
+            "t_evidence_sent": 17.413,
+            "t_result_received": 27.801000000000002
+          },
+          "att2-Robot4": {
+            "t_evidence_sent": 35.615,
+            "t_result_received": 41.633
+          },
+          "att3-Robot4": {
+            "t_evidence_sent": 54.057,
+            "t_result_received": 59.862
+          },
+          "att4-Robot4": {
+            "t_evidence_sent": 72.484,
+            "t_result_received": 77.789
+          },
+          "att5-Robot4": {
+            "t_evidence_sent": 90.882,
+            "t_result_received": 95.792
+          },
+          "att6-Robot4": {
+            "t_evidence_sent": 109.158,
+            "t_result_received": 113.793
+          },
+          "att7-Robot4": {
+            "t_evidence_sent": 127.59100000000001,
+            "t_result_received": 133.772
+          },
+          "att8-Robot4": {
+            "t_evidence_sent": 146.375,
+            "t_result_received": 151.707
+          }
+        },
+        "verifier": {
+          "att2-Robot1": {
+            "t_evaluation_ready_received": 40.275,
+            "t_get_signatures_start": 40.494,
+            "t_get_signatures_finished": 40.671,
+            "t_result_sent": 40.671
+          },
+          "att2-Robot3": {
+            "t_evaluation_ready_received": 39.801,
+            "t_get_signatures_start": 39.954,
+            "t_get_signatures_finished": 39.988,
+            "t_result_sent": 39.988
+          },
+          "att3-Robot2": {
+            "t_evaluation_ready_received": 57.878,
+            "t_get_signatures_start": 58.078,
+            "t_get_signatures_finished": 58.183,
+            "t_result_sent": 58.183
+          },
+          "att5-Robot3": {
+            "t_evaluation_ready_received": 94.08500000000001,
+            "t_get_signatures_start": 94.27,
+            "t_get_signatures_finished": 94.459,
+            "t_result_sent": 94.459
+          },
+          "att6-Robot1": {
+            "t_evaluation_ready_received": 111.977,
+            "t_get_signatures_start": 112.078,
+            "t_get_signatures_finished": 112.168,
+            "t_result_sent": 112.168
+          },
+          "att7-Robot1": {
+            "t_evaluation_ready_received": 131.971,
+            "t_get_signatures_start": 132.062,
+            "t_get_signatures_finished": 132.088,
+            "t_result_sent": 132.088
+          },
+          "att8-Robot1": {
+            "t_evaluation_ready_received": 149.686,
+            "t_get_signatures_start": 149.708,
+            "t_get_signatures_finished": 149.874,
+            "t_result_sent": 149.874
+          },
+          "att8-Robot3": {
+            "t_evaluation_ready_received": 150.19400000000002,
+            "t_get_signatures_start": 150.481,
+            "t_get_signatures_finished": 150.55700000000002,
+            "t_result_sent": 150.55700000000002
+          }
+        }
+      }
+    },
+    "run5": {
+      "SECaaS": {
+        "oracle": {
+          "att1-Robot1": {
+            "t_attestation_started_received": 18.516000000000002,
+            "t_get_prover_addr_start": 18.531,
+            "t_get_prover_addr_finished": 18.569,
+            "t_ref_signatures_db_start": 18.569,
+            "t_ref_signatures_db_finished": 18.574,
+            "t_ref_signatures_sent": 18.603
+          },
+          "att1-Robot2": {
+            "t_attestation_started_received": 18.580000000000002,
+            "t_get_prover_addr_start": 24.467,
+            "t_get_prover_addr_finished": 24.486,
+            "t_ref_signatures_db_start": 24.486,
+            "t_ref_signatures_db_finished": 24.487000000000002,
+            "t_ref_signatures_sent": 24.505
+          },
+          "att1-Robot3": {
+            "t_attestation_started_received": 18.564,
+            "t_get_prover_addr_start": 22.466,
+            "t_get_prover_addr_finished": 22.477,
+            "t_ref_signatures_db_start": 22.477,
+            "t_ref_signatures_db_finished": 22.477,
+            "t_ref_signatures_sent": 22.494
+          },
+          "att1-Robot4": {
+            "t_attestation_started_received": 18.533,
+            "t_get_prover_addr_start": 20.465,
+            "t_get_prover_addr_finished": 20.479,
+            "t_ref_signatures_db_start": 20.479,
+            "t_ref_signatures_db_finished": 20.48,
+            "t_ref_signatures_sent": 20.501
+          },
+          "att2-Robot1": {
+            "t_attestation_started_received": 36.556,
+            "t_get_prover_addr_start": 36.682,
+            "t_get_prover_addr_finished": 36.695,
+            "t_ref_signatures_db_start": 36.695,
+            "t_ref_signatures_db_finished": 36.696,
+            "t_ref_signatures_sent": 36.716
+          },
+          "att2-Robot2": {
+            "t_attestation_started_received": 36.575,
+            "t_get_prover_addr_start": 36.776,
+            "t_get_prover_addr_finished": 36.789,
+            "t_ref_signatures_db_start": 36.789,
+            "t_ref_signatures_db_finished": 36.79,
+            "t_ref_signatures_sent": 36.816
+          },
+          "att2-Robot3": {
+            "t_attestation_started_received": 36.541000000000004,
+            "t_get_prover_addr_start": 36.553,
+            "t_get_prover_addr_finished": 36.58,
+            "t_ref_signatures_db_start": 36.58,
+            "t_ref_signatures_db_finished": 36.584,
+            "t_ref_signatures_sent": 36.605000000000004
+          },
+          "att2-Robot4": {
+            "t_attestation_started_received": 38.449,
+            "t_get_prover_addr_start": 38.469,
+            "t_get_prover_addr_finished": 38.489000000000004,
+            "t_ref_signatures_db_start": 38.489000000000004,
+            "t_ref_signatures_db_finished": 38.49,
+            "t_ref_signatures_sent": 38.514
+          },
+          "att3-Robot1": {
+            "t_attestation_started_received": 54.512,
+            "t_get_prover_addr_start": 54.53,
+            "t_get_prover_addr_finished": 54.544000000000004,
+            "t_ref_signatures_db_start": 54.544000000000004,
+            "t_ref_signatures_db_finished": 54.545,
+            "t_ref_signatures_sent": 54.566
+          },
+          "att3-Robot2": {
+            "t_attestation_started_received": 56.408,
+            "t_get_prover_addr_start": 56.527,
+            "t_get_prover_addr_finished": 56.547000000000004,
+            "t_ref_signatures_db_start": 56.547000000000004,
+            "t_ref_signatures_db_finished": 56.548,
+            "t_ref_signatures_sent": 56.57
+          },
+          "att3-Robot3": {
+            "t_attestation_started_received": 56.431000000000004,
+            "t_get_prover_addr_start": 56.632,
+            "t_get_prover_addr_finished": 56.652,
+            "t_ref_signatures_db_start": 56.652,
+            "t_ref_signatures_db_finished": 56.653,
+            "t_ref_signatures_sent": 56.697
+          },
+          "att3-Robot4": {
+            "t_attestation_started_received": 56.391,
+            "t_get_prover_addr_start": 56.409,
+            "t_get_prover_addr_finished": 56.429,
+            "t_ref_signatures_db_start": 56.429,
+            "t_ref_signatures_db_finished": 56.435,
+            "t_ref_signatures_sent": 56.467
+          },
+          "att4-Robot1": {
+            "t_attestation_started_received": 72.47500000000001,
+            "t_get_prover_addr_start": 72.484,
+            "t_get_prover_addr_finished": 72.494,
+            "t_ref_signatures_db_start": 72.494,
+            "t_ref_signatures_db_finished": 72.495,
+            "t_ref_signatures_sent": 72.514
+          },
+          "att4-Robot2": {
+            "t_attestation_started_received": 74.563,
+            "t_get_prover_addr_start": 74.675,
+            "t_get_prover_addr_finished": 74.686,
+            "t_ref_signatures_db_start": 74.686,
+            "t_ref_signatures_db_finished": 74.686,
+            "t_ref_signatures_sent": 74.70400000000001
+          },
+          "att4-Robot3": {
+            "t_attestation_started_received": 74.583,
+            "t_get_prover_addr_start": 74.757,
+            "t_get_prover_addr_finished": 74.771,
+            "t_ref_signatures_db_start": 74.771,
+            "t_ref_signatures_db_finished": 74.771,
+            "t_ref_signatures_sent": 74.789
+          },
+          "att4-Robot4": {
+            "t_attestation_started_received": 74.547,
+            "t_get_prover_addr_start": 74.566,
+            "t_get_prover_addr_finished": 74.59100000000001,
+            "t_ref_signatures_db_start": 74.59100000000001,
+            "t_ref_signatures_db_finished": 74.59400000000001,
+            "t_ref_signatures_sent": 74.612
+          },
+          "att5-Robot1": {
+            "t_attestation_started_received": 92.515,
+            "t_get_prover_addr_start": 92.764,
+            "t_get_prover_addr_finished": 92.776,
+            "t_ref_signatures_db_start": 92.776,
+            "t_ref_signatures_db_finished": 92.777,
+            "t_ref_signatures_sent": 92.795
+          },
+          "att5-Robot2": {
+            "t_attestation_started_received": 92.496,
+            "t_get_prover_addr_start": 92.674,
+            "t_get_prover_addr_finished": 92.684,
+            "t_ref_signatures_db_start": 92.684,
+            "t_ref_signatures_db_finished": 92.685,
+            "t_ref_signatures_sent": 92.70400000000001
+          },
+          "att5-Robot3": {
+            "t_attestation_started_received": 92.456,
+            "t_get_prover_addr_start": 92.47,
+            "t_get_prover_addr_finished": 92.5,
+            "t_ref_signatures_db_start": 92.5,
+            "t_ref_signatures_db_finished": 92.503,
+            "t_ref_signatures_sent": 92.536
+          },
+          "att5-Robot4": {
+            "t_attestation_started_received": 92.46900000000001,
+            "t_get_prover_addr_start": 92.59,
+            "t_get_prover_addr_finished": 92.602,
+            "t_ref_signatures_db_start": 92.602,
+            "t_ref_signatures_db_finished": 92.60300000000001,
+            "t_ref_signatures_sent": 92.621
+          },
+          "att6-Robot1": {
+            "t_attestation_started_received": 110.5,
+            "t_get_prover_addr_start": 110.808,
+            "t_get_prover_addr_finished": 110.821,
+            "t_ref_signatures_db_start": 110.821,
+            "t_ref_signatures_db_finished": 110.822,
+            "t_ref_signatures_sent": 110.84700000000001
+          },
+          "att6-Robot2": {
+            "t_attestation_started_received": 110.48400000000001,
+            "t_get_prover_addr_start": 110.709,
+            "t_get_prover_addr_finished": 110.721,
+            "t_ref_signatures_db_start": 110.721,
+            "t_ref_signatures_db_finished": 110.721,
+            "t_ref_signatures_sent": 110.74600000000001
+          },
+          "att6-Robot3": {
+            "t_attestation_started_received": 110.46300000000001,
+            "t_get_prover_addr_start": 110.60600000000001,
+            "t_get_prover_addr_finished": 110.61800000000001,
+            "t_ref_signatures_db_start": 110.61800000000001,
+            "t_ref_signatures_db_finished": 110.619,
+            "t_ref_signatures_sent": 110.645
+          },
+          "att6-Robot4": {
+            "t_attestation_started_received": 110.446,
+            "t_get_prover_addr_start": 110.46900000000001,
+            "t_get_prover_addr_finished": 110.489,
+            "t_ref_signatures_db_start": 110.489,
+            "t_ref_signatures_db_finished": 110.495,
+            "t_ref_signatures_sent": 110.524
+          },
+          "att7-Robot1": {
+            "t_attestation_started_received": 128.43800000000002,
+            "t_get_prover_addr_start": 128.596,
+            "t_get_prover_addr_finished": 128.607,
+            "t_ref_signatures_db_start": 128.607,
+            "t_ref_signatures_db_finished": 128.608,
+            "t_ref_signatures_sent": 128.62800000000001
+          },
+          "att7-Robot2": {
+            "t_attestation_started_received": 128.425,
+            "t_get_prover_addr_start": 128.443,
+            "t_get_prover_addr_finished": 128.478,
+            "t_ref_signatures_db_start": 128.478,
+            "t_ref_signatures_db_finished": 128.486,
+            "t_ref_signatures_sent": 128.525
+          },
+          "att7-Robot3": {
+            "t_attestation_started_received": 128.473,
+            "t_get_prover_addr_start": 128.696,
+            "t_get_prover_addr_finished": 128.708,
+            "t_ref_signatures_db_start": 128.708,
+            "t_ref_signatures_db_finished": 128.709,
+            "t_ref_signatures_sent": 128.731
+          },
+          "att7-Robot4": {
+            "t_attestation_started_received": 130.57,
+            "t_get_prover_addr_start": 130.581,
+            "t_get_prover_addr_finished": 130.593,
+            "t_ref_signatures_db_start": 130.593,
+            "t_ref_signatures_db_finished": 130.594,
+            "t_ref_signatures_sent": 130.614
+          },
+          "att8-Robot1": {
+            "t_attestation_started_received": 146.413,
+            "t_get_prover_addr_start": 146.423,
+            "t_get_prover_addr_finished": 146.439,
+            "t_ref_signatures_db_start": 146.439,
+            "t_ref_signatures_db_finished": 146.44,
+            "t_ref_signatures_sent": 146.461
+          },
+          "att8-Robot2": {
+            "t_attestation_started_received": 148.517,
+            "t_get_prover_addr_start": 148.70600000000002,
+            "t_get_prover_addr_finished": 148.718,
+            "t_ref_signatures_db_start": 148.718,
+            "t_ref_signatures_db_finished": 148.718,
+            "t_ref_signatures_sent": 148.754
+          },
+          "att8-Robot3": {
+            "t_attestation_started_received": 148.483,
+            "t_get_prover_addr_start": 148.493,
+            "t_get_prover_addr_finished": 148.52100000000002,
+            "t_ref_signatures_db_start": 148.52100000000002,
+            "t_ref_signatures_db_finished": 148.522,
+            "t_ref_signatures_sent": 148.554
+          },
+          "att8-Robot4": {
+            "t_attestation_started_received": 148.492,
+            "t_get_prover_addr_start": 148.617,
+            "t_get_prover_addr_finished": 148.631,
+            "t_ref_signatures_db_start": 148.631,
+            "t_ref_signatures_db_finished": 148.631,
+            "t_ref_signatures_sent": 148.651
+          }
+        },
+        "verifier": {
+          "att1-Robot1": {
+            "t_result_sent": 20.400000000000002
+          },
+          "att1-Robot2": {
+            "t_result_sent": 26.396
+          },
+          "att1-Robot3": {
+            "t_result_sent": 24.393
+          },
+          "att1-Robot4": {
+            "t_result_sent": 22.399
+          }
+        }
+      },
+      "Robot1": {
+        "prover": {
+          "att1-Robot1": {
+            "t_evidence_sent": 17.449,
+            "t_result_received": 22.436
+          },
+          "att2-Robot1": {
+            "t_evidence_sent": 35.835,
+            "t_result_received": 40.739000000000004
+          },
+          "att3-Robot1": {
+            "t_evidence_sent": 54.078,
+            "t_result_received": 58.38
+          },
+          "att4-Robot1": {
+            "t_evidence_sent": 72.049,
+            "t_result_received": 76.379
+          },
+          "att5-Robot1": {
+            "t_evidence_sent": 90.318,
+            "t_result_received": 96.538
+          },
+          "att6-Robot1": {
+            "t_evidence_sent": 108.794,
+            "t_result_received": 114.477
+          },
+          "att7-Robot1": {
+            "t_evidence_sent": 127.343,
+            "t_result_received": 132.386
+          },
+          "att8-Robot1": {
+            "t_evidence_sent": 145.517,
+            "t_result_received": 150.549
+          }
+        },
+        "verifier": {
+          "att4-Robot2": {
+            "t_evaluation_ready_received": 76.548,
+            "t_get_signatures_start": 76.647,
+            "t_get_signatures_finished": 76.837,
+            "t_result_sent": 76.837
+          },
+          "att4-Robot3": {
+            "t_evaluation_ready_received": 76.646,
+            "t_get_signatures_start": 77.238,
+            "t_get_signatures_finished": 77.256,
+            "t_result_sent": 77.256
+          },
+          "att5-Robot4": {
+            "t_evaluation_ready_received": 94.649,
+            "t_get_signatures_start": 94.745,
+            "t_get_signatures_finished": 94.851,
+            "t_result_sent": 94.851
+          },
+          "att6-Robot3": {
+            "t_evaluation_ready_received": 112.64,
+            "t_get_signatures_start": 113.142,
+            "t_get_signatures_finished": 113.164,
+            "t_result_sent": 113.164
+          },
+          "att6-Robot4": {
+            "t_evaluation_ready_received": 112.549,
+            "t_get_signatures_start": 112.642,
+            "t_get_signatures_finished": 112.837,
+            "t_result_sent": 112.837
+          }
+        }
+      },
+      "Robot2": {
+        "prover": {
+          "att1-Robot2": {
+            "t_evidence_sent": 17.449,
+            "t_result_received": 28.547
+          },
+          "att2-Robot2": {
+            "t_evidence_sent": 35.759,
+            "t_result_received": 40.375
+          },
+          "att3-Robot2": {
+            "t_evidence_sent": 54.311,
+            "t_result_received": 60.370000000000005
+          },
+          "att4-Robot2": {
+            "t_evidence_sent": 72.744,
+            "t_result_received": 78.48
+          },
+          "att5-Robot2": {
+            "t_evidence_sent": 91.063,
+            "t_result_received": 96.58200000000001
+          },
+          "att6-Robot2": {
+            "t_evidence_sent": 109.286,
+            "t_result_received": 114.659
+          },
+          "att7-Robot2": {
+            "t_evidence_sent": 127.881,
+            "t_result_received": 132.643
+          },
+          "att8-Robot2": {
+            "t_evidence_sent": 146.291,
+            "t_result_received": 152.44
+          }
+        },
+        "verifier": {
+          "att2-Robot1": {
+            "t_evaluation_ready_received": 38.45,
+            "t_get_signatures_start": 38.739000000000004,
+            "t_get_signatures_finished": 38.853,
+            "t_result_sent": 38.853
+          },
+          "att2-Robot4": {
+            "t_evaluation_ready_received": 40.474000000000004,
+            "t_get_signatures_start": 40.544000000000004,
+            "t_get_signatures_finished": 40.725,
+            "t_result_sent": 40.725
+          },
+          "att3-Robot1": {
+            "t_evaluation_ready_received": 56.58,
+            "t_get_signatures_start": 56.638,
+            "t_get_signatures_finished": 56.655,
+            "t_result_sent": 56.655
+          },
+          "att3-Robot3": {
+            "t_evaluation_ready_received": 58.45,
+            "t_get_signatures_start": 58.54,
+            "t_get_signatures_finished": 58.555,
+            "t_result_sent": 58.555
+          },
+          "att4-Robot4": {
+            "t_evaluation_ready_received": 76.523,
+            "t_get_signatures_start": 76.552,
+            "t_get_signatures_finished": 76.735,
+            "t_result_sent": 76.735
+          },
+          "att6-Robot1": {
+            "t_evaluation_ready_received": 112.664,
+            "t_get_signatures_start": 112.754,
+            "t_get_signatures_finished": 112.83,
+            "t_result_sent": 112.83
+          },
+          "att7-Robot3": {
+            "t_evaluation_ready_received": 130.562,
+            "t_get_signatures_start": 130.842,
+            "t_get_signatures_finished": 130.93,
+            "t_result_sent": 130.93
+          },
+          "att8-Robot3": {
+            "t_evaluation_ready_received": 150.508,
+            "t_get_signatures_start": 150.548,
+            "t_get_signatures_finished": 150.651,
+            "t_result_sent": 150.651
+          }
+        }
+      },
+      "Robot3": {
+        "prover": {
+          "att1-Robot3": {
+            "t_evidence_sent": 17.45,
+            "t_result_received": 26.394000000000002
+          },
+          "att2-Robot3": {
+            "t_evidence_sent": 35.938,
+            "t_result_received": 40.536
+          },
+          "att3-Robot3": {
+            "t_evidence_sent": 54.31,
+            "t_result_received": 60.543
+          },
+          "att4-Robot3": {
+            "t_evidence_sent": 72.733,
+            "t_result_received": 78.493
+          },
+          "att5-Robot3": {
+            "t_evidence_sent": 91.238,
+            "t_result_received": 96.35900000000001
+          },
+          "att6-Robot3": {
+            "t_evidence_sent": 109.48100000000001,
+            "t_result_received": 114.553
+          },
+          "att7-Robot3": {
+            "t_evidence_sent": 127.807,
+            "t_result_received": 132.386
+          },
+          "att8-Robot3": {
+            "t_evidence_sent": 146.348,
+            "t_result_received": 152.488
+          }
+        },
+        "verifier": {
+          "att2-Robot2": {
+            "t_evaluation_ready_received": 38.931,
+            "t_get_signatures_start": 39.063,
+            "t_get_signatures_finished": 39.146,
+            "t_result_sent": 39.146
+          },
+          "att3-Robot4": {
+            "t_evaluation_ready_received": 58.535000000000004,
+            "t_get_signatures_start": 58.565,
+            "t_get_signatures_finished": 58.651,
+            "t_result_sent": 58.651
+          },
+          "att4-Robot1": {
+            "t_evaluation_ready_received": 74.487,
+            "t_get_signatures_start": 74.566,
+            "t_get_signatures_finished": 74.581,
+            "t_result_sent": 74.581
+          },
+          "att5-Robot2": {
+            "t_evaluation_ready_received": 94.631,
+            "t_get_signatures_start": 94.653,
+            "t_get_signatures_finished": 94.67,
+            "t_result_sent": 94.67
+          },
+          "att7-Robot2": {
+            "t_evaluation_ready_received": 130.386,
+            "t_get_signatures_start": 130.451,
+            "t_get_signatures_finished": 130.544,
+            "t_result_sent": 130.544
+          },
+          "att7-Robot4": {
+            "t_evaluation_ready_received": 132.441,
+            "t_get_signatures_start": 132.531,
+            "t_get_signatures_finished": 132.558,
+            "t_result_sent": 132.558
+          },
+          "att8-Robot4": {
+            "t_evaluation_ready_received": 150.54500000000002,
+            "t_get_signatures_start": 150.567,
+            "t_get_signatures_finished": 150.653,
+            "t_result_sent": 150.653
+          }
+        }
+      },
+      "Robot4": {
+        "prover": {
+          "att1-Robot4": {
+            "t_evidence_sent": 17.506,
+            "t_result_received": 24.551000000000002
+          },
+          "att2-Robot4": {
+            "t_evidence_sent": 36.223,
+            "t_result_received": 42.396
+          },
+          "att3-Robot4": {
+            "t_evidence_sent": 54.608000000000004,
+            "t_result_received": 60.506
+          },
+          "att4-Robot4": {
+            "t_evidence_sent": 73.133,
+            "t_result_received": 78.56
+          },
+          "att5-Robot4": {
+            "t_evidence_sent": 91.419,
+            "t_result_received": 96.529
+          },
+          "att6-Robot4": {
+            "t_evidence_sent": 110.024,
+            "t_result_received": 114.553
+          },
+          "att7-Robot4": {
+            "t_evidence_sent": 128.321,
+            "t_result_received": 134.50900000000001
+          },
+          "att8-Robot4": {
+            "t_evidence_sent": 146.946,
+            "t_result_received": 152.368
+          }
+        },
+        "verifier": {
+          "att2-Robot3": {
+            "t_evaluation_ready_received": 38.426,
+            "t_get_signatures_start": 38.732,
+            "t_get_signatures_finished": 38.847,
+            "t_result_sent": 38.847
+          },
+          "att3-Robot2": {
+            "t_evaluation_ready_received": 58.633,
+            "t_get_signatures_start": 58.662,
+            "t_get_signatures_finished": 58.932,
+            "t_result_sent": 58.932
+          },
+          "att5-Robot1": {
+            "t_evaluation_ready_received": 94.925,
+            "t_get_signatures_start": 95.062,
+            "t_get_signatures_finished": 95.131,
+            "t_result_sent": 95.131
+          },
+          "att5-Robot3": {
+            "t_evaluation_ready_received": 94.482,
+            "t_get_signatures_start": 94.505,
+            "t_get_signatures_finished": 94.642,
+            "t_result_sent": 94.642
+          },
+          "att6-Robot2": {
+            "t_evaluation_ready_received": 112.662,
+            "t_get_signatures_start": 112.764,
+            "t_get_signatures_finished": 112.843,
+            "t_result_sent": 112.843
+          },
+          "att7-Robot1": {
+            "t_evaluation_ready_received": 130.854,
+            "t_get_signatures_start": 130.958,
+            "t_get_signatures_finished": 131.054,
+            "t_result_sent": 131.054
+          },
+          "att8-Robot1": {
+            "t_evaluation_ready_received": 148.39000000000001,
+            "t_get_signatures_start": 148.525,
+            "t_get_signatures_finished": 148.57,
+            "t_result_sent": 148.57
+          },
+          "att8-Robot2": {
+            "t_evaluation_ready_received": 150.546,
+            "t_get_signatures_start": 150.655,
+            "t_get_signatures_finished": 150.735,
+            "t_result_sent": 150.735
+          }
+        }
+      }
+    }
+  }
+}

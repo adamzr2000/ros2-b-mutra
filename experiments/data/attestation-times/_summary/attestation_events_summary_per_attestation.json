@@ -1,0 +1,3016 @@
+{
+  "meta": {
+    "selected_first_N_per_robot_per_run": 8,
+    "time_unit": "s",
+    "reference": "run_t0 = min(t_start across all participants in the same run)",
+    "note": "Per-attestation stats across runs (simple pooling of values)."
+  },
+  "summary": {
+    "SECaaS": {
+      "oracle": {
+        "att1-Robot1": {
+          "t_attestation_started_received": {
+            "mean_s": 18.8046,
+            "std_s": 0.9360260680130661,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 18.8828,
+            "std_s": 0.983176332099182,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 18.8562,
+            "std_s": 0.9848358746512038,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 18.889000000000003,
+            "std_s": 0.9810953062776313,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 18.8828,
+            "std_s": 0.983176332099182,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 18.9202,
+            "std_s": 0.9785053397912545,
+            "n_runs": 5
+          }
+        },
+        "att1-Robot2": {
+          "t_attestation_started_received": {
+            "mean_s": 18.8488,
+            "std_s": 0.933148273319947,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 22.4476,
+            "std_s": 1.1475760541245186,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 22.4298,
+            "std_s": 1.1470735373113614,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 22.4484,
+            "std_s": 1.1477368165219761,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 22.4476,
+            "std_s": 1.1475760541245186,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 22.472199999999997,
+            "std_s": 1.1446052594672094,
+            "n_runs": 5
+          }
+        },
+        "att1-Robot3": {
+          "t_attestation_started_received": {
+            "mean_s": 18.4514,
+            "std_s": 0.8066838290185316,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 22.0458,
+            "std_s": 3.0832754823401682,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 22.0302,
+            "std_s": 3.0884514242577947,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 22.0462,
+            "std_s": 3.0832383462846327,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 22.0458,
+            "std_s": 3.0832754823401682,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 22.0724,
+            "std_s": 3.0777053627662285,
+            "n_runs": 5
+          }
+        },
+        "att1-Robot4": {
+          "t_attestation_started_received": {
+            "mean_s": 18.8508,
+            "std_s": 0.9527427249787845,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 22.448,
+            "std_s": 1.9917123286257987,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 22.4346,
+            "std_s": 1.990810337525903,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 22.448800000000002,
+            "std_s": 1.9920109688453032,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 22.448,
+            "std_s": 1.9917123286257987,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 22.477,
+            "std_s": 1.9979799798796782,
+            "n_runs": 5
+          }
+        },
+        "att2-Robot1": {
+          "t_attestation_started_received": {
+            "mean_s": 36.821600000000004,
+            "std_s": 0.9426039995671576,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 36.9354,
+            "std_s": 1.0092468974438316,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 36.9134,
+            "std_s": 1.0087228558925376,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 36.9378,
+            "std_s": 1.0105148192876745,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 36.9354,
+            "std_s": 1.0092468974438316,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 36.968,
+            "std_s": 1.0169196133421774,
+            "n_runs": 5
+          }
+        },
+        "att2-Robot2": {
+          "t_attestation_started_received": {
+            "mean_s": 37.629200000000004,
+            "std_s": 0.5961272515159816,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 37.8072,
+            "std_s": 0.5850048717745864,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 37.7928,
+            "std_s": 0.5843130154292303,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 37.808,
+            "std_s": 0.5849636740858366,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 37.8072,
+            "std_s": 0.5850048717745864,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 37.8322,
+            "std_s": 0.5847505451044906,
+            "n_runs": 5
+          }
+        },
+        "att2-Robot3": {
+          "t_attestation_started_received": {
+            "mean_s": 37.245,
+            "std_s": 0.8920507272571446,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 37.39880000000001,
+            "std_s": 0.9421150142100495,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 37.3726,
+            "std_s": 0.9419279696452394,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 37.399800000000006,
+            "std_s": 0.9415079394248348,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 37.39880000000001,
+            "std_s": 0.9421150142100495,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 37.428399999999996,
+            "std_s": 0.9451689267004065,
+            "n_runs": 5
+          }
+        },
+        "att2-Robot4": {
+          "t_attestation_started_received": {
+            "mean_s": 37.58819999999999,
+            "std_s": 0.9761128008585893,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 37.738800000000005,
+            "std_s": 0.9693968227717693,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 37.7228,
+            "std_s": 0.9667490367204923,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 37.739999999999995,
+            "std_s": 0.9689584614419738,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 37.738800000000005,
+            "std_s": 0.9693968227717693,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 37.766200000000005,
+            "std_s": 0.9690617627375465,
+            "n_runs": 5
+          }
+        },
+        "att3-Robot1": {
+          "t_attestation_started_received": {
+            "mean_s": 55.2096,
+            "std_s": 0.8745869310708908,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 55.3304,
+            "std_s": 0.9604245415439975,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 55.313,
+            "std_s": 0.9592444943808639,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 55.3312,
+            "std_s": 0.9602378351221111,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 55.3304,
+            "std_s": 0.9604245415439975,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 55.3624,
+            "std_s": 0.9626249529281895,
+            "n_runs": 5
+          }
+        },
+        "att3-Robot2": {
+          "t_attestation_started_received": {
+            "mean_s": 56.007000000000005,
+            "std_s": 0.26540158251223744,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 56.1734,
+            "std_s": 0.25336594088393327,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 56.1586,
+            "std_s": 0.2504022763474796,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 56.1742,
+            "std_s": 0.2536103310198535,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 56.1734,
+            "std_s": 0.25336594088393327,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 56.20020000000001,
+            "std_s": 0.25083500553152416,
+            "n_runs": 5
+          }
+        },
+        "att3-Robot3": {
+          "t_attestation_started_received": {
+            "mean_s": 56.0192,
+            "std_s": 0.2725411895475634,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 56.2288,
+            "std_s": 0.3308605446407884,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 56.19599999999999,
+            "std_s": 0.3263027735095118,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 56.2312,
+            "std_s": 0.32885361485013165,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 56.2288,
+            "std_s": 0.3308605446407884,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 56.2672,
+            "std_s": 0.3285668881673866,
+            "n_runs": 5
+          }
+        },
+        "att3-Robot4": {
+          "t_attestation_started_received": {
+            "mean_s": 56.00019999999999,
+            "std_s": 0.2718449925968819,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 56.149,
+            "std_s": 0.24199483465561694,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 56.134,
+            "std_s": 0.24016348598402767,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 56.151199999999996,
+            "std_s": 0.24315057063474244,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 56.149,
+            "std_s": 0.24199483465561694,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 56.19160000000001,
+            "std_s": 0.2558159494636719,
+            "n_runs": 5
+          }
+        },
+        "att4-Robot1": {
+          "t_attestation_started_received": {
+            "mean_s": 73.671,
+            "std_s": 0.6752729077935797,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 73.89320000000001,
+            "std_s": 0.7849389785199858,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 73.8794,
+            "std_s": 0.7826869105843078,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 73.8946,
+            "std_s": 0.785173420334641,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 73.89320000000001,
+            "std_s": 0.7849389785199858,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 73.91640000000001,
+            "std_s": 0.7869814483201021,
+            "n_runs": 5
+          }
+        },
+        "att4-Robot2": {
+          "t_attestation_started_received": {
+            "mean_s": 74.0622,
+            "std_s": 0.2955904260966506,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 74.1892,
+            "std_s": 0.2850214027051342,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 74.1744,
+            "std_s": 0.28729479633296306,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 74.19180000000001,
+            "std_s": 0.2840047534813477,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 74.1892,
+            "std_s": 0.2850214027051342,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 74.22579999999999,
+            "std_s": 0.2743368367536564,
+            "n_runs": 5
+          }
+        },
+        "att4-Robot3": {
+          "t_attestation_started_received": {
+            "mean_s": 74.08619999999999,
+            "std_s": 0.3031941622129289,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 74.304,
+            "std_s": 0.3451065052994517,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 74.2868,
+            "std_s": 0.3504471429474071,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 74.30440000000002,
+            "std_s": 0.3446865242506584,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 74.304,
+            "std_s": 0.3451065052994517,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 74.3292,
+            "std_s": 0.33948667131420446,
+            "n_runs": 5
+          }
+        },
+        "att4-Robot4": {
+          "t_attestation_started_received": {
+            "mean_s": 74.06400000000001,
+            "std_s": 0.29645741684093124,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 74.2068,
+            "std_s": 0.2865051482958031,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 74.18700000000001,
+            "std_s": 0.2857113928424975,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 74.2086,
+            "std_s": 0.28676261960025545,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 74.2068,
+            "std_s": 0.2865051482958031,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 74.237,
+            "std_s": 0.2765519842633547,
+            "n_runs": 5
+          }
+        },
+        "att5-Robot1": {
+          "t_attestation_started_received": {
+            "mean_s": 92.42259999999999,
+            "std_s": 0.7846380057070896,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 92.6344,
+            "std_s": 0.7003922472443542,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 92.62100000000001,
+            "std_s": 0.6969096067640299,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 92.63539999999999,
+            "std_s": 0.7003922472443553,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 92.6344,
+            "std_s": 0.7003922472443542,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 92.66159999999999,
+            "std_s": 0.7067933219831669,
+            "n_runs": 5
+          }
+        },
+        "att5-Robot2": {
+          "t_attestation_started_received": {
+            "mean_s": 92.40599999999999,
+            "std_s": 0.8170823091953464,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 92.5622,
+            "std_s": 0.883221772829449,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 92.5472,
+            "std_s": 0.88327555156927,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 92.563,
+            "std_s": 0.8833841180369946,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 92.5622,
+            "std_s": 0.883221772829449,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 92.58840000000001,
+            "std_s": 0.8841339265066115,
+            "n_runs": 5
+          }
+        },
+        "att5-Robot3": {
+          "t_attestation_started_received": {
+            "mean_s": 92.0222,
+            "std_s": 0.26762697920800277,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 92.1816,
+            "std_s": 0.2503663316023148,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 92.1608,
+            "std_s": 0.2493024267832153,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 92.1828,
+            "std_s": 0.2508110842845666,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 92.1816,
+            "std_s": 0.2503663316023148,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 92.21340000000001,
+            "std_s": 0.2510742917942789,
+            "n_runs": 5
+          }
+        },
+        "att5-Robot4": {
+          "t_attestation_started_received": {
+            "mean_s": 92.401,
+            "std_s": 0.8011678975096245,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 92.5386,
+            "std_s": 0.8253543481438764,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 92.5212,
+            "std_s": 0.8269581005105371,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 92.54260000000001,
+            "std_s": 0.8218274149722694,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 92.5386,
+            "std_s": 0.8253543481438764,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 92.5686,
+            "std_s": 0.8190072038755225,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot1": {
+          "t_attestation_started_received": {
+            "mean_s": 110.8178,
+            "std_s": 1.0930732820813065,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 111.0536,
+            "std_s": 1.0302731676599228,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 111.04040000000002,
+            "std_s": 1.0310830713380934,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 111.0548,
+            "std_s": 1.0305618370578251,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 111.0536,
+            "std_s": 1.0302731676599228,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 111.08220000000001,
+            "std_s": 1.0312905507178862,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot2": {
+          "t_attestation_started_received": {
+            "mean_s": 110.803,
+            "std_s": 0.936942100665776,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 110.922,
+            "std_s": 0.9901787717377124,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 110.9064,
+            "std_s": 0.9901847302397694,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 110.923,
+            "std_s": 0.9894435304755894,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 110.922,
+            "std_s": 0.9901787717377124,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 110.949,
+            "std_s": 0.9865870463370171,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot3": {
+          "t_attestation_started_received": {
+            "mean_s": 110.8104,
+            "std_s": 1.1238562185617884,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 111.02060000000002,
+            "std_s": 1.1967574106726904,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 111.00800000000001,
+            "std_s": 1.195924119666462,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 111.0216,
+            "std_s": 1.1967574106726915,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 111.02060000000002,
+            "std_s": 1.1967574106726904,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 111.04639999999999,
+            "std_s": 1.2007419789446858,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot4": {
+          "t_attestation_started_received": {
+            "mean_s": 110.78900000000002,
+            "std_s": 1.0991751452794056,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 110.87320000000003,
+            "std_s": 1.072315112268775,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 110.8478,
+            "std_s": 1.0685755471654779,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 110.87660000000001,
+            "std_s": 1.0711310844149755,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 110.87320000000003,
+            "std_s": 1.072315112268775,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 110.9096,
+            "std_s": 1.0751771016906966,
+            "n_runs": 5
+          }
+        },
+        "att7-Robot1": {
+          "t_attestation_started_received": {
+            "mean_s": 129.632,
+            "std_s": 0.68528096427669,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 129.7984,
+            "std_s": 0.6922982016443477,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 129.783,
+            "std_s": 0.6899409395013477,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 129.80079999999998,
+            "std_s": 0.6930243141477784,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 129.7984,
+            "std_s": 0.6922982016443477,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 129.82440000000003,
+            "std_s": 0.6949541711508713,
+            "n_runs": 5
+          }
+        },
+        "att7-Robot2": {
+          "t_attestation_started_received": {
+            "mean_s": 129.635,
+            "std_s": 0.6920487699577242,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 129.8204,
+            "std_s": 0.7698969411551103,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 129.79879999999997,
+            "std_s": 0.7775465902439501,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 129.82459999999998,
+            "std_s": 0.7675462852493051,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 129.8204,
+            "std_s": 0.7698969411551103,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 129.8516,
+            "std_s": 0.7610103810067234,
+            "n_runs": 5
+          }
+        },
+        "att7-Robot3": {
+          "t_attestation_started_received": {
+            "mean_s": 129.64180000000002,
+            "std_s": 0.674232674972073,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 129.84300000000002,
+            "std_s": 0.6818284241654922,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 129.8274,
+            "std_s": 0.6816907656701863,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 129.844,
+            "std_s": 0.6818284241654922,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 129.84300000000002,
+            "std_s": 0.6818284241654922,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 129.8664,
+            "std_s": 0.679752749166934,
+            "n_runs": 5
+          }
+        },
+        "att7-Robot4": {
+          "t_attestation_started_received": {
+            "mean_s": 130.06080000000003,
+            "std_s": 0.31675021704806766,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 130.212,
+            "std_s": 0.24503163061123093,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 130.1952,
+            "std_s": 0.25157742347038176,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 130.21660000000003,
+            "std_s": 0.2408221335342717,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 130.212,
+            "std_s": 0.24503163061123093,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 130.23920000000004,
+            "std_s": 0.2374061920001243,
+            "n_runs": 5
+          }
+        },
+        "att8-Robot1": {
+          "t_attestation_started_received": {
+            "mean_s": 148.002,
+            "std_s": 1.2542850553203637,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 148.12359999999998,
+            "std_s": 1.300014538380244,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 148.106,
+            "std_s": 1.3022916340052213,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 148.12539999999998,
+            "std_s": 1.2994632738173064,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 148.12359999999998,
+            "std_s": 1.300014538380244,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 148.153,
+            "std_s": 1.2993902416133476,
+            "n_runs": 5
+          }
+        },
+        "att8-Robot2": {
+          "t_attestation_started_received": {
+            "mean_s": 147.9998,
+            "std_s": 0.3330063062465891,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 148.17819999999998,
+            "std_s": 0.3289949847642051,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 148.15900000000002,
+            "std_s": 0.3317084563287554,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 148.1804,
+            "std_s": 0.32814676594474923,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 148.17819999999998,
+            "std_s": 0.3289949847642051,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 148.21160000000003,
+            "std_s": 0.33095664368614547,
+            "n_runs": 5
+          }
+        },
+        "att8-Robot3": {
+          "t_attestation_started_received": {
+            "mean_s": 148.00320000000002,
+            "std_s": 0.3225673573069671,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 148.1596,
+            "std_s": 0.31580737800120834,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 148.13939999999997,
+            "std_s": 0.31443329976323486,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 148.16080000000002,
+            "std_s": 0.31574942596938255,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 148.1596,
+            "std_s": 0.31580737800120834,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 148.18839999999997,
+            "std_s": 0.31613098551075686,
+            "n_runs": 5
+          }
+        },
+        "att8-Robot4": {
+          "t_attestation_started_received": {
+            "mean_s": 148.4166,
+            "std_s": 0.8727128966619045,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_finished": {
+            "mean_s": 148.584,
+            "std_s": 0.8067759912144132,
+            "n_runs": 5
+          },
+          "t_get_prover_addr_start": {
+            "mean_s": 148.5674,
+            "std_s": 0.8033615624362463,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_finished": {
+            "mean_s": 148.58499999999998,
+            "std_s": 0.8065172037842765,
+            "n_runs": 5
+          },
+          "t_ref_signatures_db_start": {
+            "mean_s": 148.584,
+            "std_s": 0.8067759912144132,
+            "n_runs": 5
+          },
+          "t_ref_signatures_sent": {
+            "mean_s": 148.60680000000002,
+            "std_s": 0.8067389292701865,
+            "n_runs": 5
+          }
+        }
+      },
+      "verifier": {
+        "att1-Robot1": {
+          "t_result_sent": {
+            "mean_s": 20.77,
+            "std_s": 0.8989263039871503,
+            "n_runs": 5
+          }
+        },
+        "att1-Robot2": {
+          "t_result_sent": {
+            "mean_s": 24.354400000000002,
+            "std_s": 1.1463892445413117,
+            "n_runs": 5
+          }
+        },
+        "att1-Robot3": {
+          "t_result_sent": {
+            "mean_s": 23.973800000000004,
+            "std_s": 3.1196544199638527,
+            "n_runs": 5
+          }
+        },
+        "att1-Robot4": {
+          "t_result_sent": {
+            "mean_s": 24.341,
+            "std_s": 1.9793202115878066,
+            "n_runs": 5
+          }
+        }
+      }
+    },
+    "Robot1": {
+      "prover": {
+        "att1-Robot1": {
+          "t_evidence_sent": {
+            "mean_s": 17.5534,
+            "std_s": 0.11715929327202348,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 22.7548,
+            "std_s": 0.8963161830514949,
+            "n_runs": 5
+          }
+        },
+        "att2-Robot1": {
+          "t_evidence_sent": {
+            "mean_s": 35.70720000000001,
+            "std_s": 0.27061263828579885,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 40.897000000000006,
+            "std_s": 0.9270898014755643,
+            "n_runs": 5
+          }
+        },
+        "att3-Robot1": {
+          "t_evidence_sent": {
+            "mean_s": 54.132400000000004,
+            "std_s": 0.5675802145952593,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 59.1896,
+            "std_s": 0.8446036348489149,
+            "n_runs": 5
+          }
+        },
+        "att4-Robot1": {
+          "t_evidence_sent": {
+            "mean_s": 72.4328,
+            "std_s": 0.5607947039692845,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 77.5532,
+            "std_s": 0.6643821942225707,
+            "n_runs": 5
+          }
+        },
+        "att5-Robot1": {
+          "t_evidence_sent": {
+            "mean_s": 90.91,
+            "std_s": 0.6604562816719981,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 96.3942,
+            "std_s": 0.8405395291121054,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot1": {
+          "t_evidence_sent": {
+            "mean_s": 109.37420000000002,
+            "std_s": 0.6388158576616622,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 114.82159999999999,
+            "std_s": 1.0401215313606356,
+            "n_runs": 5
+          }
+        },
+        "att7-Robot1": {
+          "t_evidence_sent": {
+            "mean_s": 128.005,
+            "std_s": 0.7219899583789215,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 133.5496,
+            "std_s": 0.6727104131794043,
+            "n_runs": 5
+          }
+        },
+        "att8-Robot1": {
+          "t_evidence_sent": {
+            "mean_s": 146.6012,
+            "std_s": 0.961480213004932,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 152.03979999999999,
+            "std_s": 1.166997729218015,
+            "n_runs": 5
+          }
+        }
+      },
+      "verifier": {
+        "att2-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 39.776,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 40.054,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 39.89,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 40.054,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att2-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 39.958,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 40.163000000000004,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 40.050000000000004,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 40.163000000000004,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att2-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 38.929500000000004,
+            "std_s": 1.3654231944712265,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 39.1655,
+            "std_s": 1.4389622997146219,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 39.027,
+            "std_s": 1.37602979618902,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 39.1655,
+            "std_s": 1.4389622997146219,
+            "n_runs": 2
+          }
+        },
+        "att3-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 57.924,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 58.064,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 57.959,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 58.064,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att3-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 57.927,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 58.107,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 57.977000000000004,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 58.107,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att3-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 58.191,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 58.485,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 58.469,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 58.485,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att4-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 76.307,
+            "std_s": 0.3408254685319154,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.6635,
+            "std_s": 0.24536605307173795,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 76.551,
+            "std_s": 0.13576450198782228,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 76.6635,
+            "std_s": 0.24536605307173795,
+            "n_runs": 2
+          }
+        },
+        "att4-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 76.222,
+            "std_s": 0.5205698800353301,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.504,
+            "std_s": 0.7393429515454892,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 76.44666666666667,
+            "std_s": 0.7750486006266495,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 76.504,
+            "std_s": 0.7393429515454892,
+            "n_runs": 3
+          }
+        },
+        "att5-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 93.9205,
+            "std_s": 0.19586857838867439,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 94.224,
+            "std_s": 0.336582827844796,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 94.0155,
+            "std_s": 0.19021172413918513,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 94.224,
+            "std_s": 0.336582827844796,
+            "n_runs": 2
+          }
+        },
+        "att5-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 94.369,
+            "std_s": 0.3959797974644682,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 94.66550000000001,
+            "std_s": 0.2623366158202057,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 94.55000000000001,
+            "std_s": 0.27577164466275395,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 94.66550000000001,
+            "std_s": 0.2623366158202057,
+            "n_runs": 2
+          }
+        },
+        "att6-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 112.548,
+            "std_s": 0.907702594465832,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 112.66733333333333,
+            "std_s": 0.8778623658258307,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 112.60866666666668,
+            "std_s": 0.9114078852705475,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 112.66733333333333,
+            "std_s": 0.8778623658258307,
+            "n_runs": 3
+          }
+        },
+        "att6-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 112.15633333333334,
+            "std_s": 0.45414792010239524,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 112.79133333333334,
+            "std_s": 0.40824053367265284,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 112.75333333333333,
+            "std_s": 0.40767184515652843,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 112.79133333333334,
+            "std_s": 0.40824053367265284,
+            "n_runs": 3
+          }
+        },
+        "att6-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 112.68700000000001,
+            "std_s": 1.0448574065392808,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 112.868,
+            "std_s": 1.0938295113956276,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 112.75466666666667,
+            "std_s": 1.0744395438242835,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 112.868,
+            "std_s": 1.0938295113956276,
+            "n_runs": 3
+          }
+        },
+        "att7-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 132.0725,
+            "std_s": 0.11525840533339486,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 132.6,
+            "std_s": 0.39456558390208835,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 132.4755,
+            "std_s": 0.4150716805564957,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 132.6,
+            "std_s": 0.39456558390208835,
+            "n_runs": 2
+          }
+        },
+        "att7-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 131.9775,
+            "std_s": 0.2821356056934331,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 132.414,
+            "std_s": 0.4850752518939766,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 132.2705,
+            "std_s": 0.44759859249107137,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 132.414,
+            "std_s": 0.4850752518939766,
+            "n_runs": 2
+          }
+        },
+        "att7-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 132.093,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 132.36,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 132.27100000000002,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 132.36,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att8-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 150.058,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.366,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.285,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 150.366,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att8-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 149.924,
+            "std_s": 0.34506810921903486,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.175,
+            "std_s": 0.1569777054234195,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 149.982,
+            "std_s": 0.29698484809836123,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 150.175,
+            "std_s": 0.1569777054234195,
+            "n_runs": 2
+          }
+        }
+      }
+    },
+    "Robot2": {
+      "prover": {
+        "att1-Robot2": {
+          "t_evidence_sent": {
+            "mean_s": 17.511,
+            "std_s": 0.0787813429690053,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 26.3838,
+            "std_s": 1.2163760520496942,
+            "n_runs": 5
+          }
+        },
+        "att2-Robot2": {
+          "t_evidence_sent": {
+            "mean_s": 35.796800000000005,
+            "std_s": 0.08856466564042531,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 41.543600000000005,
+            "std_s": 0.662737353708089,
+            "n_runs": 5
+          }
+        },
+        "att3-Robot2": {
+          "t_evidence_sent": {
+            "mean_s": 54.2164,
+            "std_s": 0.21277405856917722,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 60.018600000000006,
+            "std_s": 0.27176515597110923,
+            "n_runs": 5
+          }
+        },
+        "att4-Robot2": {
+          "t_evidence_sent": {
+            "mean_s": 72.792,
+            "std_s": 0.3284014311783668,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 78.02380000000001,
+            "std_s": 0.3151439353692245,
+            "n_runs": 5
+          }
+        },
+        "att5-Robot2": {
+          "t_evidence_sent": {
+            "mean_s": 91.304,
+            "std_s": 0.39408945684958296,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 96.434,
+            "std_s": 0.82906513616241,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot2": {
+          "t_evidence_sent": {
+            "mean_s": 109.6036,
+            "std_s": 0.40462612372411033,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 114.84660000000001,
+            "std_s": 0.8663087209534475,
+            "n_runs": 5
+          }
+        },
+        "att7-Robot2": {
+          "t_evidence_sent": {
+            "mean_s": 128.1218,
+            "std_s": 0.5273089227388488,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 133.632,
+            "std_s": 0.5662066760468292,
+            "n_runs": 5
+          }
+        },
+        "att8-Robot2": {
+          "t_evidence_sent": {
+            "mean_s": 146.61939999999998,
+            "std_s": 0.5343700029006171,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 152.0362,
+            "std_s": 0.2982762142712684,
+            "n_runs": 5
+          }
+        }
+      },
+      "verifier": {
+        "att2-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 38.45,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 38.853,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 38.739000000000004,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 38.853,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att2-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 38.164,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 38.373,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 38.255,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 38.373,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att2-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 40.2385,
+            "std_s": 0.33304729393886645,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 40.408,
+            "std_s": 0.4483056992722714,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 40.309,
+            "std_s": 0.33234018715768154,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 40.408,
+            "std_s": 0.4483056992722714,
+            "n_runs": 2
+          }
+        },
+        "att3-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 57.1065,
+            "std_s": 0.9691372451825383,
+            "n_runs": 4
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 57.2795,
+            "std_s": 1.0162799811075685,
+            "n_runs": 4
+          },
+          "t_get_signatures_start": {
+            "mean_s": 57.24325,
+            "std_s": 1.000111452122547,
+            "n_runs": 4
+          },
+          "t_result_sent": {
+            "mean_s": 57.2795,
+            "std_s": 1.0162799811075685,
+            "n_runs": 4
+          }
+        },
+        "att3-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 58.16375000000001,
+            "std_s": 0.3603982750606146,
+            "n_runs": 4
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 58.32,
+            "std_s": 0.4155341943410513,
+            "n_runs": 4
+          },
+          "t_get_signatures_start": {
+            "mean_s": 58.26725,
+            "std_s": 0.4003226823451294,
+            "n_runs": 4
+          },
+          "t_result_sent": {
+            "mean_s": 58.32,
+            "std_s": 0.4155341943410513,
+            "n_runs": 4
+          }
+        },
+        "att4-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 76.179,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.458,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 76.29,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 76.458,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att4-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 76.2805,
+            "std_s": 0.03889087296526494,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.63499999999999,
+            "std_s": 0.3648670990922623,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 76.6135,
+            "std_s": 0.36981684656056163,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 76.63499999999999,
+            "std_s": 0.3648670990922623,
+            "n_runs": 2
+          }
+        },
+        "att4-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 76.126,
+            "std_s": 0.3745116820607861,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.391,
+            "std_s": 0.3386340207362479,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 76.241,
+            "std_s": 0.3474492768736217,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 76.391,
+            "std_s": 0.3386340207362479,
+            "n_runs": 3
+          }
+        },
+        "att5-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 95.779,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 95.976,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 95.811,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 95.976,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att5-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 93.805,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 93.97500000000001,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 93.873,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 93.97500000000001,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att6-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 112.4255,
+            "std_s": 0.3372899346259859,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 112.8125,
+            "std_s": 0.02474873734152675,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 112.76750000000001,
+            "std_s": 0.019091883092037507,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 112.8125,
+            "std_s": 0.02474873734152675,
+            "n_runs": 2
+          }
+        },
+        "att6-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 114.178,
+            "std_s": 0.008485281374238892,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 114.3185,
+            "std_s": 0.04454772721475418,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 114.26050000000001,
+            "std_s": 0.0035355339059395707,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 114.3185,
+            "std_s": 0.04454772721475418,
+            "n_runs": 2
+          }
+        },
+        "att6-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 112.08500000000001,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 112.285,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 112.191,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 112.285,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att7-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 131.35700000000003,
+            "std_s": 1.124299782086613,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 131.889,
+            "std_s": 1.3562308063158026,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 131.792,
+            "std_s": 1.3435028842544243,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 131.889,
+            "std_s": 1.3562308063158026,
+            "n_runs": 2
+          }
+        },
+        "att7-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 132.053,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 132.251,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 132.154,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 132.251,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att8-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 150.255,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.362,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.27700000000002,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 150.362,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att8-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 150.508,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.651,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.548,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 150.651,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att8-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 150.44400000000002,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.946,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.775,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 150.946,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        }
+      }
+    },
+    "Robot3": {
+      "prover": {
+        "att1-Robot3": {
+          "t_evidence_sent": {
+            "mean_s": 17.432,
+            "std_s": 0.042267008410816015,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 25.981,
+            "std_s": 3.110392499347952,
+            "n_runs": 5
+          }
+        },
+        "att2-Robot3": {
+          "t_evidence_sent": {
+            "mean_s": 35.80459999999999,
+            "std_s": 0.10571092658755803,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 41.1688,
+            "std_s": 0.8982478499835114,
+            "n_runs": 5
+          }
+        },
+        "att3-Robot3": {
+          "t_evidence_sent": {
+            "mean_s": 54.1752,
+            "std_s": 0.09484566410753914,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 60.0298,
+            "std_s": 0.33670120284905336,
+            "n_runs": 5
+          }
+        },
+        "att4-Robot3": {
+          "t_evidence_sent": {
+            "mean_s": 72.6452,
+            "std_s": 0.15691621968426367,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 77.9696,
+            "std_s": 0.3358121498695343,
+            "n_runs": 5
+          }
+        },
+        "att5-Robot3": {
+          "t_evidence_sent": {
+            "mean_s": 91.21000000000001,
+            "std_s": 0.24861516446105533,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 95.98800000000001,
+            "std_s": 0.22559366125846964,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot3": {
+          "t_evidence_sent": {
+            "mean_s": 109.57180000000001,
+            "std_s": 0.2584022058729409,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 114.8114,
+            "std_s": 1.0293382825874142,
+            "n_runs": 5
+          }
+        },
+        "att7-Robot3": {
+          "t_evidence_sent": {
+            "mean_s": 127.9684,
+            "std_s": 0.35174180871769994,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 133.6358,
+            "std_s": 0.708293512606183,
+            "n_runs": 5
+          }
+        },
+        "att8-Robot3": {
+          "t_evidence_sent": {
+            "mean_s": 146.56060000000002,
+            "std_s": 0.3534144875355327,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 152.0042,
+            "std_s": 0.33185945820482954,
+            "n_runs": 5
+          }
+        }
+      },
+      "verifier": {
+        "att2-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 39.675666666666665,
+            "std_s": 0.646684106294052,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 39.901666666666664,
+            "std_s": 0.6645406935119433,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 39.78033333333333,
+            "std_s": 0.624415193067346,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 39.901666666666664,
+            "std_s": 0.6645406935119433,
+            "n_runs": 3
+          }
+        },
+        "att2-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 39.879,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 40.076,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 39.972,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 40.076,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att3-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 58.090250000000005,
+            "std_s": 0.34752014330107606,
+            "n_runs": 4
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 58.32325,
+            "std_s": 0.2692042285452931,
+            "n_runs": 4
+          },
+          "t_get_signatures_start": {
+            "mean_s": 58.17875,
+            "std_s": 0.2901567105318537,
+            "n_runs": 4
+          },
+          "t_result_sent": {
+            "mean_s": 58.32325,
+            "std_s": 0.2692042285452931,
+            "n_runs": 4
+          }
+        },
+        "att4-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 75.809,
+            "std_s": 1.1613733249907263,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.01633333333335,
+            "std_s": 1.2889597873220608,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 75.97233333333334,
+            "std_s": 1.2551662572477515,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 76.01633333333335,
+            "std_s": 1.2889597873220608,
+            "n_runs": 3
+          }
+        },
+        "att4-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 75.98400000000001,
+            "std_s": 0.14283556979969136,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.3115,
+            "std_s": 0.10111626970967678,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 76.10900000000001,
+            "std_s": 0.22910259710444003,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 76.3115,
+            "std_s": 0.10111626970967678,
+            "n_runs": 2
+          }
+        },
+        "att4-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 76.05000000000001,
+            "std_s": 0.4596194077712498,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.32050000000001,
+            "std_s": 0.5055813485483738,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 76.241,
+            "std_s": 0.5967981233214419,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 76.32050000000001,
+            "std_s": 0.5055813485483738,
+            "n_runs": 2
+          }
+        },
+        "att5-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 93.9905,
+            "std_s": 0.017677669529657658,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 94.31800000000001,
+            "std_s": 0.06081118318204204,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 94.0805,
+            "std_s": 0.003535533905929522,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 94.31800000000001,
+            "std_s": 0.06081118318204204,
+            "n_runs": 2
+          }
+        },
+        "att5-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 94.631,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 94.67,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 94.653,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 94.67,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att5-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 95.0635,
+            "std_s": 1.2975409434773204,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 95.374,
+            "std_s": 1.1440987719598403,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 95.26400000000001,
+            "std_s": 1.14834141264696,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 95.374,
+            "std_s": 1.1440987719598403,
+            "n_runs": 2
+          }
+        },
+        "att6-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 113.797,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 114.089,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 113.98,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 114.089,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att6-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 113.96900000000001,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 114.143,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 114.037,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 114.143,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att7-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 132.2005,
+            "std_s": 0.2793071785686734,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 132.553,
+            "std_s": 0.574170706323485,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 132.363,
+            "std_s": 0.4426488450227821,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 132.553,
+            "std_s": 0.574170706323485,
+            "n_runs": 2
+          }
+        },
+        "att7-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 131.6,
+            "std_s": 1.0631608533049057,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 131.76666666666665,
+            "std_s": 1.0777691465862822,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 131.69766666666666,
+            "std_s": 1.1055665214419885,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 131.76666666666665,
+            "std_s": 1.0777691465862822,
+            "n_runs": 3
+          }
+        },
+        "att7-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 132.13,
+            "std_s": 0.28747347703745235,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 132.331,
+            "std_s": 0.2404766100892065,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 132.23166666666665,
+            "std_s": 0.28044488466245354,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 132.331,
+            "std_s": 0.2404766100892065,
+            "n_runs": 3
+          }
+        },
+        "att8-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 150.201,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.472,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.382,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 150.472,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att8-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 150.014,
+            "std_s": 0.31536962440919875,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.305,
+            "std_s": 0.19091883092035497,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.17450000000002,
+            "std_s": 0.13222896808187265,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 150.305,
+            "std_s": 0.19091883092035497,
+            "n_runs": 2
+          }
+        },
+        "att8-Robot4": {
+          "t_evaluation_ready_received": {
+            "mean_s": 151.16000000000003,
+            "std_s": 0.8697413408594462,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 151.27249999999998,
+            "std_s": 0.8761053018901355,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 151.186,
+            "std_s": 0.8753981951089455,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 151.27249999999998,
+            "std_s": 0.8761053018901355,
+            "n_runs": 2
+          }
+        }
+      }
+    },
+    "Robot4": {
+      "prover": {
+        "att1-Robot4": {
+          "t_evidence_sent": {
+            "mean_s": 17.4944,
+            "std_s": 0.07622860355535829,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 26.4406,
+            "std_s": 1.9630894783478414,
+            "n_runs": 5
+          }
+        },
+        "att2-Robot4": {
+          "t_evidence_sent": {
+            "mean_s": 35.8618,
+            "std_s": 0.2607828598662109,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 41.517399999999995,
+            "std_s": 0.9533731168855134,
+            "n_runs": 5
+          }
+        },
+        "att3-Robot4": {
+          "t_evidence_sent": {
+            "mean_s": 54.398199999999996,
+            "std_s": 0.3979110453355122,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 60.080600000000004,
+            "std_s": 0.2511230773943316,
+            "n_runs": 5
+          }
+        },
+        "att4-Robot4": {
+          "t_evidence_sent": {
+            "mean_s": 72.8474,
+            "std_s": 0.4008008233524484,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 78.015,
+            "std_s": 0.31399442670213146,
+            "n_runs": 5
+          }
+        },
+        "att5-Robot4": {
+          "t_evidence_sent": {
+            "mean_s": 91.20739999999999,
+            "std_s": 0.41266548195844927,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 96.4308,
+            "std_s": 0.8651194715182383,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot4": {
+          "t_evidence_sent": {
+            "mean_s": 109.78960000000002,
+            "std_s": 0.6084318367738503,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 114.8468,
+            "std_s": 1.0463575870609432,
+            "n_runs": 5
+          }
+        },
+        "att7-Robot4": {
+          "t_evidence_sent": {
+            "mean_s": 128.2784,
+            "std_s": 0.7517418439863512,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 133.9844,
+            "std_s": 0.3099722568230978,
+            "n_runs": 5
+          }
+        },
+        "att8-Robot4": {
+          "t_evidence_sent": {
+            "mean_s": 146.8358,
+            "std_s": 0.723875472716134,
+            "n_runs": 5
+          },
+          "t_result_received": {
+            "mean_s": 152.3574,
+            "std_s": 0.8085655817557479,
+            "n_runs": 5
+          }
+        }
+      },
+      "verifier": {
+        "att2-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 38.98125,
+            "std_s": 1.2055019355715137,
+            "n_runs": 4
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 39.23175,
+            "std_s": 1.2658881927985042,
+            "n_runs": 4
+          },
+          "t_get_signatures_start": {
+            "mean_s": 39.109,
+            "std_s": 1.233485305952204,
+            "n_runs": 4
+          },
+          "t_result_sent": {
+            "mean_s": 39.23175,
+            "std_s": 1.2658881927985042,
+            "n_runs": 4
+          }
+        },
+        "att2-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 40.047000000000004,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 40.165,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 40.145,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 40.165,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att2-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 39.571666666666665,
+            "std_s": 1.0499553958780017,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 39.89666666666667,
+            "std_s": 1.0071108843286998,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 39.78633333333334,
+            "std_s": 0.9813023659063173,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 39.89666666666667,
+            "std_s": 1.0071108843286998,
+            "n_runs": 3
+          }
+        },
+        "att3-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 58.083,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 58.275,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 58.179,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 58.275,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att3-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 58.221,
+            "std_s": 0.31080433287413173,
+            "n_runs": 4
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 58.468999999999994,
+            "std_s": 0.3224954780044735,
+            "n_runs": 4
+          },
+          "t_get_signatures_start": {
+            "mean_s": 58.325,
+            "std_s": 0.24412428528654395,
+            "n_runs": 4
+          },
+          "t_result_sent": {
+            "mean_s": 58.468999999999994,
+            "std_s": 0.3224954780044735,
+            "n_runs": 4
+          }
+        },
+        "att4-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 76.175,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.45,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 76.357,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 76.45,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att4-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 75.867,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 76.164,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 75.903,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 76.164,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att5-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 94.79050000000001,
+            "std_s": 0.1902117241391751,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 95.0025,
+            "std_s": 0.18172644276494626,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 94.959,
+            "std_s": 0.14566399692442092,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 95.0025,
+            "std_s": 0.18172644276494626,
+            "n_runs": 2
+          }
+        },
+        "att5-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 94.99350000000001,
+            "std_s": 1.4036069606552963,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 95.1825,
+            "std_s": 1.2932983027902007,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 95.0735,
+            "std_s": 1.420577523403774,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 95.1825,
+            "std_s": 1.2932983027902007,
+            "n_runs": 2
+          }
+        },
+        "att5-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 94.23319999999998,
+            "std_s": 0.33474199019543377,
+            "n_runs": 5
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 94.44579999999999,
+            "std_s": 0.33315566931991414,
+            "n_runs": 5
+          },
+          "t_get_signatures_start": {
+            "mean_s": 94.3278,
+            "std_s": 0.32408903097759956,
+            "n_runs": 5
+          },
+          "t_result_sent": {
+            "mean_s": 94.44579999999999,
+            "std_s": 0.33315566931991414,
+            "n_runs": 5
+          }
+        },
+        "att6-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 113.011,
+            "std_s": 1.4622968234937788,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 113.20700000000001,
+            "std_s": 1.4693678913056478,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 113.07900000000001,
+            "std_s": 1.4156277759354647,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 113.20700000000001,
+            "std_s": 1.4693678913056478,
+            "n_runs": 2
+          }
+        },
+        "att6-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 113.32900000000001,
+            "std_s": 0.9432804461028567,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 113.602,
+            "std_s": 1.0733880938411797,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 113.473,
+            "std_s": 1.0026774157225289,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 113.602,
+            "std_s": 1.0733880938411797,
+            "n_runs": 2
+          }
+        },
+        "att7-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 131.57066666666665,
+            "std_s": 0.6220710034500284,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 131.74366666666666,
+            "std_s": 0.5972690627626124,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 131.69066666666666,
+            "std_s": 0.63452764583849,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 131.74366666666666,
+            "std_s": 0.5972690627626124,
+            "n_runs": 3
+          }
+        },
+        "att7-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 132.078,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 132.261,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_get_signatures_start": {
+            "mean_s": 132.099,
+            "std_s": 0.0,
+            "n_runs": 1
+          },
+          "t_result_sent": {
+            "mean_s": 132.261,
+            "std_s": 0.0,
+            "n_runs": 1
+          }
+        },
+        "att8-Robot1": {
+          "t_evaluation_ready_received": {
+            "mean_s": 149.95433333333335,
+            "std_s": 1.714323287286654,
+            "n_runs": 3
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.11366666666666,
+            "std_s": 1.6763986200582872,
+            "n_runs": 3
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.03533333333334,
+            "std_s": 1.6978328343312565,
+            "n_runs": 3
+          },
+          "t_result_sent": {
+            "mean_s": 150.11366666666666,
+            "std_s": 1.6763986200582872,
+            "n_runs": 3
+          }
+        },
+        "att8-Robot2": {
+          "t_evaluation_ready_received": {
+            "mean_s": 150.31900000000002,
+            "std_s": 0.32102647865867795,
+            "n_runs": 2
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.507,
+            "std_s": 0.3224406922210779,
+            "n_runs": 2
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.4205,
+            "std_s": 0.33163308037648664,
+            "n_runs": 2
+          },
+          "t_result_sent": {
+            "mean_s": 150.507,
+            "std_s": 0.3224406922210779,
+            "n_runs": 2
+          }
+        },
+        "att8-Robot3": {
+          "t_evaluation_ready_received": {
+            "mean_s": 150.15175,
+            "std_s": 0.2494398725143977,
+            "n_runs": 4
+          },
+          "t_get_signatures_finished": {
+            "mean_s": 150.4395,
+            "std_s": 0.2948451571022775,
+            "n_runs": 4
+          },
+          "t_get_signatures_start": {
+            "mean_s": 150.35725,
+            "std_s": 0.3509419467661336,
+            "n_runs": 4
+          },
+          "t_result_sent": {
+            "mean_s": 150.4395,
+            "std_s": 0.2948451571022775,
+            "n_runs": 4
+          }
+        }
+      }
+    }
+  }
+}

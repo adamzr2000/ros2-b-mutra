@@ -2,7 +2,7 @@
 import time
 import logging
 from fastapi import FastAPI
-from blockchain_client import AttestationState
+from blockchain_manager import AttestationState
 from compute_hash import compute_program_hash, ComputeHashError
 from RedisStorageBackend import RedisStorageBackend
 from MemoryStorageBackend import MemoryStorageBackend
@@ -19,50 +19,47 @@ def _should_stop(stop_event):
 
 def process_prover_attestation(app: FastAPI, attestation_id: str, measurements, stop_event=None):
     timestamps = {}
-    blockchain_client = app.state.blockchain_client
+    blockchain_manager = app.state.blockchain_manager
     log_prefix = f"[Prover-{utils.short_att_id(attestation_id)}]"
 
     try:
         # Initiate attestation here
-        timestamps["evidence_sent"] = int(time.time() * 1000)
-        tx_hash = blockchain_client.send_evidence(attestation_id, measurements)
         logger.info(f"{log_prefix} Evidence sent (attestation started)")
+        timestamps["evidence_sent"] = int(time.time() * 1000)
+        tx_hash = blockchain_manager.send_evidence(attestation_id, measurements, wait=True, timeout=30)
 
     except Exception as e:
         logger.error(f"{log_prefix} Failed to send evidence: {e}")
         return
     
-    while not blockchain_client.is_prover_agent(attestation_id):
-        time.sleep(0.05)
-    
     # Wait until this agent is recognized as the prover (or stop/timeout)
     start_wait = time.time()
     TIMEOUT_S = 60
-    while not blockchain_client.is_prover_agent(attestation_id):
+    while not blockchain_manager.is_prover_agent(attestation_id):
         if _should_stop(stop_event):
             logger.info(f"{log_prefix} Stopping while waiting to become prover.")
             return
         if time.time() - start_wait > TIMEOUT_S:
             logger.error(f"{log_prefix} Timeout while waiting to become prover.")
             return
-        time.sleep(0.05)
+        time.sleep(0.2)
         
     logger.info(f"{log_prefix} Waiting for verification result...")
     # Wait for attestation to close (or stop/timeout)
     start_wait = time.time()
-    while blockchain_client.get_attestation_state(attestation_id) != AttestationState.Closed:
+    while blockchain_manager.get_attestation_state(attestation_id) != AttestationState.Closed:
         if _should_stop(stop_event):
             logger.info(f"{log_prefix} Stopping while waiting for attestation to close.")
             return
         if time.time() - start_wait > TIMEOUT_S:
             logger.error(f"{log_prefix} Timeout while waiting for attestation to close.")
             return
-        time.sleep(0.05)
+        time.sleep(0.2)
 
     timestamps["result_received"] = int(time.time() * 1000)
     # Retrieve attestation details
     try:
-        prover_address, verifier_address, attestation_result, timestamp = blockchain_client.get_attestation_info(attestation_id)
+        prover_address, verifier_address, attestation_result, timestamp = blockchain_manager.get_attestation_info(attestation_id)
         is_success = (attestation_result == 2)
         logger.info(f"{log_prefix} Attestation closed (result: {'✅ SUCCESS' if is_success else '❌ FAILURE'})")
     except Exception as e:
@@ -71,7 +68,8 @@ def process_prover_attestation(app: FastAPI, attestation_id: str, measurements, 
     if app.state.export_enabled:
         try:
             utils.export_attestation_times_json(
-                app.state.participant_name, attestation_id, "prover", timestamps, app.state.results_dir
+                app.state.participant_name, attestation_id, "prover", timestamps, app.state.results_dir, 
+                json_path=getattr(app.state, "results_file", None)
             )
         except Exception as e:
             logger.error(f"{log_prefix} Failed exporting prover timings: {e}")
@@ -107,6 +105,7 @@ def run_prover_logic_continuous_mode(app: FastAPI, stop_event=None):
         try:
             logging.debug(f"Attestation iteration {iteration}: Computing hash for {config['cmd_name']}")
             
+            # HEAVY CPU ACTIVITY: Reading the binary and hashing it
             digest = compute_program_hash(
                 config['cmd_name'],
                 config['text_section_size'],
@@ -122,6 +121,8 @@ def run_prover_logic_continuous_mode(app: FastAPI, stop_event=None):
             # logging.info(f"Digest added: {app.state.digests_count}/{threshold} collected (total: {count})")
 
             aggregated_digests = "".join(app.state.digests)
+
+            # HEAVY CPU ACTIVITY: Re-hashing the entire accumulated string
             computed_digest = hashlib.sha256(aggregated_digests.encode()).hexdigest()
             # logging.debug(f"Current aggregated digest: {computed_digest[:8]}...{computed_digest[-8:]}")
 
@@ -139,6 +140,8 @@ def run_prover_logic_continuous_mode(app: FastAPI, stop_event=None):
                 # Send evidence to smart contract (new attestation process)
                 attestation_id = utils.generate_attestation_id()
                 signatures = [final_digest, final_digest, final_digest]
+
+                # Should we run this synchronously and wait?
                 thread = threading.Thread(
                     target=run_prover_and_cleanup,
                     args=(app, attestation_id, signatures, stop_event),
@@ -152,7 +155,7 @@ def run_prover_logic_continuous_mode(app: FastAPI, stop_event=None):
                 if hasattr(app.state, "threads"):
                     app.state.threads.append(thread)
 
-                time.sleep(3)
+                # time.sleep(3)
                 
                 logging.debug(f"Final digest stored in key: final_digests:{app.state.participant_name}")
                 app.state.digests = []
@@ -174,12 +177,12 @@ def run_prover_logic_continuous_mode(app: FastAPI, stop_event=None):
         except ComputeHashError as e:
             logging.error(f"Hash computation error in iteration {iteration}: {str(e)}")
             logging.debug(f"Error details: {e.__class__.__name__}")
-            time.sleep(3)  # Attendre un peu avant de réessayer
+            time.sleep(5)  # Attendre un peu avant de réessayer
         except Exception as e:
             logging.error(f"Error in attestation process (iteration {iteration}): {str(e)}")
             logging.error(f"Error type: {e.__class__.__name__}")
             import traceback
             logging.debug(f"Traceback: {traceback.format_exc()}")
-            time.sleep(3)  # Attendre plus longtemps pour les erreurs génériques
+            time.sleep(5)  # Attendre plus longtemps pour les erreurs génériques
 
     logging.info("Attestation process stopped")

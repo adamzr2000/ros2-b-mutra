@@ -1,31 +1,25 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
-# 1. Stop attestation on all sidecars
-# Map sidecars (names) to ports — edit to match yours
-declare -A SIDECAR_PORTS=(
-  [secaas]=8080
-  [robot1]=8081
-  [robot2]=8082
-  [robot3]=8083
-)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-base_url="http://localhost"
-
-# Start attestation on all sidecars
-for name in "${!SIDECAR_PORTS[@]}"; do
-    p=${SIDECAR_PORTS[$name]}
-    echo "▶️  Stopping attestation on $name (port $p)..."
-    curl -X POST "$base_url:$p/stop" | jq
-  done
-
-# 2. Stop docker stats data collection
-curl -X POST "http://localhost:6666/monitor/stop" | jq
-
-# 3. Stop experimental scenario
+# Stop experimental scenario
 PASSWORD="netcom;"
 echo "$PASSWORD" | sudo -S docker compose down
 
-# 4. Remove blockchain network 
-cd blockchain/quorum-test-network
+# Remove blockchain network
+cd "$SCRIPT_DIR/blockchain/quorum-test-network"
 ./remove.sh
+
+# Reset EventWatcher checkpoints (seen_keys/from_block)
+CHECKPOINT_DIR="$SCRIPT_DIR/checkpoints"
+RESET_SCRIPT="$CHECKPOINT_DIR/reset_event_watcher.sh"
+
+if [[ -d "$CHECKPOINT_DIR" && -f "$RESET_SCRIPT" ]]; then
+  echo "🧹 Resetting EventWatcher checkpoints..."
+  ( cd "$CHECKPOINT_DIR" && bash "./$(basename "$RESET_SCRIPT")" )
+else
+  echo "⚠️  Checkpoints reset skipped (missing $RESET_SCRIPT or $CHECKPOINT_DIR)"
+fi
+

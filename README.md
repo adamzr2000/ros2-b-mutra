@@ -19,7 +19,7 @@ Go to the [dockerfiles](./dockerfiles) directory and run the `./build.sh` script
 | **gazebo-vnc**         | Robot simulation tool ([details](./dockerfiles/gazebo-vnc))       | ✅ Available |
 | **turtlebot3**         | Robot simulation model in Gazebo ([details](./dockerfiles/turtlebot3)) | ✅ Available |
 | **attestation-sidecar**   | ... ([details](./dockerfiles/attestation-sidecar)) | ✅ Available |
-| **secaas-wrapper**   | ... ([details](./dockerfiles/secaas-wrapper)) | ✅ Available |
+| **secaas**   | ... ([details](./dockerfiles/secaas)) | ✅ Available |
 
 ---
 
@@ -33,7 +33,7 @@ Start the full experiment with all services:
 - **4-node Private Ethereum-based blockchain** with [Hyperledger Besu](https://besu.hyperledger.org/private-networks) platform running [QBFT](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft) consensus algorithm
 - **Gazebo** robot simulator
 - **Robot(s)** with `turtlebot3` ros2 simulation, and `attestation-sidecar`
-- **SECaaS** with `attestation-sidecar` and `secaas-wrapper`
+- **Security-as-a-Service (SECaaS)**
 
 ```bash
 ./run_full_experiment.sh
@@ -41,7 +41,7 @@ Start the full experiment with all services:
 
 > Note: This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
 
----
+Stop the experiment:
 
 ```bash
 ./stop_full_experiment.sh
@@ -98,7 +98,7 @@ for p in 8080 8081 8082 8083; do
 done
 ```
 
-4. Stop attestation
+4. Stop attestation:
 ```bash
 for p in 8080 8081 8082 8083; do
   echo "Starting attestation on sidecar with port $p..."
@@ -114,4 +114,10 @@ curl -X POST "http://localhost:6666/monitor/stop" | jq
 6. Stop workflow
 ```bash
 docker compose down
+```
+
+---
+
+```bash
+python3 run_experiments_and_collect_results.py --runs 5 --duration 180
 ```
