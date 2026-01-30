@@ -108,7 +108,8 @@ def main():
     plot_df = plot_df.sort_values("Container").reset_index(drop=True)
 
     # Seaborn theme
-    sns.set_theme(context="paper", style="ticks", font_scale=FONT_SCALE)
+    sns.set_theme(context="paper", style="ticks", rc={"xtick.direction": "in", "ytick.direction": "in"}, font_scale=FONT_SCALE)
+
 
     # Plot
     fig, ax = plt.subplots(figsize=FIG_SIZE)

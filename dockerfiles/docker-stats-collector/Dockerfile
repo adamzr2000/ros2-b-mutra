@@ -4,6 +4,7 @@ LABEL maintainer="azahir@pa.uc3m.es"
 
 # Set environment variables to avoid user interaction during the installation
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,4 +21,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ .
 
 # Set the entrypoint to execute main.py
-ENTRYPOINT ["python3", "-m", "uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "5000"]
+ENTRYPOINT ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "6000", "--workers", "1"]

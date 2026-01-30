@@ -113,7 +113,8 @@ def _collect_rows(summary: Dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 def main():
-    sns.set_theme(context="paper", style="ticks", font_scale=FONT_SCALE)
+    sns.set_theme(context="paper", style="ticks", rc={"xtick.direction": "in", "ytick.direction": "in"}, font_scale=FONT_SCALE)
+
 
     src = Path(INPUT_FILE).resolve()
     if not src.exists():

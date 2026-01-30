@@ -8,7 +8,7 @@ import pandas as pd
 
 # --- Configuration ---
 BASE_DIR = Path(".")
-INPUT_DIR = BASE_DIR / "test"
+INPUT_DIR = BASE_DIR / "results"
 OUT_DIR = BASE_DIR / "_summary"
 
 # --- Output Filenames ---

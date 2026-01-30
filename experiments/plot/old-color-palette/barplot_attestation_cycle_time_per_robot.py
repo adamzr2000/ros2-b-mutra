@@ -59,7 +59,8 @@ def main():
         key=lambda s: s.str.extract(r"(\d+)").iloc[:, 0].astype(float).fillna(0)
     ).reset_index(drop=True)
 
-    sns.set_theme(context="paper", style="ticks", font_scale=FONT_SCALE)
+    sns.set_theme(context="paper", style="ticks", rc={"xtick.direction": "in", "ytick.direction": "in"}, font_scale=FONT_SCALE)
+
     fig, ax = plt.subplots(figsize=FIG_SIZE)
 
     # Draw the Bars

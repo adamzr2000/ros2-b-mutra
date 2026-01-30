@@ -9,8 +9,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Configuration Defaults ---
 DEFAULTS = {
-    "results_dir": "/experiments/data/attestation-times/test",
-    "stats_dir": "/experiments/data/docker-stats/test",
+    "results_dir": "/experiments/data/attestation-times/results",
+    "stats_dir": "/experiments/data/docker-stats/results",
     "duration": 60,
     "runs": 1,
     "password": "netcom;", # Default sudo password
@@ -18,7 +18,7 @@ DEFAULTS = {
 }
 
 # Map names to ports
-SIDECAR_PORTS = {
+SERVICE_PORTS = {
     "secaas": 8080,
     "robot1": 8081,
     "robot2": 8082,
@@ -26,7 +26,7 @@ SIDECAR_PORTS = {
     "robot4": 8084
 }
 
-MONITOR_URL = "http://localhost:6666"
+MONITOR_URL = "http://localhost:6000"
 
 # --- Helper Functions ---
 
@@ -149,7 +149,7 @@ def main():
             # 3. Wait for Services
             print("[+] Waiting for readiness...")
             wait_for_http(f"{MONITOR_URL}/monitor/status")
-            for name, port in SIDECAR_PORTS.items():
+            for name, port in SERVICE_PORTS.items():
                 wait_for_http(f"http://localhost:{port}/")
 
             # 4. Start Docker Stats
@@ -169,8 +169,8 @@ def main():
 
             # 5. Start Attestations (PARALLEL)
             print("▶️  Starting attestations (Parallel)...")
-            with ThreadPoolExecutor(max_workers=len(SIDECAR_PORTS)) as executor:
-                futures = {executor.submit(trigger_request, name, port, "start"): name for name, port in SIDECAR_PORTS.items()}
+            with ThreadPoolExecutor(max_workers=len(SERVICE_PORTS)) as executor:
+                futures = {executor.submit(trigger_request, name, port, "start"): name for name, port in SERVICE_PORTS.items()}
                 for future in as_completed(futures):
                     print(future.result())
 
@@ -180,8 +180,8 @@ def main():
 
             # 7. Stop Attestations (PARALLEL)
             print("⏹  Stopping attestations (Parallel)...")
-            with ThreadPoolExecutor(max_workers=len(SIDECAR_PORTS)) as executor:
-                futures = {executor.submit(trigger_request, name, port, "stop"): name for name, port in SIDECAR_PORTS.items()}
+            with ThreadPoolExecutor(max_workers=len(SERVICE_PORTS)) as executor:
+                futures = {executor.submit(trigger_request, name, port, "stop"): name for name, port in SERVICE_PORTS.items()}
                 for future in as_completed(futures):
                     print(future.result())
 

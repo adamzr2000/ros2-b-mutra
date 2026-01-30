@@ -2,9 +2,8 @@
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Tuple, Optional
 
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
@@ -13,15 +12,11 @@ import seaborn as sns
 from matplotlib.colors import to_rgb
 
 # ---- Config ----
-# SELECT MODE:
-# Set to an integer (e.g., 1) to plot a SPECIFIC RUN (Reads by_run.json).
-# Set to None to plot the AVERAGE across all runs (Reads summary.json).
+# Set to integer (e.g., 1) for a specific run, or None for Average
 TARGET_RUN = 1 
+ZOOM_X_LIMIT = 65  # Set to None to auto-scale
 
-# Zoom Config: Set to number (e.g. 60) or None
-ZOOM_X_LIMIT = 65
-
-# ---- IO (Auto-switches based on TARGET_RUN) ----
+# ---- IO ----
 SUMMARY_DIR = "../data/attestation-times/_summary"
 FILE_BY_RUN = "attestation_events_by_run.json"
 FILE_SUMMARY = "attestation_events_summary_per_attestation.json"
@@ -29,21 +24,22 @@ OUTPUT_FILE = f"./attestation_event_flow_run{TARGET_RUN}.pdf" if TARGET_RUN else
 
 # ---- Style ----
 FONT_SCALE = 1.5
-LINE_WIDTH = 1.5
-SPINES_WIDTH = 1.5
-FIG_SIZE = (12.8, 6.5)
+LINE_WIDTH = 1.2
+SPINES_WIDTH = 1.0
+FIG_SIZE = (12, 6)  # Slightly more compact
 RECT_ALPHA = 0.35
 VERT_LINE_LEN = 0.6
 RECT_HEIGHT = 0.45
-NUM_OFFSET = 0.2
+NUM_OFFSET = 0.25
 MIN_SEP_PX = 12
 GROUP_GAP = 0.4
+EVENT_LABELS_FONT_SIZE=8
 
 EVENT_LABELS: Dict[int, str] = {
     1: "Evidence sent",
     2: "Attestation started",
     3: "Ref. signature sent",
-    4: "Evaluation ready received",
+    4: "Evaluation ready",
     5: "Result sent",
     6: "Result received",
 }
@@ -67,6 +63,17 @@ def _order_role_labels(labels: List[str]) -> List[str]:
         return (2, 0, 0, lbl.lower())
     return sorted(labels, key=key)
 
+def _format_label(lbl: str) -> str:
+    """Make 'robot1-prover' look like 'Robot1 (Prover)'"""
+    parts = lbl.split("-")
+    name = parts[0]
+    role = parts[1].title() if len(parts) > 1 else ""
+    
+    if name == "SECaaS":
+        return f"SECaaS ({role})"
+    
+    return f"{name} ({role})"
+
 def _map_to_event_code(is_robot: bool, is_secaas: bool, role: str, t_key: str) -> Optional[int]:
     t = t_key.strip().lower()
     r = role.strip().lower()
@@ -78,23 +85,16 @@ def _map_to_event_code(is_robot: bool, is_secaas: bool, role: str, t_key: str) -
             if t == "t_attestation_started_received": return 2
             if t == "t_evaluation_ready_received": return 4
             if t == "t_result_sent": return 5
-        return None
     if is_secaas:
         if r == "oracle":
             if t == "t_attestation_started_received": return 2
             if t == "t_ref_signatures_sent": return 3
         elif r == "verifier":
             if t == "t_result_sent": return 5
-        return None
     return None
 
 def _collect_rows(data_root: Dict, mode_single_run: bool) -> pd.DataFrame:
-    """
-    Parses either the 'summary' structure (with mean/std) or 'by_run' structure (scalars).
-    """
     rows: List[Dict] = []
-    
-    # Iterate through Participants -> Roles -> Attestations -> Timestamps
     for participant, roles in data_root.items():
         is_robot  = participant.lower().startswith("robot")
         is_secaas = (participant == "SECaaS")
@@ -108,17 +108,13 @@ def _collect_rows(data_root: Dict, mode_single_run: bool) -> pd.DataFrame:
             
             for att_label, t_map in per_att.items():
                 for t_key, val_obj in t_map.items():
-                    # MAPPING LOGIC
                     code = _map_to_event_code(is_robot, is_secaas, role_name, t_key)
                     if code is None: continue
 
-                    # VALUE EXTRACTION LOGIC
                     if mode_single_run:
-                        # In by_run.json, the value is just a float (scalar)
                         mean_s = float(val_obj) if val_obj is not None else None
-                        std_s = 0.0 # Single run has no deviation
+                        std_s = 0.0
                     else:
-                        # In summary.json, val_obj is a dict {mean_s, std_s}
                         mean_s = val_obj.get("mean_s")
                         std_s = val_obj.get("std_s", 0.0)
 
@@ -126,9 +122,7 @@ def _collect_rows(data_root: Dict, mode_single_run: bool) -> pd.DataFrame:
 
                     rows.append({
                         "participant": participant,
-                        "role": role_name_l,
                         "role_label": role_label,
-                        "att": att_label,
                         "event_code": int(code),
                         "mean_s": float(mean_s),
                         "std_s": float(std_s) if std_s is not None else 0.0,
@@ -136,45 +130,29 @@ def _collect_rows(data_root: Dict, mode_single_run: bool) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 def main():
-    sns.set_theme(context="paper", style="ticks", font_scale=FONT_SCALE)
+    sns.set_theme(context="paper", style="ticks", rc={"xtick.direction": "in", "ytick.direction": "in"}, font_scale=FONT_SCALE)
 
     # ---- LOAD DATA ----
     dir_path = Path(SUMMARY_DIR).resolve()
-    
     if TARGET_RUN is not None:
-        # Load Single Run Data
         src = dir_path / FILE_BY_RUN
         print(f"[INFO] Mode: Single Run (Run {TARGET_RUN})")
-        print(f"[INFO] Reading: {src}")
-        if not src.exists(): raise SystemExit(f"File not found: {src}")
-        
-        with open(src, "r", encoding="utf-8") as f:
+        with open(src, "r") as f:
             full_json = json.load(f)
-            
-        run_key = f"run{TARGET_RUN}"
-        if run_key not in full_json.get("by_run", {}):
-            raise SystemExit(f"Run ID {TARGET_RUN} not found in {FILE_BY_RUN}")
-            
-        data_root = full_json["by_run"][run_key]
+        data_root = full_json["by_run"].get(f"run{TARGET_RUN}", {})
         mode_single = True
-        
     else:
-        # Load Average Data
         src = dir_path / FILE_SUMMARY
         print(f"[INFO] Mode: Average Summary")
-        print(f"[INFO] Reading: {src}")
-        if not src.exists(): raise SystemExit(f"File not found: {src}")
-        
-        with open(src, "r", encoding="utf-8") as f:
+        with open(src, "r") as f:
             full_json = json.load(f)
-            
         data_root = full_json.get("summary", {})
         mode_single = False
 
     df = _collect_rows(data_root, mode_single)
     if df.empty: raise SystemExit("No event rows collected.")
 
-    # --- Order + Y positions with group gaps ---
+    # --- Order + Y positions ---
     role_labels = _order_role_labels(sorted(df["role_label"].unique().tolist()))
     y_map = {}; y_pos = 0.0; prev_part = None
     for lbl in role_labels:
@@ -186,9 +164,9 @@ def main():
         prev_part = part
     df["y"] = df["role_label"].map(y_map)
 
-    # --- Colors by PARTICIPANT ---
+    # --- Colors ---
     participants = sorted(df["participant"].unique(), key=lambda x: (0 if "secaas" in x.lower() else 1, x))
-    palette = sns.color_palette("tab10", n_colors=len(participants))
+    palette = sns.color_palette("colorblind", n_colors=len(participants))
     part_color_map = dict(zip(participants, palette))
 
     edge_map = {}
@@ -200,28 +178,28 @@ def main():
         fill_map[lbl] = _lighten(base_color, factor=0.65)
 
     # ---- Figure ----
+    # Adjusted width ratios: More space for plot (1.0), less for legend (0.25)
     fig = plt.figure(figsize=FIG_SIZE, constrained_layout=False)
-    gs = fig.add_gridspec(nrows=1, ncols=2, width_ratios=[1.0, 0.4], wspace=0.05)
+    gs = fig.add_gridspec(nrows=1, ncols=2, width_ratios=[1.0, 0.25], wspace=0.02)
     ax = fig.add_subplot(gs[0, 0])
     legax = fig.add_subplot(gs[0, 1])
     legax.set_axis_off()
 
-    # --- Bars + rectangles ---
+    # --- Plotting ---
     for _, row in df.iterrows():
-        if ZOOM_X_LIMIT is not None and float(row["mean_s"]) > ZOOM_X_LIMIT:
-            continue
+        if ZOOM_X_LIMIT is not None and float(row["mean_s"]) > ZOOM_X_LIMIT: continue
 
         role_lbl = row["role_label"]; y = float(row["y"])
-        x = float(row["mean_s"])
-        std = float(row["std_s"])
-        half = std if std > 0 else 0.0
+        x = float(row["mean_s"]); std = float(row["std_s"])
         
-        if half > 0:
+        # Draw Box (std dev)
+        if std > 0:
             ax.add_patch(Rectangle(
-                (x - half, y - RECT_HEIGHT / 2.0),
-                2 * half, RECT_HEIGHT,
+                (x - std, y - RECT_HEIGHT / 2.0),
+                2 * std, RECT_HEIGHT,
                 facecolor=fill_map[role_lbl], edgecolor='none', alpha=RECT_ALPHA, zorder=2,
             ))
+        # Draw Line (mean)
         ax.plot([x, x], [y - VERT_LINE_LEN / 2.0, y + VERT_LINE_LEN / 2.0],
                 color=edge_map[role_lbl], linewidth=LINE_WIDTH + 0.4, zorder=3)
 
@@ -229,88 +207,77 @@ def main():
     if ZOOM_X_LIMIT is not None:
         ax.set_xlim(0, ZOOM_X_LIMIT)
     else:
-        x_left  = float((df["mean_s"] - df["std_s"]).min())
-        x_right = float((df["mean_s"] + df["std_s"]).max())
-        span = max(x_right - x_left, 1.0)
-        pad = 0.08 * span
-        ax.set_xlim(x_left - pad, x_right + pad)
+        # Auto-scale with padding
+        x_min = (df["mean_s"] - df["std_s"]).min()
+        x_max = (df["mean_s"] + df["std_s"]).max()
+        pad = (x_max - x_min) * 0.05
+        ax.set_xlim(x_min - pad, x_max + pad)
 
-    # --- Number placement ---
+    # --- Jitter Logic for Numbers ---
     fig.canvas.draw()
     x0, x1 = ax.get_xlim()
     ax_w_px = ax.get_window_extent().width
-    data_per_px = (x1 - x0) / ax_w_px if ax_w_px > 0 else 0.0
+    data_per_px = (x1 - x0) / ax_w_px if ax_w_px > 0 else 0.001
     delta_x_data = MIN_SEP_PX * data_per_px
 
-    jitter_x: Dict[int, float] = {}
+    jitter_x = {}
     for _, g in df.groupby("y"):
-        if ZOOM_X_LIMIT is not None:
-            g = g[g["mean_s"] <= ZOOM_X_LIMIT]
-            
+        if ZOOM_X_LIMIT: g = g[g["mean_s"] <= ZOOM_X_LIMIT]
         g = g.sort_values("mean_s")
-        xs = g["mean_s"].astype(float).tolist()
+        xs = g["mean_s"].tolist()
         xs_j = xs[:]
+        
+        # Simple collision avoidance
         for i in range(1, len(xs_j)):
             if xs_j[i] - xs_j[i - 1] < delta_x_data:
                 xs_j[i] = xs_j[i - 1] + delta_x_data
-        inner = max(0.4 * (x1-x0)*0.08, 0.5 * delta_x_data)
-        xs_j = [min(max(x, x0 + inner), x1 - inner) for x in xs_j]
+        
+        # Keep inside bounds
+        xs_j = [min(x, x1 - delta_x_data) for x in xs_j] 
         jitter_x.update({idx: xj for idx, xj in zip(g.index, xs_j)})
 
+    # Draw Numbers
     for idx, row in df.iterrows():
-        if ZOOM_X_LIMIT is not None and float(row["mean_s"]) > ZOOM_X_LIMIT:
-            continue
-        y = float(row["y"])
+        if ZOOM_X_LIMIT is not None and float(row["mean_s"]) > ZOOM_X_LIMIT: continue
+        
         x_num = jitter_x.get(idx, float(row["mean_s"]))
-        code = int(row["event_code"])
         ax.text(
-            x_num, y - (RECT_HEIGHT / 2.0) - NUM_OFFSET,
-            f"{code}", va="top", ha="center",
-            fontsize=9, color="black", fontweight="normal",
-            zorder=5, clip_on=False,
+            x_num, float(row["y"]) - (RECT_HEIGHT / 2.0) - NUM_OFFSET,
+            f"{int(row['event_code'])}",
+            va="top", ha="center", fontsize=EVENT_LABELS_FONT_SIZE, color="black", zorder=5
         )
 
     # --- Axes styling ---
+    # Use formatted labels
+    formatted_labels = [_format_label(lbl) for lbl in role_labels]
     ax.set_yticks([y_map[lbl] for lbl in role_labels])
-    ax.set_yticklabels(role_labels)
+    ax.set_yticklabels(formatted_labels)
+
+    y_bottom, y_top = ax.get_ylim()
+    ax.set_ylim(y_bottom - 0.2, y_top + 0.2)
+    
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Participant-role")
+    ax.grid(axis="x", linestyle="-", linewidth=1.0, alpha=0.8)
     
-    title_str = f"Attestation Event Flow (Run {TARGET_RUN})" if TARGET_RUN else "Attestation Event Variance (Avg)"
-    if ZOOM_X_LIMIT: title_str += f" - First {ZOOM_X_LIMIT}s"
-    ax.set_title(title_str)
-    
-    ax.grid(axis="x", linestyle="--", linewidth=1.0, alpha=0.8)
     for side in ("top", "right", "bottom", "left"):
         ax.spines[side].set_color("black")
         ax.spines[side].set_linewidth(SPINES_WIDTH)
 
-    # ---- Legends ----
-    ev_labels = [f"{k}. {v}" for k, v in sorted(EVENT_LABELS.items())]
+    # ---- Legend (Events Only) ----
+    ev_labels = [f"{k}: {v}" for k, v in sorted(EVENT_LABELS.items())]
+    # Invisible handles just to list text
     ev_handles = [Line2D([], [], linestyle="none", color="none") for _ in ev_labels]
-    leg_events = legax.legend(
-        ev_handles, ev_labels, frameon=True, loc="upper left",
-        bbox_to_anchor=(0.0, 1.0), handlelength=0, handletextpad=0.2,
-        borderaxespad=0.0, labelspacing=0.2, columnspacing=0.0, title="Events",
+    
+    leg = legax.legend(
+        ev_handles, ev_labels, 
+        loc="upper left", bbox_to_anchor=(0.0, 1.0),
+        title="Event types", frameon=True, handlelength=0, handletextpad=0
     )
-    leg_events.get_frame().set_edgecolor("black")
-    leg_events.get_frame().set_linewidth(LINE_WIDTH)
+    # leg.get_title().set_fontweight("bold")
+    leg.get_frame().set_edgecolor("black")
+    leg.get_frame().set_linewidth(SPINES_WIDTH)
 
-    part_handles = []
-    for part in participants:
-        c = part_color_map[part]
-        part_handles.append(Line2D([0], [0], color=c, linewidth=LINE_WIDTH + 2.0, label=part))
-
-    leg_parts = legax.legend(
-        handles=part_handles, title="Participant", frameon=True,
-        loc="upper left", bbox_to_anchor=(0.0, 0.40),
-        borderaxespad=0.0, handlelength=1.5,
-    )
-    leg_parts.get_frame().set_edgecolor("black")
-    leg_parts.get_frame().set_linewidth(LINE_WIDTH)
-    legax.add_artist(leg_events)
-
-    fig.savefig(OUTPUT_FILE, dpi=300, bbox_inches="tight", pad_inches=0.15)
+    fig.savefig(OUTPUT_FILE, dpi=300, bbox_inches="tight", pad_inches=0.1)
     print(f"[OK] Saved plot to: {OUTPUT_FILE}")
     plt.close(fig)
 

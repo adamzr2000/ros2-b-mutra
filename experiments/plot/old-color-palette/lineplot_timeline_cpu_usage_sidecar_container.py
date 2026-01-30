@@ -94,7 +94,8 @@ def main():
     palette = {label: COLORS[i % len(COLORS)] for i, label in enumerate(ordered_labels)}
 
     # Theme
-    sns.set_theme(context="paper", style="ticks", font_scale=FONT_SCALE)
+    sns.set_theme(context="paper", style="ticks", rc={"xtick.direction": "in", "ytick.direction": "in"}, font_scale=FONT_SCALE)
+
 
     # Plot (single axes, multiple lines)
     fig, ax = plt.subplots(figsize=(9, 5.5))

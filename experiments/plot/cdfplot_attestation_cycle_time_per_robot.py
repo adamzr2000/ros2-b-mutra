@@ -11,7 +11,8 @@ INPUT_FILE = "../data/attestation-times/_summary/all_raw_attestation_durations.c
 OUTPUT_FILE = "./cdfplot_attestation_cycle_time_per_robot.pdf"
 
 FONT_SCALE = 1.5
-SPINES_WIDTH = 1.5
+SPINES_WIDTH = 1.0
+LINE_WIDTH = 2.0
 FIG_SIZE = (7, 4.5)
 
 def main():
@@ -22,21 +23,22 @@ def main():
     df = pd.read_csv(csv_path)
 
     # CDF requires the raw duration column
-    required = {"robot", "duration_s"}
+    required = {"participant", "duration_s"}
     missing = required - set(df.columns)
     if missing:
         raise SystemExit(f"CSV missing required columns: {missing}")
 
     # Sort Robot1, Robot2, ... logically
     df = df.sort_values(
-        "robot",
+        "participant",
         key=lambda s: s.astype(str).str.extract(r"(\d+)").iloc[:, 0].astype(float).fillna(0)
     ).reset_index(drop=True)
 
     # Theme + palette (Matching barplot style)
-    sns.set_theme(context="paper", style="ticks", font_scale=FONT_SCALE)
-    ordered_labels = df["robot"].unique().tolist()
-    palette = sns.color_palette("tab10", n_colors=len(ordered_labels))
+    sns.set_theme(context="paper", style="ticks", rc={"xtick.direction": "in", "ytick.direction": "in"}, font_scale=FONT_SCALE)
+
+    ordered_labels = df["participant"].unique().tolist()
+    palette = sns.color_palette("colorblind", n_colors=len(ordered_labels))
     color_map = dict(zip(ordered_labels, palette))
 
     fig, ax = plt.subplots(figsize=FIG_SIZE)
@@ -45,32 +47,29 @@ def main():
     sns.ecdfplot(
         data=df,
         x="duration_s",
-        hue="robot",
+        hue="participant",
         palette=color_map,
-        linewidth=2.5,
+        linewidth=LINE_WIDTH,
         alpha=0.9,
         ax=ax
     )
 
     # Labels and Title
-    ax.set_ylabel("Cumulative Distribution Function (CDF)")
+    ax.set_ylabel(f"CDF attestation cycle time")
     ax.set_xlabel("Time (s)")
-    ax.set_title("CDF of attestation cycle time per robot", pad=15)
 
     # 1. Add a bit of space at the top (0.0 to 1.05)
     ax.set_ylim(0, 1.05)
 
     # Grid (Matching barplot style: Y-axis only, dashed)
     ax.set_axisbelow(True)
-    ax.grid(axis="y", linestyle="--", linewidth=1.0, alpha=0.8)
-    ax.grid(axis="x", linestyle="--", linewidth=1.0, alpha=0.5)
+    ax.grid(axis="both", linestyle="-", linewidth=1.0, alpha=0.8)
 
     # Spines (Matching barplot style: Black, thick)
     for side in ("top", "right", "bottom", "left"):
         ax.spines[side].set_color("black")
         ax.spines[side].set_linewidth(SPINES_WIDTH)
 
-    # 2. Legend cleanup: title=None removes the "robot" header
     sns.move_legend(ax, "lower right", frameon=True, framealpha=0.9, title=None)
 
     plt.tight_layout()

@@ -7,12 +7,12 @@ from pathlib import Path
 import re
 
 # ---- Config ----
-INPUT_FILE = "../data/attestation-times/_summary/attestation_duration_per_robot.csv"
+INPUT_FILE = "../data/attestation-times/_summary/attestation_duration_per_participant.csv"
 OUTPUT_FILE = "./boxplot_attestation_cycle_time_per_robot.pdf"
 
 FONT_SCALE = 1.5
-LINE_WIDTH = 1.5
-SPINES_WIDTH = 1.5
+LINE_WIDTH = 1.0
+SPINES_WIDTH = 1.0
 FIG_SIZE = (7, 4.5)
 
 # STROKE_COLOR = "0.2"
@@ -26,28 +26,29 @@ def main():
     df = pd.read_csv(csv_path)
 
     # Required columns for boxplot from summary
-    required = {"robot", "min_s", "p25_s", "median_s", "p75_s", "max_s"}
+    required = {"participant", "min_s", "p25_s", "median_s", "p75_s", "max_s"}
     missing = required - set(df.columns)
     if missing:
         raise SystemExit(f"CSV missing required columns for boxplot: {missing}")
 
     # Sort robots numerically
     df = df.sort_values(
-        "robot",
+        "participant",
         key=lambda s: s.astype(str).str.extract(r"(\d+)").iloc[:, 0].astype(float).fillna(0)
     ).reset_index(drop=True)
 
     # Theme + palette (match your current paper style)
-    sns.set_theme(context="paper", style="ticks", font_scale=FONT_SCALE)
-    ordered_labels = df["robot"].astype(str).tolist()
-    palette = sns.color_palette("tab10", n_colors=len(ordered_labels))
+    sns.set_theme(context="paper", style="ticks", rc={"xtick.direction": "in", "ytick.direction": "in"}, font_scale=FONT_SCALE)
+
+    ordered_labels = df["participant"].astype(str).tolist()
+    palette = sns.color_palette("colorblind", n_colors=len(ordered_labels))
     color_map = dict(zip(ordered_labels, palette))
 
     fig, ax = plt.subplots(figsize=FIG_SIZE)
 
     # Manually draw the boxes for each robot
     for i, row in df.iterrows():
-        label = str(row["robot"])
+        label = str(row["participant"])
         face_c = color_map[label]
 
         # Stats
@@ -80,23 +81,22 @@ def main():
         ax.add_patch(rect)
 
         # 4) Median line (neutral)
-        ax.hlines(med, i - box_w / 2, i + box_w / 2, color=STROKE_COLOR, lw=LINE_WIDTH, zorder=4)
+        ax.hlines(med, i - box_w / 2, i + box_w / 2, color=STROKE_COLOR, lw=LINE_WIDTH * 1.5, zorder=4)
 
     # Formatting
     ax.set_xlim(-0.5, len(df) - 0.5)
     ax.set_xticks(range(len(df)))
-    ax.set_xticklabels(df["robot"])
+    ax.set_xticklabels(df["participant"])
 
     y_max = df["max_s"].max()
     if pd.isna(y_max) or y_max <= 0:
         y_max = 1.0
     ax.set_ylim(0, y_max * 1.25)
 
-    ax.set_ylabel("Time (s)")
-    ax.set_title("Attestation cycle time per robot", pad=15)
+    ax.set_ylabel("Attestation Cycle Time (s)")
 
     ax.set_axisbelow(True)
-    ax.grid(axis="y", linestyle="--", linewidth=1.0, alpha=0.8)
+    ax.grid(axis="y", linestyle="-", linewidth=1.0, alpha=0.8)
 
     for side in ("top", "right", "bottom", "left"):
         ax.spines[side].set_color("black")

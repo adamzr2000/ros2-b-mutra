@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# remove all json files under the current directory (recursively)
-
 set -euo pipefail
 
-echo "Removing JSONs under: $(pwd)"
-find . -type f -iname '*.json' -print -delete
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Removing CSVs under: $(pwd)"
-find . -type f -iname '*.csv' -print -delete
+for d in "attestation-times" "docker-stats"; do
+  results_dir="$BASE_DIR/$d/results"
+
+  echo "Cleaning: $results_dir"
+
+  if [[ -d "$results_dir" ]]; then
+    rm -f -- "$results_dir"/* 2>/dev/null || true
+  else
+    echo "  (skipped: no results dir)"
+  fi
+done
 
 echo "Done."
-

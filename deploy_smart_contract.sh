@@ -44,7 +44,7 @@ if [[ -z "$rpc_url" || -z "$chain_id" ]]; then
   usage
 fi
 
-echo "🚀 Deploying Federation contract"
+echo "🚀 Deploying smart contract"
 echo "Private Key: [HIDDEN]"
 echo "RPC URL    : $rpc_url"
 echo "Chain ID   : $chain_id"

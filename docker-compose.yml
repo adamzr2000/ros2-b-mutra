@@ -15,7 +15,7 @@ services:
     image: docker-stats-collector:latest
     container_name: docker-stats-collector
     ports:
-      - "6666:5000"
+      - "6000:6000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
@@ -26,7 +26,7 @@ services:
       - quorum-dev-quickstart
 
   gazebo-server:
-    image: turtlebot3-simulation-ros2
+    image: turtlebot3-gazebo
     container_name: gazebo-server
     hostname: gazebo-server
     environment:
@@ -68,9 +68,6 @@ services:
     volumes:
       - "./config/:/config:rw"
       - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
-      - ./dockerfiles/attestation-sidecar/app/blockchain_manager.py:/app/blockchain_manager.py
-      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
     networks:
       - quorum-dev-quickstart
 
@@ -101,7 +98,7 @@ services:
       - quorum-dev-quickstart
 
   robot1:
-    image: turtlebot3-simulation-ros2
+    image: turtlebot3-gazebo
     container_name: robot1
     hostname: robot1
     environment:
@@ -164,7 +161,7 @@ services:
       - quorum-dev-quickstart
 
   robot2:
-    image: turtlebot3-simulation-ros2
+    image: turtlebot3-gazebo
     container_name: robot2
     hostname: robot2
     environment:
@@ -226,7 +223,7 @@ services:
       - quorum-dev-quickstart
 
   robot3:
-    image: turtlebot3-simulation-ros2
+    image: turtlebot3-gazebo
     container_name: robot3
     hostname: robot3
     environment:
@@ -287,7 +284,7 @@ services:
       - quorum-dev-quickstart
 
   robot4:
-    image: turtlebot3-simulation-ros2
+    image: turtlebot3-gazebo
     container_name: robot4
     hostname: robot4
     environment:
@@ -346,9 +343,9 @@ services:
           cpus: '0.4'
     networks:
       - quorum-dev-quickstart
-  db:
+  secaas-db:
     image: postgres:12
-    container_name: db
+    container_name: secaas-db
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -373,8 +370,7 @@ services:
 
   # secaas-wrapper:
   #   container_name: secaas-wrapper
-  #   build:
-  #     context: dockerfiles/secaas-wrapper
+  #   image: secaas-wrapper:latest
   #   ports:
   #     - "8001:8000"
   #   depends_on:

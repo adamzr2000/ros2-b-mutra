@@ -22,7 +22,7 @@ T_PREFIX = "t_"
 def parse_args():
     p = argparse.ArgumentParser(description="Summarize attestation events (relative timestamps) into two JSONs.")
     p.add_argument("--base-dir", default=".", help="Base directory (default: current).")
-    p.add_argument("--input-dir", default="test", help="Subdirectory with JSON inputs (default: test).")
+    p.add_argument("--input-dir", default="results", help="Subdirectory with JSON inputs (default: test).")
     p.add_argument("--out-dir", default="_summary", help="Output directory (default: _summary).")
     p.add_argument("--N", type=int, default=8, help="First N prover attestations per Robot per run to include (default: 5).")
     return p.parse_args()

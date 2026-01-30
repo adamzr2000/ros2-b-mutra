@@ -257,6 +257,7 @@ class DockerContainerMonitor:
             self._csv_file = open(self.csv_path, "a", newline="")
             fieldnames = [
                 "timestamp",
+                "timestamp_iso",
                 "cpu_percent",
                 "mem_mb",
                 "mem_limit_mb",
@@ -431,12 +432,15 @@ class DockerContainerMonitor:
                 continue
             last_emit = now_mono
 
+            now_dt = datetime.now(timezone.utc)
+
             mem_mb = round(_compute_mem_used_mb(stats), 2)
             mem_limit_mb = _compute_mem_limit_mb(stats)
             mem_percent = _compute_mem_percent(mem_mb, mem_limit_mb)
 
             sample = {
-                "timestamp": int(time.time() * 1000),  # ms
+                "timestamp": int(now_dt.timestamp() * 1000),  # ms
+                "timestamp_iso": now_dt.isoformat(),
                 "cpu_percent": round(_compute_cpu_percent(stats), 2),
                 "mem_mb": mem_mb,
                 "mem_limit_mb": round(mem_limit_mb, 2) if mem_limit_mb is not None else None,
@@ -503,8 +507,11 @@ class DockerContainerMonitor:
             mem_limit_mb = _compute_mem_limit_mb(stats)
             mem_percent = _compute_mem_percent(mem_mb, mem_limit_mb)
 
+            now_dt = datetime.now(timezone.utc)
+
             sample = {
-                "timestamp": int(time.time() * 1000),
+                "timestamp": int(now_dt.timestamp() * 1000),
+                "timestamp_iso": now_dt.isoformat(),
                 "cpu_percent": round(_compute_cpu_percent(stats), 2),  # may be 0.0 without precpu
                 "mem_mb": mem_mb,
                 "mem_limit_mb": round(mem_limit_mb, 2) if mem_limit_mb is not None else None,

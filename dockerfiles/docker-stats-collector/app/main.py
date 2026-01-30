@@ -24,6 +24,10 @@ class StartRequest(BaseModel):
     containers: List[str] = Field(..., description="List of container names/IDs/prefixes")
     interval: float = 1.0
     csv_dir: Optional[str] = Field(None, description="If set, writes one CSV per container in this directory")
+    csv_names: Optional[Dict[str, str]] = Field(
+        None,
+        description="Optional map {container_ref: csv filename or absolute path} to override automatic naming"
+    )
     stdout: bool = False
     write_header: bool = True
 
@@ -103,8 +107,32 @@ def _next_run_csv(csv_dir: str, ref: str) -> str:
     next_idx = max_idx + 1
     return os.path.join(base, f"{safe}-run{next_idx}.csv")
 
-def _make_csv_path(csv_dir: Optional[str], ref: str) -> Optional[str]:
-    return None if not csv_dir else _next_run_csv(csv_dir, ref)
+def _make_csv_path(csv_dir: Optional[str], ref: str, csv_names: Optional[Dict[str, str]]) -> Optional[str]:
+    """
+    If csv_dir is set, choose CSV path for this container ref.
+    Priority:
+      1) req.csv_names[ref] if provided (absolute path allowed; otherwise treated as filename under csv_dir)
+      2) fallback to automatic <sanitized_ref>-runN.csv
+    """
+    if not csv_dir:
+        return None
+
+    base = csv_dir.rstrip("/")
+
+    if csv_names and ref in csv_names and csv_names[ref]:
+        name = csv_names[ref].strip()
+
+        # Absolute path: use as-is
+        if os.path.isabs(name):
+            return name
+
+        # Relative: treat as filename inside csv_dir
+        if not name.lower().endswith(".csv"):
+            name += ".csv"
+        return os.path.join(base, name)
+
+    return _next_run_csv(base, ref)
+
 
 # ---------- Endpoints ----------
 @app.post(
@@ -118,7 +146,7 @@ def monitor_start(req: StartRequest):
     for ref in req.containers:
         try:
             _ensure_no_conflict(app, ref)
-            csv_path = _make_csv_path(req.csv_dir, ref)
+            csv_path = _make_csv_path(req.csv_dir, ref, req.csv_names)
             if csv_path:
                 logger.info("CSV path for '%s': %s", ref, csv_path)
 

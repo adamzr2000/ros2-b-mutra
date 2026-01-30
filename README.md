@@ -11,7 +11,12 @@ git clone git@github.com:adamzr2000/ros2-b-mutra.git
 ```
 
 2. Build Docker Images:
-Go to the [dockerfiles](./dockerfiles) directory and run the `./build.sh` scripts for each image:
+```bash
+cd dockerfiles
+make
+```
+
+The following modules will be built and tagged locally:
 
 | Module                 | Description                                                                                                     | Status       |
 |------------------------|-----------------------------------------------------------------------------------------------------------------|--------------|
@@ -32,7 +37,7 @@ python3 create_agent_configurations.py --num-agents 10 --output ./config
 Start the full experiment with all services:
 - **4-node Private Ethereum-based blockchain** with [Hyperledger Besu](https://besu.hyperledger.org/private-networks) platform running [QBFT](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft) consensus algorithm
 - **Gazebo** robot simulator
-- **Robot(s)** with `turtlebot3` ros2 simulation, and `attestation-sidecar`
+- **Robot(s)** with `turtlebot3-gazebo` and `attestation-sidecar`
 - **Security-as-a-Service (SECaaS)**
 
 ```bash
@@ -72,6 +77,14 @@ cd blockchain/quorum-test-network
 
 ---
 
+## Runtime Attestation Setup (Auto)
+
+```bash
+python3 run_experiments_and_collect_results.py --runs 5 --duration 180
+```
+
+---
+
 ## Runtime Attestation Setup (Manual)
 1. Start containers:
 ```bash
@@ -80,35 +93,35 @@ docker compose up -d
 
 2. Start docker stats data collection
 ```shell
-curl -X POST localhost:6666/monitor/start \
+curl -X POST localhost:6000/monitor/start \
   -H 'Content-Type: application/json' \
-  -d '{"containers": ["secaas-sidecar","robot1-sidecar","robot2-sidecar", "robot3-sidecar"],
-  "interval":1.0,"csv_dir":"/experiments/data/docker-stats/test","stdout":true}' | jq
+  -d '{"containers": ["secaas","robot1-sidecar","robot2-sidecar","robot3-sidecar","robot4-sidecar"],
+  "interval":1.0,"csv_dir":"/experiments/data/docker-stats/results","stdout":true}' | jq
 ```
 > Check status:
 ```bash
-curl localhost:6666/monitor/status | jq
+curl localhost:6000/monitor/status | jq
 ```
 
 3. Start attestation:
 ```bash
-for p in 8080 8081 8082 8083; do
-  echo "Stopping attestation on sidecar with port $p..."
+for p in 8080 8081 8082 8083 8084; do
+  echo "Starting attestation on sidecar with port $p..."
   curl -X POST "http://localhost:${p}/start" | jq
 done
 ```
 
 4. Stop attestation:
 ```bash
-for p in 8080 8081 8082 8083; do
-  echo "Starting attestation on sidecar with port $p..."
+for p in 8080 8081 8082 8083 8084; do
+  echo "Stopping attestation on sidecar with port $p..."
   curl -X POST "http://localhost:${p}/stop" | jq
 done
 ```
 
 5. Stop docker stats data collection
 ```shell
-curl -X POST "http://localhost:6666/monitor/stop" | jq
+curl -X POST "http://localhost:6000/monitor/stop" | jq
 ```
 
 6. Stop workflow
@@ -117,7 +130,3 @@ docker compose down
 ```
 
 ---
-
-```bash
-python3 run_experiments_and_collect_results.py --runs 5 --duration 180
-```
