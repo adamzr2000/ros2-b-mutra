@@ -172,7 +172,12 @@ def main():
                 att_id = e.get("attestation_id")
                 if not isinstance(att_id, str):
                     continue
-                ts = _num(e.get("t_evidence_sent"))
+                ts = _num(e.get("t_prover_start"))
+                
+                # Fallback for legacy logs or if key is missing
+                if ts is None:
+                    ts = _num(e.get("t_evidence_sent"))
+
                 if ts is None:
                     t_keys = [k for k in e.keys() if isinstance(k, str) and k.startswith(T_PREFIX)]
                     ts_list = [_num(e[k]) for k in t_keys if _num(e[k]) is not None]

@@ -41,7 +41,7 @@ Start the full experiment with all services:
 - **Security-as-a-Service (SECaaS)**
 
 ```bash
-./run_full_experiment.sh
+./run_full_experiment_test.sh
 ```
 
 > Note: This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
@@ -77,7 +77,7 @@ cd blockchain/quorum-test-network
 
 ---
 
-## Runtime Attestation Setup (Auto)
+## Data collection (auto)
 
 ```bash
 python3 run_experiments_and_collect_results.py --runs 5 --duration 180
@@ -85,7 +85,7 @@ python3 run_experiments_and_collect_results.py --runs 5 --duration 180
 
 ---
 
-## Runtime Attestation Setup (Manual)
+## Data collection (manual)
 1. Start containers:
 ```bash
 docker compose up -d

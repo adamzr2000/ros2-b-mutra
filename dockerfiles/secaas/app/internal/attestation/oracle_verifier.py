@@ -1,0 +1,240 @@
+# app/internal/attestation/oracle_verifier.py
+
+import os
+import time
+import threading
+from queue import Queue, Empty
+from typing import Optional, Dict, Set
+from fastapi import FastAPI
+from web3 import Web3
+from app.internal.logger import info, warn, error, debug, green_text
+from app.internal.blockchain.types import (
+    AttestationState,
+    MasMutualAttestationContractEvents
+)
+from app.internal.blockchain.event_watcher import EventWatcher
+from app.internal.utils import helpers
+
+def _should_stop(stop_event):
+    return bool(stop_event and stop_event.is_set())
+
+def process_secaas_attestation(
+    app: FastAPI, 
+    attestation_id: str, 
+    seed_ts: Optional[Dict[str, int]] = None,
+    stop_event: Optional[threading.Event] = None,
+):
+    try:
+        timestamps = dict(seed_ts or {})
+        log_prefix = f"[Oracle-{helpers.short_att_id(attestation_id)}]"
+        blockchain_client = app.state.blockchain_client
+
+        timestamps["oracle_start"] = helpers.now_ms()
+
+        # --- ORACLE PHASE ---
+        info(f"{log_prefix} Retrieving prover address from SC...")
+
+        timestamps["get_prover_addr_start"] = helpers.now_ms()
+        p0 = helpers.perf_ns()
+
+        agent_address = blockchain_client.get_prover_address(attestation_id)
+
+        p1 = helpers.perf_ns()
+        timestamps["get_prover_addr_finished"] = helpers.now_ms()
+        timestamps["dur_prover_addr_fetch_us"] = helpers.ns_to_us(p0, p1)
+
+        info(f"{log_prefix} Retrieving prover reference signature from DB...")
+
+        timestamps["get_prover_ref_signatures_db_start"] = helpers.now_ms()
+        p0 = helpers.perf_ns()
+        
+        # Retrieve agent info (Mock DB call)
+        agent_info = helpers.get_agent_by_blockchain_address("/config", agent_address)
+        if not agent_info:
+            error(f"{log_prefix} Agent with address '{agent_address}' not found in the DB.")
+            return
+        
+        reference_measurements = agent_info['ref_signatures']
+
+        p1 = helpers.perf_ns()
+        timestamps["get_prover_ref_signatures_db_finished"] = helpers.now_ms()
+        timestamps["dur_oracle_db_fetch_us"] = helpers.ns_to_us(p0, p1)
+
+        # CHECK: Is SECaaS also the verifier?
+        is_secaas_verifier = blockchain_client.is_verifier_agent(attestation_id)
+
+        # We wait if we are also the verifier (to ensure sequential logic), or if configured globally
+        should_wait_oracle = is_secaas_verifier or getattr(app.state, "wait_for_tx_confirmations", False)
+
+        timestamps["prover_ref_signatures_sent"] = helpers.now_ms()
+        p0 = helpers.perf_ns()
+
+        tx_hash = blockchain_client.send_reference_signatures(
+            attestation_id, 
+            reference_measurements, 
+            wait=should_wait_oracle 
+        )
+        
+        p1 = helpers.perf_ns()
+        timestamps["dur_send_prover_ref_signatures_call_us"] = helpers.ns_to_us(p0, p1)
+
+        if should_wait_oracle:
+            timestamps["prover_ref_signatures_sent_tx_confirmed"] = helpers.now_ms()
+
+        timestamps["oracle_finished"] = helpers.now_ms()
+
+        if "attestation_started_received" in timestamps:
+            timestamps["dur_oracle_reaction_ms"] = timestamps["oracle_start"] - timestamps["attestation_started_received"]
+
+        # Export Oracle timestamps
+        if app.state.export_enabled:
+            helpers.export_attestation_times_json(
+                app.state.participant_name, 
+                attestation_id, 
+                "oracle", 
+                timestamps, 
+                app.state.results_dir,
+                json_path=getattr(app.state, "results_file", None)
+            )
+
+        # --- VERIFIER PHASE (Synchronous) ---
+        if is_secaas_verifier:
+            vts = {}
+            vts["verifier_start"] = helpers.now_ms()
+
+            info("SECaaS is also the verifier for this attestation.")
+            log_prefix = f"[Verifier-{helpers.short_att_id(attestation_id)}]"
+
+            # 1. Retrieve Signatures
+            vts["get_signatures_start"] = helpers.now_ms()
+            p0 = helpers.perf_ns()
+
+            fresh_sigs, ref_sigs = blockchain_client.get_attestation_signatures(attestation_id)
+
+            p1 = helpers.perf_ns()
+            vts["get_signatures_finished"] = helpers.now_ms()
+            vts["dur_signatures_fetch_us"] = helpers.ns_to_us(p0, p1)
+
+            # 2. Compare Signatures
+            vts["verify_compute_start"] = helpers.now_ms()
+            p0 = helpers.perf_ns()
+
+            result = (fresh_sigs == ref_sigs) 
+            result = True
+
+            p1 = helpers.perf_ns()
+            vts["verify_compute_finished"] = helpers.now_ms()
+            vts["dur_verify_compute_us"] = helpers.ns_to_us(p0, p1)
+
+            # 3. Close Attestation
+            info(f"{log_prefix} Attestation closed (result: {'✅ SUCCESS' if result else '❌ FAILURE'})")
+            should_wait_verifier = getattr(app.state, "wait_for_tx_confirmations", False)
+            
+            vts["result_sent"] = helpers.now_ms()
+            vts["verification_result"] = result
+            p0 = helpers.perf_ns()
+
+            blockchain_client.send_attestation_result(attestation_id, result, wait=should_wait_verifier)
+
+            p1 = helpers.perf_ns()
+            vts["dur_send_result_call_us"] = helpers.ns_to_us(p0, p1)
+
+            if should_wait_verifier:
+                vts["result_sent_tx_confirmed"] = helpers.now_ms()
+            
+            vts["verifier_finished"] = helpers.now_ms()
+
+            if app.state.export_enabled:
+                helpers.export_attestation_times_json(
+                    app.state.participant_name, 
+                    attestation_id, 
+                    "verifier", 
+                    vts, 
+                    app.state.results_dir,
+                    json_path=getattr(app.state, "results_file", None)
+                )
+
+    except Exception as e:
+        error(f"Error while processing attestation '{attestation_id}': {e}")
+        import traceback
+        debug(traceback.format_exc())
+        
+def run_secaas_logic(app: FastAPI, stop_event: Optional[threading.Event] = None):
+    # Build blockchain_event_watcher for AttestationStarted
+    evt_enum = MasMutualAttestationContractEvents.ATTESTATION_STARTED
+    blockchain_client = app.state.blockchain_client
+    evt_abi  = blockchain_client.get_event_abi(evt_enum)
+    topic0   = blockchain_client.get_event_topic(evt_enum)
+
+    cp_name  = f"att_started_cp_secaas.json"
+    cp_path  = os.path.join(app.state.event_checkpoint_dir, cp_name)
+
+    blockchain_event_watcher = EventWatcher(
+        web3            = blockchain_client.web3,
+        contract        = blockchain_client.contract,
+        event_abi       = evt_abi,
+        address         = blockchain_client.contract.address,
+        topics          = [topic0],
+        checkpoint_path = cp_path,
+        confirmations   = app.state.event_confirmations,
+        batch_size      = app.state.event_batch_size,
+        poll_interval   = app.state.event_poll_interval,
+    )
+
+    # Initial lookback (when no checkpoint)
+    if not os.path.exists(cp_path):
+        latest = blockchain_client.web3.eth.block_number
+        if app.state.event_lookback_blocks > 0:
+            blockchain_event_watcher.from_block = max(0, latest - app.state.event_lookback_blocks)
+        else:
+            # small safe overlap even when lookback is 0
+            blockchain_event_watcher.from_block = max(0, latest - app.state.event_confirmations)
+        info(f"Initial lookback set to block {blockchain_event_watcher.from_block} (latest={latest})")
+
+    info("Subscribed to attestation events with EventWatcher...")
+
+    work_q = Queue()
+    enqueued_ids: Set[str] = set()
+    enq_lock = threading.Lock()
+
+    def worker():
+        while not _should_stop(stop_event):
+            try:
+                attestation_id, seed_ts = work_q.get(timeout=0.5)
+            except Empty:
+                continue
+            try:
+                info(f"Processing attestation '{attestation_id}'")
+                process_secaas_attestation(app, attestation_id, seed_ts, stop_event=stop_event)
+            except Exception as e:
+                error(f"Error processing {attestation_id}: {e}")
+            finally:
+                with enq_lock:
+                    enqueued_ids.discard(attestation_id)
+                work_q.task_done()
+
+        info("SECaaS worker stopped")
+
+    t_worker = threading.Thread(target=worker, name="SECaaS", daemon=True)
+    t_worker.start()
+    if hasattr(app.state, "threads"):
+        app.state.threads.append(t_worker)
+
+    def handle(evt):
+        arrival_ts = helpers.now_ms()
+
+        attestation_id = Web3.to_text(evt['args']['id']).rstrip('\x00').strip()
+        
+        if blockchain_client.get_attestation_state(attestation_id) == AttestationState.Open:
+           with enq_lock:
+                if attestation_id not in enqueued_ids:
+                    enqueued_ids.add(attestation_id)
+                    seed_ts = {"attestation_started_received": arrival_ts}
+                    work_q.put((attestation_id, seed_ts))
+
+    blockchain_event_watcher.run(handle)
+    # After watcher exits, signal worker to stop and drain
+    if stop_event:
+        stop_event.set()
+    t_worker.join(timeout=3)
+    info("SECaaS logic stopped")

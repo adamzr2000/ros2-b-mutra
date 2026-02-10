@@ -26,22 +26,24 @@ OUTPUT_FILE = f"./attestation_event_flow_run{TARGET_RUN}.pdf" if TARGET_RUN else
 FONT_SCALE = 1.5
 LINE_WIDTH = 1.2
 SPINES_WIDTH = 1.0
-FIG_SIZE = (12, 6)  # Slightly more compact
+FIG_SIZE = (12, 6)
 RECT_ALPHA = 0.35
 VERT_LINE_LEN = 0.6
 RECT_HEIGHT = 0.45
 NUM_OFFSET = 0.25
 MIN_SEP_PX = 12
 GROUP_GAP = 0.4
-EVENT_LABELS_FONT_SIZE=8
+EVENT_LABELS_FONT_SIZE = 8
 
+# UPDATED: 7 Events as requested
 EVENT_LABELS: Dict[int, str] = {
-    1: "Evidence sent",
-    2: "Attestation started",
-    3: "Ref. signature sent",
-    4: "Evaluation ready",
-    5: "Result sent",
-    6: "Result received",
+    1: "Start local hashing",
+    2: "Fresh signatures sent",
+    3: "Attestation started",
+    4: "Ref. signatures sent",
+    5: "Evaluation ready",
+    6: "Result sent",
+    7: "Result received",
 }
 
 def _lighten(hex_color: str, factor: float = 0.65) -> str:
@@ -75,22 +77,44 @@ def _format_label(lbl: str) -> str:
     return f"{name} ({role})"
 
 def _map_to_event_code(is_robot: bool, is_secaas: bool, role: str, t_key: str) -> Optional[int]:
-    t = t_key.strip().lower()
+    """
+    Maps raw timestamp keys to Event IDs (1-7).
+    """
+    t = t_key.strip() # keep case sensitivity if needed, or .lower() 
+    # normalize for comparison
+    t_lower = t.lower()
     r = role.strip().lower()
+
     if is_robot:
         if r == "prover":
-            if t == "t_evidence_sent": return 1
-            if t == "t_result_received": return 6
+            # 1. Start local hashing
+            if t_lower == "t_prover_start": return 1
+            # 2. Fresh signatures sent
+            if t_lower == "t_evidence_sent": return 2
+            # 7. Result received
+            if t_lower == "t_result_received": return 7
+        
         elif r == "verifier":
-            if t == "t_attestation_started_received": return 2
-            if t == "t_evaluation_ready_received": return 4
-            if t == "t_result_sent": return 5
+            # 5. Evaluation ready (Verifier start)
+            if t_lower == "t_verifier_start": return 5
+            # 6. Result sent
+            if t_lower == "t_result_sent": return 6
+
     if is_secaas:
         if r == "oracle":
-            if t == "t_attestation_started_received": return 2
-            if t == "t_ref_signatures_sent": return 3
+            # 3. Attestation started
+            if t_lower == "t_oracle_start": return 3
+            # 4. Ref. signatures sent
+            # Check both requested key and standard key just in case
+            if t_lower == "t_prover_ref_signatures_sent": return 4
+            if t_lower == "t_ref_signatures_sent": return 4
+
         elif r == "verifier":
-            if t == "t_result_sent": return 5
+            # 5. Evaluation ready (Verifier start)
+            if t_lower == "t_verifier_start": return 5
+            # 6. Result sent
+            if t_lower == "t_result_sent": return 6
+
     return None
 
 def _collect_rows(data_root: Dict, mode_single_run: bool) -> pd.DataFrame:
@@ -137,6 +161,10 @@ def main():
     if TARGET_RUN is not None:
         src = dir_path / FILE_BY_RUN
         print(f"[INFO] Mode: Single Run (Run {TARGET_RUN})")
+        # Ensure file exists
+        if not src.exists():
+            print(f"[ERR] File not found: {src}")
+            return
         with open(src, "r") as f:
             full_json = json.load(f)
         data_root = full_json["by_run"].get(f"run{TARGET_RUN}", {})
@@ -144,13 +172,18 @@ def main():
     else:
         src = dir_path / FILE_SUMMARY
         print(f"[INFO] Mode: Average Summary")
+        if not src.exists():
+            print(f"[ERR] File not found: {src}")
+            return
         with open(src, "r") as f:
             full_json = json.load(f)
         data_root = full_json.get("summary", {})
         mode_single = False
 
     df = _collect_rows(data_root, mode_single)
-    if df.empty: raise SystemExit("No event rows collected.")
+    if df.empty: 
+        print("No event rows collected. Check if JSON keys match _map_to_event_code.")
+        return
 
     # --- Order + Y positions ---
     role_labels = _order_role_labels(sorted(df["role_label"].unique().tolist()))
@@ -178,7 +211,7 @@ def main():
         fill_map[lbl] = _lighten(base_color, factor=0.65)
 
     # ---- Figure ----
-    # Adjusted width ratios: More space for plot (1.0), less for legend (0.25)
+    # Adjusted width ratios
     fig = plt.figure(figsize=FIG_SIZE, constrained_layout=False)
     gs = fig.add_gridspec(nrows=1, ncols=2, width_ratios=[1.0, 0.25], wspace=0.02)
     ax = fig.add_subplot(gs[0, 0])
@@ -205,7 +238,7 @@ def main():
 
     # --- X Limits ---
     if ZOOM_X_LIMIT is not None:
-        ax.set_xlim(0, ZOOM_X_LIMIT)
+        ax.set_xlim(-3.0, ZOOM_X_LIMIT)
     else:
         # Auto-scale with padding
         x_min = (df["mean_s"] - df["std_s"]).min()
@@ -216,7 +249,8 @@ def main():
     # --- Jitter Logic for Numbers ---
     fig.canvas.draw()
     x0, x1 = ax.get_xlim()
-    ax_w_px = ax.get_window_extent().width
+    bbox = ax.get_window_extent()
+    ax_w_px = bbox.width if bbox else 1
     data_per_px = (x1 - x0) / ax_w_px if ax_w_px > 0 else 0.001
     delta_x_data = MIN_SEP_PX * data_per_px
 

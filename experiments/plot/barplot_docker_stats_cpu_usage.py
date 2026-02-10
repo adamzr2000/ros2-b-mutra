@@ -167,7 +167,7 @@ def main():
             )
 
     # Formatting
-    ax.set_ylabel("CPU usage (vCPUs)\nof attestation-sidecar container")
+    ax.set_ylabel("CPU usage (vCPUs)\nattestation-sidecar container")
     ax.set_xlabel("")
     
     # Tighten X-axis

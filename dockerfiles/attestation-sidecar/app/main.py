@@ -1,37 +1,29 @@
-import logging
-import json
-import utils
-from blockchain_manager import BlockchainManager
-
 import os
+import re
+import glob
+import json
 import threading
-import glob, re
-from web3 import Web3
+
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
-from prover import run_prover_logic_continuous_mode
-from verifier import run_verifier_logic_sequential
-from RedisStorageBackend import RedisStorageBackend
-from MemoryStorageBackend import MemoryStorageBackend
+from app.internal.logger import init_logging, info, warn, error, debug, green_text
+from app.internal.utils import helpers
+from app.internal.blockchain.client import BlockchainClient
+from app.internal.attestation.prover import run_prover_logic_continuous_mode
+from app.internal.attestation.verifier import run_verifier_logic_sequential
+from app.internal.storage.redis import RedisStorageBackend
+from app.internal.storage.memory import MemoryStorageBackend
 
-# === ANSI + Logging (same as you have) ===
-GREEN = "\033[92m"; YELLOW = "\033[93m"; BLUE = "\033[94m"; MAGENTA = "\033[95m"; CYAN = "\033[96m"; RESET = "\033[0m"
-
-# === Logging ===
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-
-if LOG_LEVEL == "NONE":
-    print("[logging] LOG_LEVEL=NONE → all logs disabled")
-    logging.disable(logging.CRITICAL)  # silence everything
-else:
-    numeric_level = getattr(logging, LOG_LEVEL, logging.INFO)
-    logging.basicConfig(format="%(asctime)s - %(levelname)s - [%(threadName)s] %(message)s", level=numeric_level)
-    print(f"[logging] LOG_LEVEL={LOG_LEVEL} ({numeric_level})")
+# -----------------------------------------------------------------------------
+# Logging init (custom logger)
+# -----------------------------------------------------------------------------
+init_logging()
 
 app = FastAPI()
-logger = logging.getLogger(__name__)
 
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
 def _next_run_json(results_dir: str, participant: str) -> str:
     os.makedirs(results_dir, exist_ok=True)
     base = results_dir.rstrip("/")
@@ -66,20 +58,21 @@ def start_attestation(app: FastAPI):
         if not getattr(app.state, "results_file", None):
             # Fallback only (should rarely happen now)
             app.state.results_file = _next_run_json(app.state.results_dir, app.state.participant_name)
-            logger.info(f"Results file selected (fallback): {app.state.results_file}")
+            info(f"Results file selected (fallback): {app.state.results_file}")
 
-        utils.ensure_results_initialized(
+        helpers.ensure_results_initialized(
             app.state.results_dir,
             app.state.participant_name,
             json_path=app.state.results_file
         )
 
     if app.state.measuring:
-        logger.info("Agent attestation already running; ignoring start request")
+        info("Agent attestation already running; ignoring start request")
         return
-    app.state.measuring = True
 
-    logger.info("Agent attestation loop started")
+    app.state.measuring = True
+    info("Agent attestation loop started")
+
     t1 = threading.Thread(
         target=run_prover_logic_continuous_mode,
         args=(app, app.state.stop_event),
@@ -92,7 +85,9 @@ def start_attestation(app: FastAPI):
         name=app.state.participant_name,
         daemon=True
     )
-    t1.start(); t2.start()
+
+    t1.start()
+    t2.start()
     app.state.threads.extend([t1, t2])
 
 def stop_attestation(app: FastAPI):
@@ -108,114 +103,136 @@ def stop_attestation(app: FastAPI):
         try:
             t.join(timeout=3)
         except Exception as e:
-            logger.warning(f"Failed joining thread {t.name}: {e}")
+            warn(f"Failed joining thread {t.name}: {e}")
 
     # Reset the thread list after stopping
     if hasattr(app.state, "threads"):
         app.state.threads.clear()
 
     if app.state.export_enabled:
-        utils.mark_experiment_stop(
+        helpers.mark_experiment_stop(
             app.state.results_dir, 
             app.state.participant_name, 
             json_path=getattr(app.state, "results_file", None)
         )
 
+# -----------------------------------------------------------------------------
+# Startup
+# -----------------------------------------------------------------------------
 @app.on_event("startup")
 async def startup():    
-    JSON_FILE_PATH = utils.get_env_str("CONFIG_PATH", default="")
-    if not JSON_FILE_PATH:
-        logger.error("CONFIG_PATH environment variable is required.")
+    config_path  = helpers.get_env_str("CONFIG_PATH", default="")
+    if not config_path:
+        error("CONFIG_PATH environment variable is required.")
         raise SystemExit(1)
 
     try:
-        with open(JSON_FILE_PATH, "r") as json_file:
+        with open(config_path, "r") as json_file:
             data = json.load(json_file)
+
         eth_address = data["eth_address"]
         private_key = data["private_key"]
         eth_node_url = data["eth_node_url"]
-        contract_address = Web3.toChecksumAddress(data["contract_address"])
+        contract_address = data["contract_address"]
+
+        # optional compute/hash params
         if 'cmd_name' in data:
             app.state.cmd_name = data['cmd_name']
         if 'text_section_size' in data:
             app.state.text_section_size = int(data['text_section_size'])
         if 'offset' in data:
             app.state.offset = int(data['offset'])
+            
     except Exception as e:
-        logger.error(f"Configuration error: {str(e)}")
+        error(f"Configuration error: {str(e)}")
         raise SystemExit(1)
 
     # App state
     app.state.participant = "agent"
+    app.state.participant_name = data.get("name", "agent")
+    app.state.export_enabled = os.getenv("EXPORT_RESULTS", "false").lower() == "true"
+    app.state.results_dir = helpers.get_env_str("RESULTS_DIR", default="/experiments/data/attestation-times")
 
-    app.state.blockchain_manager = BlockchainManager(
+    # Blockchain client
+    app.state.blockchain_client = BlockchainClient(
         eth_address=eth_address,
         private_key=private_key,
         eth_node_url=eth_node_url,
         abi_path="/smart-contracts/artifacts/contracts/MasMutualAttestation.sol/MasMutualAttestation.json",
         contract_address=contract_address
     )
+
+    app.state.wait_for_tx_confirmations = os.getenv("WAIT_FOR_TX_CONFIRMATIONS", "false").lower() == "true"
+
     app.state.active_attestations = {}   # attestation_id → Thread
-    app.state.export_enabled = os.getenv("EXPORT_RESULTS", "false").lower() == "true"
-    app.state.participant_name = data["name"]  # agent name from config
-    app.state.results_dir = utils.get_env_str("RESULTS_DIR", default="/experiments/data/attestation-times")
+
     app.state.fail_attestation_flag = os.getenv("FAIL_ATTESTATION", "false").lower() == "true"
-    app.state.event_confirmations = utils.get_env_int("EVENT_CONFIRMATIONS", default=1)
-    app.state.event_batch_size = utils.get_env_int("EVENT_BATCH_SIZE", default=1000)
-    app.state.event_poll_interval = utils.get_env_float("EVENT_POLL_INTERVAL", default=1)
-    app.state.event_lookback_blocks = utils.get_env_int("EVENT_LOOKBACK_BLOCKS", default=0)
-    app.state.event_checkpoint_dir = utils.get_env_str("EVENT_CHECKPOINT_DIR", default="/checkpoints")
-    app.state.chain_display = utils.get_env_str("CHAIN_DISPLAY", default="false").strip().lower() in ("true", "yes", "1")
-    app.state.chain_display_sec = utils.get_env_int("CHAIN_DISPLAY_SEC", default=30)
-    app.state.chain_display_n   = utils.get_env_int("CHAIN_DISPLAY_N", default=10)
+
+    # Events watcher config
+    app.state.event_confirmations = helpers.get_env_int("EVENT_CONFIRMATIONS", default=1)
+    app.state.event_batch_size = helpers.get_env_int("EVENT_BATCH_SIZE", default=1000)
+    app.state.event_poll_interval = helpers.get_env_float("EVENT_POLL_INTERVAL", default=1)
+    app.state.event_lookback_blocks = helpers.get_env_int("EVENT_LOOKBACK_BLOCKS", default=0)
+    app.state.event_checkpoint_dir = helpers.get_env_str("EVENT_CHECKPOINT_DIR", default="/checkpoints")
     
-    # Initialize stop/threads tracking so we can start immediately if AUTO_START
+    # Chain display config
+    app.state.chain_display = helpers.get_env_str("CHAIN_DISPLAY", default="false").strip().lower() in ("true", "yes", "1")
+    app.state.chain_display_sec = helpers.get_env_int("CHAIN_DISPLAY_SEC", default=30)
+    app.state.chain_display_n   = helpers.get_env_int("CHAIN_DISPLAY_N", default=10)
+    
+    # Thread tracking
     app.state.stop_event = threading.Event()
     app.state.threads = []
 
-    USE_REDIS = os.getenv("USE_REDIS", "false").lower() == "true"
-    app.state.storage = RedisStorageBackend() if USE_REDIS else MemoryStorageBackend()
-    app.state.prover_threshold = utils.get_env_int("PROVER_THRESHOLD", default=300)
-    app.state.memory_storage_file = utils.get_env_str("MEMORY_STORAGE_FILE", default="")
+    # Storage
+    use_redis = os.getenv("USE_REDIS", "false").lower() == "true"
+    app.state.storage = RedisStorageBackend() if use_redis else MemoryStorageBackend()
+    app.state.memory_storage_file = helpers.get_env_str("MEMORY_STORAGE_FILE", default="")
+
+    # Prover config
+    app.state.prover_threshold = helpers.get_env_int("PROVER_THRESHOLD", default=300)
     app.state.measuring = False
     app.state.digests = []
     app.state.digests_count = 0
     app.state.final_digest = ""
-    AUTO_START = os.getenv("AUTO_START", "false").lower() == "true"
 
-    # Precompute results file path for this run when exporting is enabled
+    auto_start = os.getenv("AUTO_START", "false").strip().lower() == "true"
+
+    # Precompute results file
     app.state.results_file = None
     if app.state.export_enabled:
         run_id = os.getenv("RUN_ID", "").strip()
         if run_id:
-            app.state.results_file = os.path.join(
-                app.state.results_dir,
-                f"{app.state.participant_name}-run{run_id}.json"
-            )
-            logger.info(f"Preselected results file (RUN_ID={run_id}): {app.state.results_file}")
+            app.state.results_file = os.path.join(app.state.results_dir, f"{app.state.participant_name}-run{run_id}.json")
+            info(f"Preselected results file (RUN_ID={run_id}): {app.state.results_file}")
         else:
             app.state.results_file = _next_run_json(app.state.results_dir, app.state.participant_name)
-            logger.info(f"Preselected results file (auto): {app.state.results_file}")
+            info(f"Preselected results file (auto): {app.state.results_file}")
 
-    # Start background roles
+    # Background roles: chain display or register + maybe autostart
     if app.state.chain_display:
-        chain_display_thread = threading.Thread(
-            target=app.state.blockchain_manager.periodic_attestation_chain_display,
+        t = threading.Thread(
+            target=app.state.blockchain_client.periodic_attestation_chain_display,
             args=(app.state.chain_display_n, app.state.chain_display_sec),
             name="ChainDisplay",
             daemon=True
         )
-        chain_display_thread.start()
-        app.state.threads.append(chain_display_thread)
+        t.start()
+        app.state.threads.append(t)
     else:
-        if not app.state.blockchain_manager.is_registered():
-            logger.info(f"Registering agent '{app.state.participant_name}' ({eth_address}) ...")
-            tx_hash = app.state.blockchain_manager.register_agent(app.state.participant_name, wait=True, timeout=30)
-            logger.info(f"{app.state.participant_name} registered (Tx: {tx_hash})")
+        if not app.state.blockchain_client.is_registered():
+            info(f"Registering agent '{app.state.participant_name}' ({eth_address}) ...")
+            tx_hash = app.state.blockchain_client.register_agent(app.state.participant_name, wait=True, timeout=30)
+            info(f"{app.state.participant_name} registered (Tx: {tx_hash})")
         
-        if AUTO_START:
+        if auto_start:
             start_attestation(app)
 
+    info(green_text("Startup completed for participant '%s'"), app.state.participant_name)
+
+# -----------------------------------------------------------------------------
+# API routes
+# -----------------------------------------------------------------------------
 @app.get("/")
 def root_endpoint():
     return {"message": "Attestation sidecar running."}
@@ -229,10 +246,12 @@ def start_endpoint():
 def stop_endpoint():
     stop_attestation(app)
     return {"message": "Attestation stopped."}
-    
+
+# -----------------------------------------------------------------------------
+# Shutdown
+# -----------------------------------------------------------------------------
 @app.on_event("shutdown")
 async def shutdown():
     stop_attestation(app)
-
-    # graceful cleanup
-    getattr(app.state.blockchain_manager, "close", lambda: None)()
+    # If you later add a close() to BlockchainClient, it'll be called here safely.
+    getattr(app.state.blockchain_client, "close", lambda: None)()

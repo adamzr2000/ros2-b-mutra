@@ -134,6 +134,7 @@ def main():
     # 1. Setup .env
     upsert_env("EXPORT_RESULTS", "TRUE")
     upsert_env("RESULTS_DIR", args.results_dir)
+    upsert_env("AUTO_START", "FALSE")
     print(f"✅ .env updated: RESULTS_DIR={args.results_dir}")
 
     try:

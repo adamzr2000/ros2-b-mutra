@@ -117,7 +117,7 @@ def main():
     )
 
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("CPU usage (vCPUs)\nof attestation-sidecar container")
+    ax.set_ylabel("CPU usage (vCPUs)\nattestation-sidecar container")
     ax.set_title(f"rolling mean = {WINDOW_S}s")
 
     ax.set_axisbelow(True)

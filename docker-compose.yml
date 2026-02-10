@@ -82,17 +82,14 @@ services:
       - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
       - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
       - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
     ports:
       - "8080:8080"
     volumes:
       - "./config/:/config:rw"
       - "./experiments/:/experiments:rw"
       - "./smart-contracts:/smart-contracts"
-      - ./dockerfiles/secaas/app/main.py:/app/main.py
-      - ./dockerfiles/secaas/app/blockchain_manager.py:/app/blockchain_manager.py
-      - ./dockerfiles/secaas/app/utils.py:/app/utils.py
-      - ./dockerfiles/secaas/app/oracle_verifier.py:/app/oracle_verifier.py
-      - ./checkpoints/secaas:/checkpoints
+      - ./dockerfiles/secaas/app:/src/app
 
     networks:
       - quorum-dev-quickstart
@@ -131,18 +128,13 @@ services:
       - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
       - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
       - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
     ports:
       - "8081:8080"
     volumes:
       - ./config/robot1.json:/config/robot1.json
       - ./smart-contracts:/smart-contracts
-      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
-      - ./dockerfiles/attestation-sidecar/app/blockchain_manager.py:/app/blockchain_manager.py
-      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
-      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
-      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
-      - ./dockerfiles/attestation-sidecar/app/compute_hash.py:/app/compute_hash.py
-      - ./experiments/:/experiments:rw
+      - ./experiments/data/:/experiments/data:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
       - ./binaryfiles/:/binaryfiles:rw
@@ -194,18 +186,13 @@ services:
       - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
       - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
       - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
     ports:
       - "8082:8080"
     volumes:
       - ./config/robot2.json:/config/robot2.json
       - ./smart-contracts:/smart-contracts
-      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
-      - ./dockerfiles/attestation-sidecar/app/blockchain_manager.py:/app/blockchain_manager.py
-      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
-      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
-      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
-      - ./dockerfiles/attestation-sidecar/app/compute_hash.py:/app/compute_hash.py
-      - ./experiments/:/experiments:rw
+      - ./experiments/data/:/experiments/data:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
       - ./binaryfiles/:/binaryfiles:rw
@@ -255,18 +242,13 @@ services:
       - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
       - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
       - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
     ports:
       - "8083:8080"
     volumes:
       - ./config/robot3.json:/config/robot3.json
       - ./smart-contracts:/smart-contracts
-      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
-      - ./dockerfiles/attestation-sidecar/app/blockchain_manager.py:/app/blockchain_manager.py
-      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
-      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
-      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
-      - ./dockerfiles/attestation-sidecar/app/compute_hash.py:/app/compute_hash.py
-      - ./experiments/:/experiments:rw
+      - ./experiments/data/:/experiments/data:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
       - ./binaryfiles/:/binaryfiles:rw
@@ -316,18 +298,13 @@ services:
       - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
       - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
       - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
     ports:
       - "8084:8080"
     volumes:
       - ./config/robot4.json:/config/robot4.json
       - ./smart-contracts:/smart-contracts
-      - ./dockerfiles/attestation-sidecar/app/main.py:/app/main.py
-      - ./dockerfiles/attestation-sidecar/app/blockchain_manager.py:/app/blockchain_manager.py
-      - ./dockerfiles/attestation-sidecar/app/utils.py:/app/utils.py
-      - ./dockerfiles/attestation-sidecar/app/prover.py:/app/prover.py
-      - ./dockerfiles/attestation-sidecar/app/verifier.py:/app/verifier.py
-      - ./dockerfiles/attestation-sidecar/app/compute_hash.py:/app/compute_hash.py
-      - ./experiments/:/experiments:rw
+      - ./experiments/data/:/experiments/data:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
       - ./binaryfiles/:/binaryfiles:rw
@@ -356,15 +333,6 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_DB=${POSTGRES_DB}
-    networks:
-      - quorum-dev-quickstart
-
-  redis:
-    image: redis:alpine
-    container_name: redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
     networks:
       - quorum-dev-quickstart
 

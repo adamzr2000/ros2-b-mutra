@@ -4,38 +4,51 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
+import sys
 
 # ---- Config ----
-# We use the RAW data file, not the summary, for CDFs
-INPUT_FILE = "../data/attestation-times/_summary/all_raw_attestation_durations.csv"
+# UPDATED: Points to the RAW file we just created
+INPUT_FILE = "../data/attestation-times/_summary/attestation_durations_raw.csv"
 OUTPUT_FILE = "./cdfplot_attestation_cycle_time_per_robot.pdf"
+
+# UPDATED: Metric to plot
+TARGET_METRIC = "e2e_blockchain" 
 
 FONT_SCALE = 1.5
 SPINES_WIDTH = 1.0
-LINE_WIDTH = 2.0
+LINE_WIDTH = 2.5
 FIG_SIZE = (7, 4.5)
 
 def main():
-    csv_path = Path(INPUT_FILE).resolve()
+    script_dir = Path(__file__).parent.resolve()
+    # Try multiple paths to find the file
+    csv_path = (script_dir / INPUT_FILE).resolve()
+    
     if not csv_path.exists():
-        raise SystemExit(f"CSV not found: {csv_path}\nDid you run the updated summarizer?")
+        print(f"[ERR] CSV not found at: {csv_path}")
+        print("Did you run the updated 'summarize_attestation_durations.py' first?")
+        sys.exit(1)
 
     df = pd.read_csv(csv_path)
 
-    # CDF requires the raw duration column
-    required = {"participant", "duration_s"}
-    missing = required - set(df.columns)
-    if missing:
-        raise SystemExit(f"CSV missing required columns: {missing}")
+    # Filter for the specific metric
+    df = df[df["metric"] == TARGET_METRIC].copy()
+    
+    if df.empty:
+        print(f"[ERR] No data found for metric: {TARGET_METRIC}")
+        sys.exit(1)
 
-    # Sort Robot1, Robot2, ... logically
-    df = df.sort_values(
-        "participant",
-        key=lambda s: s.astype(str).str.extract(r"(\d+)").iloc[:, 0].astype(float).fillna(0)
-    ).reset_index(drop=True)
+    # Sort Logic
+    def sort_key(s):
+        val = s.astype(str).str.extract(r"(\d+)").iloc[:, 0].astype(float)
+        return val.fillna(999)
 
-    # Theme + palette (Matching barplot style)
-    sns.set_theme(context="paper", style="ticks", rc={"xtick.direction": "in", "ytick.direction": "in"}, font_scale=FONT_SCALE)
+    df = df.sort_values(by="participant", key=sort_key).reset_index(drop=True)
+
+    # Theme
+    sns.set_theme(context="paper", style="ticks", 
+                  rc={"xtick.direction": "in", "ytick.direction": "in"}, 
+                  font_scale=FONT_SCALE)
 
     ordered_labels = df["participant"].unique().tolist()
     palette = sns.color_palette("colorblind", n_colors=len(ordered_labels))
@@ -54,29 +67,29 @@ def main():
         ax=ax
     )
 
-    # Labels and Title
-    ax.set_ylabel(f"CDF attestation cycle time")
-    ax.set_xlabel("Time (s)")
+    # Labels
+    ax.set_ylabel("CDF")
+    ax.set_xlabel("Attestation Cycle Time (s)")
+    # ax.set_title(f"CDF of {TARGET_METRIC.replace('_', ' ').title()}")
 
-    # 1. Add a bit of space at the top (0.0 to 1.05)
+    # Limits & Grid
     ax.set_ylim(0, 1.05)
-
-    # Grid (Matching barplot style: Y-axis only, dashed)
     ax.set_axisbelow(True)
-    ax.grid(axis="both", linestyle="-", linewidth=1.0, alpha=0.8)
+    ax.grid(axis="both", linestyle="--", linewidth=0.5, alpha=0.8)
 
-    # Spines (Matching barplot style: Black, thick)
+    # Spines
     for side in ("top", "right", "bottom", "left"):
         ax.spines[side].set_color("black")
         ax.spines[side].set_linewidth(SPINES_WIDTH)
 
+    # Legend
     sns.move_legend(ax, "lower right", frameon=True, framealpha=0.9, title=None)
 
     plt.tight_layout()
-    fig.savefig(OUTPUT_FILE, dpi=300, bbox_inches="tight")
-    print(f"[OK] Saved plot to: {OUTPUT_FILE}")
+    out_path = script_dir / OUTPUT_FILE
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    print(f"[OK] Saved plot to: {out_path}")
     plt.close(fig)
-
 
 if __name__ == "__main__":
     main()
