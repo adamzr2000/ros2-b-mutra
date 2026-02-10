@@ -5,6 +5,7 @@ IFS=$'\n\t'
 # --- Paths ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
+SECAAS_URL="http://localhost:8080"
 
 # --- Ensure .env has desired values BEFORE anything else ---
 upsert_env () {
@@ -17,6 +18,25 @@ upsert_env () {
     # append new key
     echo "$key=$val" >> "$ENV_FILE"
   fi
+}
+
+wait_for_secaas () {
+  echo "⏳ Waiting for SECaaS API to be ready at $SECAAS_URL..."
+  local max_attempts=30
+  local attempt=1
+  
+  while [ $attempt -le $max_attempts ]; do
+    if curl -s "$SECAAS_URL/" | grep -q "SECaaS running"; then
+      echo "✅ SECaaS is UP and running!"
+      return 0
+    fi
+    echo "   (Attempt $attempt/$max_attempts) Still waiting..."
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+
+  echo "❌ SECaaS failed to start in time."
+  return 1
 }
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -57,5 +77,15 @@ cd "$SCRIPT_DIR"
 
 # Start containers (docker compose will read the updated .env)
 docker compose up -d
+
+# --- Final Step: Wait and Sync ---
+if wait_for_secaas; then
+  echo "🔄 Synchronizing agent signatures to PostgreSQL..."
+  curl -X POST "$SECAAS_URL/sync-agents" -H "Content-Type: application/json" | jq
+  echo "🚀 System is fully provisioned and synchronized."
+else
+  echo "⚠️  Skipping agent sync because SECaaS is not responding."
+  exit 1
+fi
 
 echo "🎉 All done."

@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore", message="There was an issue with the method et
 
 
 class BlockchainClient:
-    def __init__(self, eth_address, private_key, eth_node_url, abi_path, contract_address):
+    def __init__(self, eth_address, private_key, eth_node_url, contract_address, contract_abi=None, abi_path=None):
         # --- Web3.py v7 Connection Setup ---
         # Note: Sync WebSockets were removed in v7. We must use HTTP.
         if eth_node_url.startswith("ws://") or eth_node_url.startswith("wss://"):
@@ -57,11 +57,16 @@ class BlockchainClient:
         else:
             self.eth_address = derived_addr
 
+        abi = contract_abi
 
-        with open(abi_path, "r") as f:
-            abi = json.load(f).get("abi")
         if not abi:
-            raise ValueError("ABI not found in JSON")
+            if not abi_path:
+                raise ValueError("No ABI provided. Set 'contract_abi' in config or provide abi_path.")
+            with open(abi_path, "r") as f:
+                abi = json.load(f).get("abi")
+
+        if not abi:
+            raise ValueError("ABI not found (neither contract_abi nor abi_path produced an ABI).")
 
         self.contract_address = Web3.to_checksum_address(contract_address)
 
@@ -314,7 +319,7 @@ class BlockchainClient:
         try:
             ref_signatures_bytes32 = as_bytes32_triplet(ref_signatures)
 
-            tx_data = self.contract.functions.SendRefSignaures(
+            tx_data = self.contract.functions.SendRefSignatures(
                 text_to_bytes32(attestation_id),
                 ref_signatures_bytes32
             ).build_transaction({'from': self.eth_address})

@@ -1,0 +1,11 @@
+{
+    "name": "robot1",
+    "sha256": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
+    "eth_address": "0xb255c0555a18dfe7d2f748db75102e71c69b0249",
+    "private_key": "0xd7ccfebed10f4cbce7308bcbe69981ccbe4caf9fd4e96908f72d59832c9e2c61",
+    "ref_signatures": [
+        "60c550260bcd69de5404eb60e744ab1911ca324a6b8d08cf9b8115c7ce9e2979",
+        "60c550260bcd69de5404eb60e744ab1911ca324a6b8d08cf9b8115c7ce9e2979",
+        "60c550260bcd69de5404eb60e744ab1911ca324a6b8d08cf9b8115c7ce9e2979"
+    ]
+}

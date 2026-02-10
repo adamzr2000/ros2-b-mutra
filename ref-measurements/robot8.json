@@ -1,0 +1,11 @@
+{
+    "name": "robot8",
+    "sha256": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
+    "eth_address": "0x781eda9657205e0f90c9ae58abd0ee50137602c1",
+    "private_key": "0x9167b16972baaca726c100622832794def009b72a0b0ec2ba221dabc4196a2ca",
+    "ref_signatures": [
+        "70169e8fc363ce6f5bc9ae7a40fe58c0cc5216c8e8f756f6b88acccff30d7cf5",
+        "70169e8fc363ce6f5bc9ae7a40fe58c0cc5216c8e8f756f6b88acccff30d7cf5",
+        "70169e8fc363ce6f5bc9ae7a40fe58c0cc5216c8e8f756f6b88acccff30d7cf5"
+    ]
+}

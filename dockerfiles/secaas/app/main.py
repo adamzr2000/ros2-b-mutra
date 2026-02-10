@@ -11,7 +11,7 @@ from app.internal.logger import init_logging, info, warn, error, debug, green_te
 from app.internal.utils import helpers
 from app.internal.blockchain.client import BlockchainClient
 from app.internal.attestation.oracle_verifier import run_secaas_logic
-
+from app.internal.database.client import DatabaseClient
 
 # -----------------------------------------------------------------------------
 # Logging init (custom logger)
@@ -102,6 +102,25 @@ async def startup():
         raise SystemExit(1)
 
     try:
+        db_host = os.getenv("DB_HOST", "attestation-db")
+        db_port = int(os.getenv("DB_PORT", "5432"))
+        db_name = os.getenv("DB_NAME", "attestation")
+        db_user = os.getenv("DB_USER", "postgres")
+        db_pass = os.getenv("DB_PASSWORD", "postgres")
+
+        app.state.db_client = DatabaseClient(
+            host=db_host,
+            port=db_port,
+            database=db_name,
+            user=db_user,
+            password=db_pass
+        )
+        info(f"Database client initialized at {db_host}:{db_port}")
+    except Exception as e:
+        error(f"Failed to initialize Database: {e}")
+        raise SystemExit(1)
+
+    try:
         with open(config_path, "r") as json_file:
             data = json.load(json_file)
 
@@ -119,14 +138,19 @@ async def startup():
     app.state.participant_name = data.get("name", "secaas")
     app.state.export_enabled = os.getenv("EXPORT_RESULTS", "false").lower() == "true"
     app.state.results_dir = helpers.get_env_str("RESULTS_DIR", default="/experiments/data/attestation-times")
+    contract_abi = data.get("contract_abi")
+
+    if not contract_abi:
+        error("Missing 'contract_abi' in config JSON.")
+        raise SystemExit(1)
 
     # Blockchain client
     app.state.blockchain_client = BlockchainClient(
         eth_address=eth_address,
         private_key=private_key,
         eth_node_url=eth_node_url,
-        abi_path="/smart-contracts/artifacts/contracts/MasMutualAttestation.sol/MasMutualAttestation.json",
-        contract_address=contract_address
+        contract_address=contract_address,
+        contract_abi=contract_abi,
     )
 
     app.state.wait_for_tx_confirmations = os.getenv("WAIT_FOR_TX_CONFIRMATIONS", "false").lower() == "true"
@@ -141,12 +165,7 @@ async def startup():
     app.state.event_poll_interval = helpers.get_env_float("EVENT_POLL_INTERVAL", default=1)
     app.state.event_lookback_blocks = helpers.get_env_int("EVENT_LOOKBACK_BLOCKS", default=0)
     app.state.event_checkpoint_dir = helpers.get_env_str("EVENT_CHECKPOINT_DIR", default="/checkpoints")
-    
-    # Chain display config
-    app.state.chain_display = helpers.get_env_str("CHAIN_DISPLAY", default="false").strip().lower() in ("true", "yes", "1")
-    app.state.chain_display_sec = helpers.get_env_int("CHAIN_DISPLAY_SEC", default=30)
-    app.state.chain_display_n   = helpers.get_env_int("CHAIN_DISPLAY_N", default=10)
-    
+        
     # Thread tracking
     app.state.stop_event = threading.Event()
     app.state.threads = []
@@ -167,19 +186,8 @@ async def startup():
             app.state.results_file = _next_run_json(app.state.results_dir, app.state.participant_name)
             info(f"Preselected results file (auto): {app.state.results_file}")
 
-    # Start background roles
-    if app.state.chain_display:
-        t = threading.Thread(
-            target=app.state.blockchain_client.periodic_attestation_chain_display,
-            args=(app.state.chain_display_n, app.state.chain_display_sec),
-            name="ChainDisplay",
-            daemon=True
-        )
-        t.start()
-        app.state.threads.append(t)
-    else:
-        if auto_start:
-            start_attestation(app)
+    if auto_start:
+        start_attestation(app)
 
     info(green_text("Startup completed for participant '%s'"), app.state.participant_name)
 
@@ -209,11 +217,64 @@ def reset_attestation_chain():
         return {"message": "Chain reset", "tx_hash": tx_hash}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/sync-agents")
+async def sync_agents_endpoint():
+    """
+    Scans the config directory for robot*.json files and 
+    updates the database with their reference signatures.
+    """
+    config_dir = "/ref-measurements"
+    pattern = os.path.join(config_dir, "robot*.json")
+    config_files = glob.glob(pattern)
     
+    if not config_files:
+        return JSONResponse(
+            status_code=404, 
+            content={"message": "No robot configuration files found."}
+        )
+
+    results = []
+    success_count = 0
+    
+    for file_path in config_files:
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            
+            addr = data.get("eth_address")
+            sigs = data.get("ref_signatures")
+            name = data.get("name", os.path.basename(file_path))
+
+            if addr and sigs:
+                # Use the db_client already in app.state
+                success = app.state.db_client.add_ref_signatures(addr, sigs)
+                if success:
+                    success_count += 1
+                    results.append({"agent": name, "status": "synced", "address": addr})
+                else:
+                    results.append({"agent": name, "status": "failed", "address": addr})
+            else:
+                results.append({"agent": name, "status": "skipped", "reason": "missing data"})
+        
+        except Exception as e:
+            error(f"Error syncing {file_path}: {e}")
+            results.append({"file": file_path, "status": "error", "error": str(e)})
+
+    return {
+        "message": f"Sync completed. {success_count}/{len(config_files)} agents updated.",
+        "details": results
+    }
 # -----------------------------------------------------------------------------
 # Shutdown
 # -----------------------------------------------------------------------------
 @app.on_event("shutdown")
 async def shutdown():
     stop_attestation(app)
-    getattr(app.state.blockchain_client, "close", lambda: None)()
+
+    if hasattr(app.state, "blockchain_client"):
+        getattr(app.state.blockchain_client, "close", lambda: None)()
+    
+    if hasattr(app.state, "db_client"):
+        app.state.db_client.close()
+        info("Database connection closed during shutdown.")

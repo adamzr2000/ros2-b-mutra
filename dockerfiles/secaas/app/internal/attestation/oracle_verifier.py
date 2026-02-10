@@ -28,7 +28,8 @@ def process_secaas_attestation(
         timestamps = dict(seed_ts or {})
         log_prefix = f"[Oracle-{helpers.short_att_id(attestation_id)}]"
         blockchain_client = app.state.blockchain_client
-
+        db_client = app.state.db_client
+        
         timestamps["oracle_start"] = helpers.now_ms()
 
         # --- ORACLE PHASE ---
@@ -48,13 +49,19 @@ def process_secaas_attestation(
         timestamps["get_prover_ref_signatures_db_start"] = helpers.now_ms()
         p0 = helpers.perf_ns()
         
-        # Retrieve agent info (Mock DB call)
-        agent_info = helpers.get_agent_by_blockchain_address("/config", agent_address)
-        if not agent_info:
-            error(f"{log_prefix} Agent with address '{agent_address}' not found in the DB.")
+        # Retrieve agent info from DB
+        signatures_dict = db_client.get_ref_signatures(agent_address)
+
+        if not signatures_dict:
+            error(f"{log_prefix} Agent '{agent_address}' not found in Database. Attestation cannot proceed.")
             return
         
-        reference_measurements = agent_info['ref_signatures']
+        # Extract values into the list format [prover, verifier, payload] for the SC
+        reference_measurements = [
+            signatures_dict["prover_signature"],
+            signatures_dict["verifier_signature"],
+            signatures_dict["payload_signature"]
+        ]
 
         p1 = helpers.perf_ns()
         timestamps["get_prover_ref_signatures_db_finished"] = helpers.now_ms()

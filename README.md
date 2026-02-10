@@ -31,7 +31,7 @@ The following modules will be built and tagged locally:
 ## Quick Setup
 
 ```bash
-python3 create_agent_configurations.py --num-agents 10 --output ./config
+python3 create_agent_config.py --num-agents 10
 ```
 
 Start the full experiment with all services:

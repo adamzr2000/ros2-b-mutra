@@ -154,7 +154,7 @@ contract MasMutualAttestation {
         return (proverAgentAddress);
     }     
 
-    function SendRefSignaures(bytes32 id, bytes32[3] memory refMeasurements) public returns (bool) {
+    function SendRefSignatures(bytes32 id, bytes32[3] memory refMeasurements) public returns (bool) {
         require(msg.sender == secaas, "Only the SECaaS can send the reference signature");
         
         MutualAttestation storage currentAttestation = attestation[id];
