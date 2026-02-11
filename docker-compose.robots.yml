@@ -1,0 +1,123 @@
+# docker-compose.robots.yml
+
+x-common-commands:
+  gzserver_command: &gzserver_command >
+    bash -c "
+    source /home/agent/ros2_ws/install/setup.bash && ros2 launch turtlebot3_gazebo gazebo_server.launch.py verbose:=true
+    "
+
+  robot_entrypoint: &robot_entrypoint >
+    bash -c "
+    cd ~/scripts && ./start_turtlebot.sh
+    "
+    
+services:
+  gazebo-server:
+    image: turtlebot3-gazebo
+    container_name: gazebo-server
+    hostname: gazebo-server
+    environment:
+      - ROS_DOMAIN_ID=42   
+      - GAZEBO_AUDIO_DEVICE=none
+    ports:
+      - "11345:11345"
+    tty: true
+    stdin_open: true
+    command: *gzserver_command
+    networks:
+      - robots-net
+
+  gazebo-client:
+    image: gazebo-vnc:latest
+    container_name: gazebo-client
+    hostname: gazebo-client
+    environment:
+      - ROS_DOMAIN_ID=42
+      - GAZEBO_MASTER_URI=http://gazebo-server:11345    
+    depends_on:
+      - gazebo-server    
+    ports:
+      - "6080:80"
+    security_opt:
+      - seccomp=unconfined
+    restart: unless-stopped
+    networks:
+      - robots-net
+
+  robot1:
+    image: turtlebot3-gazebo
+    container_name: robot1
+    hostname: robot1
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot1
+        - X_POSE=0
+        - Y_POSE=0
+    command: *robot_entrypoint
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - robots-net
+
+  robot2:
+    image: turtlebot3-gazebo
+    container_name: robot2
+    hostname: robot2
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot2
+        - X_POSE=5
+        - Y_POSE=0
+    command: *robot_entrypoint
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - robots-net
+
+  robot3:
+    image: turtlebot3-gazebo
+    container_name: robot3
+    hostname: robot3
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot2
+        - X_POSE=10
+        - Y_POSE=15
+    command: *robot_entrypoint
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - robots-net
+
+  robot4:
+    image: turtlebot3-gazebo
+    container_name: robot4
+    hostname: robot4
+    environment:
+        - ROS_DOMAIN_ID=42
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot4
+        - X_POSE=40
+        - Y_POSE=55
+    command: *robot_entrypoint
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - robots-net
+
+networks:
+  robots-net:
+    driver: bridge
+    internal: true
+    name: robots-net

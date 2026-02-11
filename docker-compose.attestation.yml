@@ -1,0 +1,166 @@
+# docker-compose.attestation.yml
+
+services:
+  robot1-sidecar:
+    container_name: robot1-sidecar
+    image: attestation-sidecar:latest
+    environment:
+      - CONFIG_PATH=/config/robot1.json
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+      - USE_REDIS=${USE_REDIS}
+      - ONE_SHOT=${ONE_SHOT}
+      - AUTO_START=${AUTO_START}
+      - PROC_COMM=robot_state_pub
+      - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
+      - ATTESTATION_INTERVAL_MS=${ATTESTATION_INTERVAL_MS}
+      - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
+      - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
+      - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - ENABLE_LIBS_HASH=${ENABLE_LIBS_HASH}
+      - SELF_INTEGRITY_ENABLED=${SELF_INTEGRITY_ENABLED}
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./config/robot1.json:/config/robot1.json
+      - ./experiments/data/:/experiments/data:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./measurements/:/measurements:rw
+      - ./binaryfiles/:/binaryfiles:rw
+      - ./checkpoints/robot1-sidecar:/checkpoints
+    pid: "container:robot1"
+    # depends_on:
+    #   - robot1
+    cap_add:
+      - SYS_PTRACE
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+    networks:
+      - quorum-dev-quickstart
+
+  robot2-sidecar:
+    container_name: robot2-sidecar
+    image: attestation-sidecar:latest
+    environment:
+      - CONFIG_PATH=/config/robot2.json
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+      - USE_REDIS=${USE_REDIS}
+      - ONE_SHOT=${ONE_SHOT}
+      - AUTO_START=${AUTO_START}
+      - PROC_COMM=robot_state_pub
+      - MEMORY_STORAGE_FILE=/measurements/robot2_measurements.json
+      - ATTESTATION_INTERVAL_MS=${ATTESTATION_INTERVAL_MS}
+      - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
+      - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
+      - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - ENABLE_LIBS_HASH=${ENABLE_LIBS_HASH}
+      - SELF_INTEGRITY_ENABLED=${SELF_INTEGRITY_ENABLED}
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./config/robot2.json:/config/robot2.json
+      - ./experiments/data/:/experiments/data:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./measurements/:/measurements:rw
+      - ./binaryfiles/:/binaryfiles:rw
+      - ./checkpoints/robot2-sidecar:/checkpoints
+    pid: "container:robot2"
+    # depends_on:
+    #   - robot2
+    cap_add:
+      - SYS_PTRACE
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+    networks:
+      - quorum-dev-quickstart
+
+  robot3-sidecar:
+    container_name: robot3-sidecar
+    image: attestation-sidecar:latest
+    environment:
+      - CONFIG_PATH=/config/robot3.json
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+      - USE_REDIS=${USE_REDIS}
+      - ONE_SHOT=${ONE_SHOT}
+      - AUTO_START=${AUTO_START}
+      - PROC_COMM=robot_state_pub
+      - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
+      - ATTESTATION_INTERVAL_MS=${ATTESTATION_INTERVAL_MS}
+      - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
+      - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
+      - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - ENABLE_LIBS_HASH=${ENABLE_LIBS_HASH}
+      - SELF_INTEGRITY_ENABLED=${SELF_INTEGRITY_ENABLED}
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./config/robot3.json:/config/robot3.json
+      - ./experiments/data/:/experiments/data:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./measurements/:/measurements:rw
+      - ./binaryfiles/:/binaryfiles:rw
+      - ./checkpoints/robot3-sidecar:/checkpoints 
+    pid: "container:robot3"
+    # depends_on:
+    #   - robot3
+    cap_add:
+      - SYS_PTRACE
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+    networks:
+      - quorum-dev-quickstart
+
+  robot4-sidecar:
+    container_name: robot4-sidecar
+    image: attestation-sidecar:latest
+    environment:
+      - CONFIG_PATH=/config/robot4.json
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+      - USE_REDIS=${USE_REDIS}
+      - ONE_SHOT=${ONE_SHOT}
+      - AUTO_START=${AUTO_START}
+      - PROC_COMM=robot_state_pub
+      - MEMORY_STORAGE_FILE=/measurements/robot4_measurements.json
+      - ATTESTATION_INTERVAL_MS=${ATTESTATION_INTERVAL_MS}
+      - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
+      - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
+      - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - ENABLE_LIBS_HASH=${ENABLE_LIBS_HASH}
+      - SELF_INTEGRITY_ENABLED=${SELF_INTEGRITY_ENABLED}
+    ports:
+      - "8004:8000"
+    volumes:
+      - ./config/robot4.json:/config/robot4.json
+      - ./experiments/data/:/experiments/data:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./measurements/:/measurements:rw
+      - ./binaryfiles/:/binaryfiles:rw
+      - ./checkpoints/robot4-sidecar:/checkpoints
+    pid: "container:robot4"
+    # depends_on:
+    #   - robot4
+    cap_add:
+      - SYS_PTRACE
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+    networks:
+      - quorum-dev-quickstart
+
+networks:
+  quorum-dev-quickstart:
+    external: true

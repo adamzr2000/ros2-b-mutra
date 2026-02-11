@@ -236,35 +236,55 @@ async def sync_agents_endpoint():
 
     results = []
     success_count = 0
-    
+
     for file_path in config_files:
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 data = json.load(f)
-            
+
             addr = data.get("eth_address")
-            sigs = data.get("ref_signatures")
             name = data.get("name", os.path.basename(file_path))
 
-            if addr and sigs:
-                # Use the db_client already in app.state
-                success = app.state.db_client.add_ref_signatures(addr, sigs)
+            # New fields (hash-based)
+            prover_hash = data.get("prover_hash")
+            verifier_hash = data.get("verifier_hash")
+            robot_hash = data.get("robot_hash")
+
+            if addr and prover_hash and verifier_hash and robot_hash:
+                success = app.state.db_client.add_ref_signatures(
+                    addr,
+                    prover_hash,
+                    verifier_hash,
+                    robot_hash,
+                )
                 if success:
                     success_count += 1
                     results.append({"agent": name, "status": "synced", "address": addr})
                 else:
                     results.append({"agent": name, "status": "failed", "address": addr})
             else:
-                results.append({"agent": name, "status": "skipped", "reason": "missing data"})
-        
+                missing = []
+                if not addr: missing.append("eth_address")
+                if not prover_hash: missing.append("prover_hash")
+                if not verifier_hash: missing.append("verifier_hash")
+                if not robot_hash: missing.append("robot_hash")
+
+                results.append({
+                    "agent": name,
+                    "status": "skipped",
+                    "reason": "missing data",
+                    "missing": missing,
+                })
+
         except Exception as e:
             error(f"Error syncing {file_path}: {e}")
             results.append({"file": file_path, "status": "error", "error": str(e)})
 
     return {
         "message": f"Sync completed. {success_count}/{len(config_files)} agents updated.",
-        "details": results
+        "details": results,
     }
+    
 # -----------------------------------------------------------------------------
 # Shutdown
 # -----------------------------------------------------------------------------

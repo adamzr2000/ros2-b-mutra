@@ -3,7 +3,7 @@
 Database Client (PostgreSQL) for querying reference digests and deployment configs.
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict
 import psycopg2
 import time
 from psycopg2 import pool
@@ -44,7 +44,7 @@ class DatabaseClient:
             
     def get_ref_signatures(self, eth_address: str) -> Optional[Dict[str, str]]:
         """
-        Fetches the triplet of reference signatures for a specific agent.
+        Fetches the triplet of reference hashes for a specific agent.
         """
         if not self.connection_pool:
             return None
@@ -57,7 +57,7 @@ class DatabaseClient:
             conn = self.connection_pool.getconn()
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT prover_signature, verifier_signature, payload_signature 
+                    SELECT prover_hash, verifier_hash, robot_hash 
                     FROM measures 
                     WHERE LOWER(eth_address) = %s
                 """, (addr,))
@@ -65,9 +65,9 @@ class DatabaseClient:
                 row = cur.fetchone()
                 if row:
                     return {
-                        "prover_signature": row[0],
-                        "verifier_signature": row[1],
-                        "payload_signature": row[2]
+                        "prover_hash": row[0],
+                        "verifier_hash": row[1],
+                        "robot_hash": row[2]
                     }
                 return None
         except Exception as e:
@@ -78,14 +78,11 @@ class DatabaseClient:
                 self.connection_pool.putconn(conn)
 
 
-    def add_ref_signatures(self, eth_address: str, signatures: List[str]) -> bool:
+    def add_ref_signatures(self, eth_address: str, prover_hash: str, verifier_hash: str, robot_hash: str) -> bool:
         """
-        Adds or updates signatures using an array [prover, verifier, payload].
+        Adds or updates reference hashes for an agent (prover_hash, verifier_hash, robot_hash).
         """
         if not self.connection_pool: return False
-        if len(signatures) != 3:
-            error(f"Expected 3 signatures, got {len(signatures)}")
-            return False
 
         addr = eth_address.lower() if eth_address.startswith("0x") else f"0x{eth_address.lower()}"
         
@@ -95,15 +92,15 @@ class DatabaseClient:
             with conn.cursor() as cur:
                 # We unpack the list here for the SQL query
                 cur.execute("""
-                    INSERT INTO measures (eth_address, prover_signature, verifier_signature, payload_signature)
+                    INSERT INTO measures (eth_address, prover_hash, verifier_hash, robot_hash)
                     VALUES (%s, %s, %s, %s)
                     ON CONFLICT (eth_address) 
                     DO UPDATE SET 
-                        prover_signature = EXCLUDED.prover_signature,
-                        verifier_signature = EXCLUDED.verifier_signature,
-                        payload_signature = EXCLUDED.payload_signature,
+                        prover_hash = EXCLUDED.prover_hash,
+                        verifier_hash = EXCLUDED.verifier_hash,
+                        robot_hash = EXCLUDED.robot_hash,
                         updated_at = CURRENT_TIMESTAMP
-                """, (addr, *signatures))
+                """, (addr, prover_hash, verifier_hash, robot_hash))
                 conn.commit()
                 info(f"Updated signatures for: {addr}")
                 return True

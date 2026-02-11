@@ -79,6 +79,7 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir: str):
         "cmd_name": "robot_state_publisher",
         "text_section_size": 42223,
         "offset": 0,
+        "text_section_prefix": "",
         "eth_address": creds["eth_address"],
         "private_key": creds["private_key"],
         "eth_node_url": creds["eth_node_url"],
@@ -94,10 +95,11 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir: str):
     # 2) Ref-measurements -> ./ref-measurements/robot{i}.json
     ref_measurements = {
         "name": f"robot{agent_index}",
-        "sha256": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
         "eth_address": creds["eth_address"],
         "private_key": creds["private_key"],
-        "ref_signatures": [fake_hash, fake_hash, fake_hash],  # [robot, prover, verifier]
+        "robot_hash": fake_hash,
+        "prover_hash": fake_hash,
+        "verifier_hash": fake_hash
     }
 
     os.makedirs(ref_dir, exist_ok=True)

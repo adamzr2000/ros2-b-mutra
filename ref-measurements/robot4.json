@@ -1,11 +1,8 @@
 {
     "name": "robot4",
-    "sha256": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
     "eth_address": "0xa95ce55bcb138fd8c275d0eaf720b0e828877a1c",
     "private_key": "0xe6cc001c887ba1479ff117bca6b974772fd3432138903c9e627574799f3a424f",
-    "ref_signatures": [
-        "9b428975b95a1b3227c1fd5a466f938dec0b5d88ea2be39be4dbf8c53d31c84b",
-        "9b428975b95a1b3227c1fd5a466f938dec0b5d88ea2be39be4dbf8c53d31c84b",
-        "9b428975b95a1b3227c1fd5a466f938dec0b5d88ea2be39be4dbf8c53d31c84b"
-    ]
+    "robot_hash": "9b428975b95a1b3227c1fd5a466f938dec0b5d88ea2be39be4dbf8c53d31c84b",
+    "prover_hash": "9b428975b95a1b3227c1fd5a466f938dec0b5d88ea2be39be4dbf8c53d31c84b",
+    "verifier_hash": "9b428975b95a1b3227c1fd5a466f938dec0b5d88ea2be39be4dbf8c53d31c84b"
 }

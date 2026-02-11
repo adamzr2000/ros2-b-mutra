@@ -4,9 +4,9 @@
 -- Create the mapping table using _signature suffix
 CREATE TABLE IF NOT EXISTS measures (
     eth_address VARCHAR(42) PRIMARY KEY,
-    prover_signature TEXT NOT NULL,
-    verifier_signature TEXT NOT NULL,
-    payload_signature TEXT NOT NULL,
+    prover_hash TEXT NOT NULL,
+    verifier_hash TEXT NOT NULL,
+    robot_hash TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

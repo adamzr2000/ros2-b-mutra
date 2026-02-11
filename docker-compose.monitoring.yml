@@ -1,0 +1,22 @@
+# docker-compose.monitoring.yml
+
+services:
+  docker-stats-collector:
+    image: docker-stats-collector:latest
+    container_name: docker-stats-collector
+    ports:
+      - "6000:6000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ./dockerfiles/docker-stats-collector/app:/app
+      - ./experiments:/experiments
+    restart: unless-stopped
+    networks:
+      - mon-net
+
+networks:
+  mon-net:
+    driver: bridge
+    internal: true
+    name: mon-net

@@ -58,9 +58,9 @@ def process_secaas_attestation(
         
         # Extract values into the list format [prover, verifier, payload] for the SC
         reference_measurements = [
-            signatures_dict["prover_signature"],
-            signatures_dict["verifier_signature"],
-            signatures_dict["payload_signature"]
+            signatures_dict["prover_hash"],
+            signatures_dict["verifier_hash"],
+            signatures_dict["robot_hash"]
         ]
 
         p1 = helpers.perf_ns()

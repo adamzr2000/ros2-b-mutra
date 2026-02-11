@@ -1,0 +1,96 @@
+# docker-compose.secaas.yml
+
+services:
+  attestation-db:
+    image: postgres:12
+    container_name: attestation-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      # - ./postgresql_data:${PGDATA}
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    environment:
+      - PGDATA=${PGDATA}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    networks:
+      - secaas-net
+
+  secaas:
+    container_name: secaas
+    image: secaas:latest
+    environment:
+      - CONFIG_PATH=/config/secaas.json
+      - AUTO_START=${AUTO_START}
+      - EXPORT_RESULTS=${EXPORT_RESULTS}
+      - RESULTS_DIR=${RESULTS_DIR}
+      - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
+      - EVENT_POLL_INTERVAL=${EVENT_POLL_INTERVAL}
+      - EVENT_BATCH_SIZE=${EVENT_BATCH_SIZE}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - DB_HOST=attestation-db
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - attestation-db
+    volumes:
+      - ./config/secaas.json:/config/secaas.json
+      - "./ref-measurements/:/ref-measurements:rw"
+      - "./experiments/:/experiments:rw"
+      - ./dockerfiles/secaas/app:/src/app
+    networks:
+      - secaas-net
+      - quorum-dev-quickstart
+
+  attestation-chain-display:
+    container_name: attestation-chain-display
+    image: attestation-sidecar:latest
+    environment:
+      - CONFIG_PATH=/config/secaas.json
+      - CHAIN_DISPLAY=TRUE
+      - CHAIN_DISPLAY_N=10
+      - CHAIN_DISPLAY_SEC=5
+    volumes:
+      - ./config/secaas.json:/config/secaas.json
+    networks:
+      - quorum-dev-quickstart
+
+  # secaas-wrapper:
+  #   container_name: secaas-wrapper
+  #   image: secaas-wrapper:latest
+  #   ports:
+  #     - "8001:8000"
+  #   depends_on:
+  #     - db
+  #     - redis
+  #   volumes:
+  #     - ./dockerfiles/secaas-wrapper:/code
+  #     - ./jsonfiles/:/jsonfiles
+  #     - ./binaryfiles:/binaryfiles
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #     - POSTGRES_USER=${POSTGRES_USER}
+  #     - POSTGRES_DB=${POSTGRES_DB}
+  #     - POSTGRES_PORT=${POSTGRES_PORT}
+  #     - POSTGRES_HOST=db
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #   command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+  #   networks:
+  #     - quorum-dev-quickstart
+  
+networks:
+  secaas-net:
+    driver: bridge
+    internal: true
+    name: secaas-net
+
+  quorum-dev-quickstart:
+    external: true

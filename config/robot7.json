@@ -3,9 +3,10 @@
     "cmd_name": "robot_state_publisher",
     "text_section_size": 42223,
     "offset": 0,
+    "text_section_prefix": "",
     "eth_address": "0x388ffbc7474b99b554f635b7e5eff37ac84bc607",
     "private_key": "0x8495da76dcf3e64b48aa5545402b8eeb86161cec6d9f7e930cd04eb7211c1718",
-    "eth_node_url": "http://validator4:8545",
+    "eth_node_url": "http://validator2:8545",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {

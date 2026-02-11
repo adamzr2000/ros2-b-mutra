@@ -41,15 +41,14 @@ Start the full experiment with all services:
 - **Security-as-a-Service (SECaaS)**
 
 ```bash
-./run_full_experiment_test.sh
+./start.sh --auto
 ```
 
 > Note: This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
 
 Stop the experiment:
-
 ```bash
-./stop_full_experiment.sh
+./stop.sh
 ```
 ---
 
@@ -80,7 +79,15 @@ cd blockchain/quorum-test-network
 ## Data collection (auto)
 
 ```bash
+./start.sh --no-auto --no-export
+```
+
+```bash
 python3 run_experiments_and_collect_results.py --runs 5 --duration 180
+```
+
+```bash
+./stop.sh
 ```
 
 ---
@@ -88,7 +95,7 @@ python3 run_experiments_and_collect_results.py --runs 5 --duration 180
 ## Data collection (manual)
 1. Start containers:
 ```bash
-docker compose up -d
+./start.sh --no-auto --no-export
 ```
 
 2. Start docker stats data collection
@@ -105,7 +112,7 @@ curl localhost:6000/monitor/status | jq
 
 3. Start attestation:
 ```bash
-for p in 8080 8081 8082 8083 8084; do
+for p in 8000 8001 8002 8003 8004; do
   echo "Starting attestation on sidecar with port $p..."
   curl -X POST "http://localhost:${p}/start" | jq
 done
@@ -113,7 +120,7 @@ done
 
 4. Stop attestation:
 ```bash
-for p in 8080 8081 8082 8083 8084; do
+for p in 8000 8001 8002 8003 8004; do
   echo "Stopping attestation on sidecar with port $p..."
   curl -X POST "http://localhost:${p}/stop" | jq
 done
@@ -126,7 +133,5 @@ curl -X POST "http://localhost:6000/monitor/stop" | jq
 
 6. Stop workflow
 ```bash
-docker compose down
+./stop.sh
 ```
-
----
