@@ -56,13 +56,6 @@ def process_secaas_attestation(
             error(f"{log_prefix} Agent '{agent_address}' not found in Database. Attestation cannot proceed.")
             return
         
-        # Extract values into the list format [prover, verifier, payload] for the SC
-        reference_measurements = [
-            signatures_dict["prover_hash"],
-            signatures_dict["verifier_hash"],
-            signatures_dict["robot_hash"]
-        ]
-
         p1 = helpers.perf_ns()
         timestamps["get_prover_ref_signatures_db_finished"] = helpers.now_ms()
         timestamps["dur_oracle_db_fetch_us"] = helpers.ns_to_us(p0, p1)
@@ -76,9 +69,9 @@ def process_secaas_attestation(
         timestamps["prover_ref_signatures_sent"] = helpers.now_ms()
         p0 = helpers.perf_ns()
 
-        tx_hash = blockchain_client.send_reference_signatures(
+        tx_hash = blockchain_client.send_reference_signature(
             attestation_id, 
-            reference_measurements, 
+            signatures_dict["combined_hash"], 
             wait=should_wait_oracle 
         )
         
@@ -126,7 +119,7 @@ def process_secaas_attestation(
             vts["verify_compute_start"] = helpers.now_ms()
             p0 = helpers.perf_ns()
 
-            result = (fresh_sigs == ref_sigs) 
+            result = (fresh_sig_hex.lower() == ref_sig_hex.lower())
             result = True
 
             p1 = helpers.perf_ns()

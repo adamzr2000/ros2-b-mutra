@@ -25,7 +25,7 @@ services:
     stdin_open: true
     command: *gzserver_command
     networks:
-      - robots-net
+      - ros-net
 
   gazebo-client:
     image: gazebo-vnc:latest
@@ -42,7 +42,7 @@ services:
       - seccomp=unconfined
     restart: unless-stopped
     networks:
-      - robots-net
+      - ros-net
 
   robot1:
     image: turtlebot3-gazebo
@@ -60,7 +60,7 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - robots-net
+      - ros-net
 
   robot2:
     image: turtlebot3-gazebo
@@ -78,7 +78,7 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - robots-net
+      - ros-net
 
   robot3:
     image: turtlebot3-gazebo
@@ -96,7 +96,7 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - robots-net
+      - ros-net
 
   robot4:
     image: turtlebot3-gazebo
@@ -114,10 +114,10 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - robots-net
+      - ros-net
 
 networks:
-  robots-net:
+  ros-net:
     driver: bridge
     internal: true
-    name: robots-net
+    name: ros-net

@@ -57,17 +57,17 @@ class DatabaseClient:
             conn = self.connection_pool.getconn()
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT prover_hash, verifier_hash, robot_hash 
-                    FROM measures 
+                    SELECT robot_hash, attestation_sidecar_hash, combined_hash
+                    FROM measures
                     WHERE LOWER(eth_address) = %s
                 """, (addr,))
                 
                 row = cur.fetchone()
                 if row:
                     return {
-                        "prover_hash": row[0],
-                        "verifier_hash": row[1],
-                        "robot_hash": row[2]
+                        "robot_hash": row[0]
+                        "attestation_sidecar_hash": row[1],
+                        "combined_hash": row[2],
                     }
                 return None
         except Exception as e:
@@ -78,9 +78,9 @@ class DatabaseClient:
                 self.connection_pool.putconn(conn)
 
 
-    def add_ref_signatures(self, eth_address: str, prover_hash: str, verifier_hash: str, robot_hash: str) -> bool:
+    def add_ref_signatures(self, eth_address: str, robot_hash: str, attestation_sidecar_hash: str, combined_hash: str) -> bool:
         """
-        Adds or updates reference hashes for an agent (prover_hash, verifier_hash, robot_hash).
+        Adds or updates reference hashes for an agent (robot_hash, attestation_sidecar_hash, combined_hash).
         """
         if not self.connection_pool: return False
 
@@ -92,15 +92,15 @@ class DatabaseClient:
             with conn.cursor() as cur:
                 # We unpack the list here for the SQL query
                 cur.execute("""
-                    INSERT INTO measures (eth_address, prover_hash, verifier_hash, robot_hash)
+                    INSERT INTO measures (eth_address, robot_hash, attestation_sidecar_hash, combined_hash)
                     VALUES (%s, %s, %s, %s)
                     ON CONFLICT (eth_address) 
                     DO UPDATE SET 
-                        prover_hash = EXCLUDED.prover_hash,
-                        verifier_hash = EXCLUDED.verifier_hash,
                         robot_hash = EXCLUDED.robot_hash,
+                        attestation_sidecar_hash = EXCLUDED.attestation_sidecar_hash,
+                        combined_hash = EXCLUDED.combined_hash,
                         updated_at = CURRENT_TIMESTAMP
-                """, (addr, prover_hash, verifier_hash, robot_hash))
+                """, (addr, robot_hash, attestation_sidecar_hash, combined_hash))
                 conn.commit()
                 info(f"Updated signatures for: {addr}")
                 return True

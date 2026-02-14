@@ -17,7 +17,7 @@ import (
 
 	"app/internal/logger"
 	// types.go is in the same package 'blockchain'
-
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -228,10 +228,37 @@ func isNonceError(err error) bool {
 		strings.Contains(msg, "already known")
 }
 
+// estimateGasLimit estimates gas for the tx data and adds a safety buffer.
+// If estimation fails (some nodes fail estimation on certain reverts), it falls back to a conservative default.
+func (bc *BlockchainClient) estimateGasLimit(ctx context.Context, data []byte) (uint64, error) {
+	msg := ethereum.CallMsg{
+		From:  bc.ethAddress,
+		To:    &bc.contractAddress,
+		Value: big.NewInt(0),
+		Data:  data,
+	}
+
+	est, err := bc.client.EstimateGas(ctx, msg)
+	if err != nil {
+		// fallback
+		logger.Warn("EstimateGas failed (%v); using fallback gas=500000", err)
+		return 500_000, nil
+	}
+
+	// add 20% buffer
+	gas := uint64((uint64(est) * 120) / 100)
+
+	// protect from absurdly low values (rare, but safe)
+	if gas < 21_000 {
+		gas = 21_000
+	}
+	return gas, nil
+}
+
 // sendSignedTransaction constructs, signs, and sends a transaction manually.
 // - Increments nonce only after successful SendTransaction.
 // - Retries once after refreshing nonce on nonce-related errors.
-func (bc *BlockchainClient) sendSignedTransaction(ctx context.Context, data []byte, gasLimit uint64) (string, error) {
+func (bc *BlockchainClient) sendSignedTransaction(ctx context.Context, data []byte) (string, error) {
 	for attempt := 0; attempt < 2; attempt++ {
 		// read current nonce without changing it yet
 		bc.nonceLock.Lock()
@@ -245,6 +272,11 @@ func (bc *BlockchainClient) sendSignedTransaction(ctx context.Context, data []by
 		// bump gas price by 25%
 		bump := new(big.Int).Mul(gasPrice, big.NewInt(125))
 		bump.Div(bump, big.NewInt(100))
+
+		gasLimit, err := bc.estimateGasLimit(ctx, data)
+		if err != nil {
+			return "", fmt.Errorf("failed to estimate gas: %v", err)
+		}
 
 		tx := gethtypes.NewTransaction(
 			nonce,
@@ -328,7 +360,7 @@ func (bc *BlockchainClient) RegisterAgent(name string, wait bool, timeout int) (
 	if err != nil {
 		return "", err
 	}
-	txHash, err := bc.sendSignedTransaction(context.Background(), data, 300000)
+	txHash, err := bc.sendSignedTransaction(context.Background(), data)
 	if err != nil {
 		return "", err
 	}
@@ -345,7 +377,7 @@ func (bc *BlockchainClient) RemoveAgent(wait bool, timeout int) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	txHash, err := bc.sendSignedTransaction(context.Background(), data, 200000)
+	txHash, err := bc.sendSignedTransaction(context.Background(), data)
 	if err != nil {
 		return "", err
 	}
@@ -362,7 +394,7 @@ func (bc *BlockchainClient) ResetAttestationChain(wait bool, timeout int) (strin
 	if err != nil {
 		return "", err
 	}
-	txHash, err := bc.sendSignedTransaction(context.Background(), data, 200000)
+	txHash, err := bc.sendSignedTransaction(context.Background(), data)
 	if err != nil {
 		return "", err
 	}
@@ -374,30 +406,22 @@ func (bc *BlockchainClient) ResetAttestationChain(wait bool, timeout int) (strin
 	return txHash, nil
 }
 
-func (bc *BlockchainClient) SendEvidence(attID string, freshSigs []string, wait bool, timeout int) (string, error) {
+func (bc *BlockchainClient) SendEvidence(attID string, freshSig string, wait bool, timeout int) (string, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
 		return "", err
 	}
-	if len(freshSigs) != 3 {
-		return "", errors.New("expected 3 signatures")
-	}
+	sigBytes, err := AsBytes32(freshSig)
+    if err != nil {
+        return "", err
+    }
 
-	var sigTriplet [3][32]byte
-	for i, s := range freshSigs {
-		b, err := AsBytes32(s)
-		if err != nil {
-			return "", err
-		}
-		sigTriplet[i] = b
-	}
-
-	data, err := bc.contractABI.Pack("SendEvidence", attIDBytes, sigTriplet)
+	data, err := bc.contractABI.Pack("SendEvidence", attIDBytes, sigBytes)
 	if err != nil {
 		return "", err
 	}
 
-	txHash, err := bc.sendSignedTransaction(context.Background(), data, 400000)
+	txHash, err := bc.sendSignedTransaction(context.Background(), data)
 	if err != nil {
 		return "", err
 	}
@@ -409,30 +433,22 @@ func (bc *BlockchainClient) SendEvidence(attID string, freshSigs []string, wait 
 	return txHash, nil
 }
 
-func (bc *BlockchainClient) SendRefSignatures(attID string, refSigs []string, wait bool, timeout int) (string, error) {
+func (bc *BlockchainClient) SendRefSignature(attID string, refSig string, wait bool, timeout int) (string, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
 		return "", err
 	}
-	if len(refSigs) != 3 {
-		return "", errors.New("expected 3 signatures")
-	}
+	sigBytes, err := AsBytes32(refSig)
+    if err != nil {
+        return "", err
+    }
 
-	var sigTriplet [3][32]byte
-	for i, s := range refSigs {
-		b, err := AsBytes32(s)
-		if err != nil {
-			return "", err
-		}
-		sigTriplet[i] = b
-	}
-
-	data, err := bc.contractABI.Pack("SendRefSignatures", attIDBytes, sigTriplet)
+	data, err := bc.contractABI.Pack("SendRefSignature", attIDBytes, sigBytes)
 	if err != nil {
 		return "", err
 	}
 
-	txHash, err := bc.sendSignedTransaction(context.Background(), data, 400000)
+	txHash, err := bc.sendSignedTransaction(context.Background(), data)
 	if err != nil {
 		return "", err
 	}
@@ -454,7 +470,7 @@ func (bc *BlockchainClient) SendAttestationResult(attID string, verified bool, w
 		return "", err
 	}
 
-	txHash, err := bc.sendSignedTransaction(context.Background(), data, 300000)
+	txHash, err := bc.sendSignedTransaction(context.Background(), data)
 	if err != nil {
 		return "", err
 	}
@@ -717,45 +733,38 @@ func (bc *BlockchainClient) GetProverAddress(attID string) (common.Address, erro
 	return addr, nil
 }
 
-func (bc *BlockchainClient) GetAttestationSignatures(attID string) ([]string, []string, error) {
+func (bc *BlockchainClient) GetAttestationSignatures(attID string) (string, string, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
-		return nil, nil, err
+		return "", "", err
 	}
 	data, err := bc.contractABI.Pack("GetAttestationSignatures", attIDBytes, bc.ethAddress)
 	if err != nil {
-		return nil, nil, err
+		return "", "", err
 	}
 	res, err := bc.rawEthCall(nil, data)
 	if err != nil {
-		return nil, nil, err
+		return "", "", err
 	}
 
 	values, err := bc.contractABI.Unpack("GetAttestationSignatures", res)
 	if err != nil {
-		return nil, nil, err
+		return "", "", err
 	}
 	if len(values) < 2 {
-		return nil, nil, fmt.Errorf("GetAttestationSignatures: expected 2 returns, got %d", len(values))
+		return "", "", fmt.Errorf("GetAttestationSignatures: expected 2 returns, got %d", len(values))
 	}
 
-	fresh, ok := values[0].([3][32]byte)
+	fresh, ok := values[0].([32]byte)
 	if !ok {
-		return nil, nil, fmt.Errorf("GetAttestationSignatures: fresh type %T", values[0])
+		return "", "", fmt.Errorf("GetAttestationSignatures: fresh type %T", values[0])
 	}
-	ref, ok := values[1].([3][32]byte)
+	ref, ok := values[1].([32]byte)
 	if !ok {
-		return nil, nil, fmt.Errorf("GetAttestationSignatures: ref type %T", values[1])
+		return "", "", fmt.Errorf("GetAttestationSignatures: ref type %T", values[1])
 	}
 
-	toHex := func(arr [3][32]byte) []string {
-		out := make([]string, 3)
-		for i, b := range arr {
-			out[i] = "0x" + hex.EncodeToString(b[:])
-		}
-		return out
-	}
-	return toHex(fresh), toHex(ref), nil
+	return "0x" + hex.EncodeToString(fresh[:]), "0x" + hex.EncodeToString(ref[:]), nil
 }
 
 func (bc *BlockchainClient) GetAttestationChain() ([][32]byte, error) {

@@ -315,11 +315,11 @@ class BlockchainClient:
             return False
     
 
-    def send_reference_signatures(self, attestation_id, ref_signatures, wait: bool = False, timeout: int = 60):
+    def send_reference_signature(self, attestation_id, ref_signatures, wait: bool = False, timeout: int = 60):
         try:
             ref_signatures_bytes32 = as_bytes32_triplet(ref_signatures)
 
-            tx_data = self.contract.functions.SendRefSignatures(
+            tx_data = self.contract.functions.SendRefSignature(
                 text_to_bytes32(attestation_id),
                 ref_signatures_bytes32
             ).build_transaction({'from': self.eth_address})

@@ -19,9 +19,8 @@ contract MasMutualAttestation {
         address verifier;
         address prover;
 
-        // Fixed-size arrays: [agent, prover, verifier]
-        bytes32[3] fresh_signatures;
-        bytes32[3] ref_signatures;
+        bytes32 fresh_signature;
+        bytes32 ref_signature;
 
         AttestationState state;
         AttestationResult result;
@@ -126,7 +125,7 @@ contract MasMutualAttestation {
     } 
 
 
-    function SendEvidence(bytes32 id, bytes32[3] memory freshMeasurements) public {
+    function SendEvidence(bytes32 id, bytes32 freshMeasurement) public {
         Agent storage currentAgent = agent[msg.sender];
         require(currentAgent.registered, "SendEvidence : Agent is not registered");
 
@@ -135,9 +134,9 @@ contract MasMutualAttestation {
         currentAttestation.verifier = ElectVerifier(msg.sender);
         currentAttestation.prover = msg.sender;
 
-        // Assign fixed-size arrays
-        currentAttestation.fresh_signatures = freshMeasurements;
-        currentAttestation.ref_signatures = [bytes32(0), bytes32(0), bytes32(0)];
+        // Assign fixed-size array
+        currentAttestation.fresh_signature = freshMeasurement;
+        currentAttestation.ref_signature = bytes32(0);
 
         currentAttestation.state = AttestationState.Open;
         currentAttestation.result = AttestationResult.None;
@@ -154,24 +153,24 @@ contract MasMutualAttestation {
         return (proverAgentAddress);
     }     
 
-    function SendRefSignatures(bytes32 id, bytes32[3] memory refMeasurements) public returns (bool) {
+    function SendRefSignature(bytes32 id, bytes32 refMeasurement) public returns (bool) {
         require(msg.sender == secaas, "Only the SECaaS can send the reference signature");
         
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.state == AttestationState.Open, "Invalid state for SECaaS response");
         
-        currentAttestation.ref_signatures = refMeasurements;
+        currentAttestation.ref_signature = refMeasurement;
         currentAttestation.state = AttestationState.ReadyForEvaluation;
 
         emit ReadyForEvaluation(id);
         return true;
     }
 
-    function GetAttestationSignatures(bytes32 id, address callAddress) public view returns (bytes32[3] memory, bytes32[3] memory) {
+    function GetAttestationSignatures(bytes32 id, address callAddress) public view returns (bytes32, bytes32) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.verifier == callAddress, "Only the verifier can retrieve the signatures");
         require(currentAttestation.state == AttestationState.ReadyForEvaluation, "Attestation process is not completed");
-        return (currentAttestation.fresh_signatures, currentAttestation.ref_signatures);
+        return (currentAttestation.fresh_signature, currentAttestation.ref_signature);
     }
 
     function GetAttestationInfo(bytes32 id) public view returns (address, address, AttestationResult, uint256) {

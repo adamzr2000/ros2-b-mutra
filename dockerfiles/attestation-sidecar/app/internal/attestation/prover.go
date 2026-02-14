@@ -55,7 +55,7 @@ type ProverState struct {
 func ProcessProverAttestation(
 	bc *blockchain.BlockchainClient,
 	attestationID string,
-	measurements []string,
+	measurement string,
 	stopCh <-chan struct{},
 	exportEnabled bool,
 	participantName string,
@@ -76,7 +76,7 @@ func ProcessProverAttestation(
 	p0 := utils.PerfNs()
 
 	// Send evidence with wait=true and timeout=60s
-	_, err := bc.SendEvidence(attestationID, measurements, true, 60)
+	_, err := bc.SendEvidence(attestationID, measurement, true, 60)
 
 	// Stop timer
 	p1 := utils.PerfNs()
@@ -141,7 +141,7 @@ func ProcessProverAttestation(
 	timestamps["result_received"] = utils.NowMs()
 
 	// 5. Retrieve Result
-	_, _, resultEnum, _, err := bc.GetAttestationInfo(attestationID)
+	_, verifier, resultEnum, ts, err := bc.GetAttestationInfo(attestationID)
 	if err != nil {
 		logger.Error("%s Failed to read attestation info: %v", logPrefix, err)
 	} else {
@@ -151,7 +151,9 @@ func ProcessProverAttestation(
 		if isSuccess {
 			statusIcon = "✅ SUCCESS"
 		}
-		logger.Info("%s Attestation closed (result: %s)", logPrefix, statusIcon)
+		logger.Info("%s Attestation Complete", logPrefix)
+		logger.Info("%s Result: %s", logPrefix, statusIcon)
+		logger.Info("%s Verified by: %s at %v", logPrefix, verifier.Hex(), ts)
 	}
 
 	timestamps["prover_finished"] = utils.NowMs()
@@ -173,7 +175,7 @@ func ProcessProverAttestation(
 func RunProverAndCleanup(
 	bc *blockchain.BlockchainClient,
 	attestationID string,
-	measurements []string,
+	measurement string,
 	startTs int64,
 	stopCh <-chan struct{},
 	exportEnabled bool,
@@ -190,7 +192,7 @@ func RunProverAndCleanup(
 		activeAttestations.Delete(attestationID)
 	}()
 
-	ProcessProverAttestation(bc, attestationID, measurements, stopCh, exportEnabled, participantName, resultsDir, startTs)
+	ProcessProverAttestation(bc, attestationID, measurement, stopCh, exportEnabled, participantName, resultsDir, startTs)
 }
 
 // RunProverLogicContinuousMode runs the continuous prover loop
@@ -335,15 +337,14 @@ func RunProverLogicContinuousMode(
 
 		// 5. Start Attestation Transaction
 		attestationID := utils.GenerateAttestationID()
-		signatures := []string{combinedDigest, combinedDigest, combinedDigest}
 
 		wg.Add(1)
-		go func(attID string, sigs []string, startTs int64) {
+		go func(attID string, evidence string, startTs int64) {
 			defer wg.Done()
 			RunProverAndCleanup(
 				bc,
 				attID,
-				sigs,
+				evidence,
 				startTs, // Pass batchStartTs here
 				stopCh,
 				config.ExportEnabled,
@@ -351,7 +352,7 @@ func RunProverLogicContinuousMode(
 				config.ResultsDir,
 				activeAttestations,
 			)
-		}(attestationID, signatures, batchStartTs)
+		}(attestationID, combinedDigest, batchStartTs)
 
 		activeAttestations.Store(attestationID, true)
 

@@ -13,7 +13,7 @@ from web3.exceptions import ContractLogicError
 from app.internal.blockchain.types import (
     AttestationState,
     MasMutualAttestationContractEvents,
-    as_bytes32_triplet,
+    as_bytes32,
     text_to_bytes32
 )
 from app.internal.blockchain.formatters import build_attestation_chain_table
@@ -252,14 +252,14 @@ class BlockchainClient:
         except Exception as e:
             raise Exception(f"An error occurred while calling the function: {str(e)}")
 
-    def send_evidence(self, attestation_id, fresh_signatures, wait: bool = False, timeout: int = 60):
+    def send_evidence(self, attestation_id, fresh_signature, wait: bool = False, timeout: int = 60):
         try:
             att_id_bytes = text_to_bytes32(attestation_id)
-            fresh_signatures_bytes32 = as_bytes32_triplet(fresh_signatures)
+            fresh_signature_bytes = as_bytes32(fresh_signature)
 
             tx_data = self.contract.functions.SendEvidence(
                 att_id_bytes, 
-                fresh_signatures_bytes32
+                fresh_signature_bytes
             ).build_transaction({'from': self.eth_address})
 
             return self._send_tx(tx_data, wait=wait, timeout=timeout)
@@ -315,13 +315,13 @@ class BlockchainClient:
             return False
     
 
-    def send_reference_signatures(self, attestation_id, ref_signatures, wait: bool = False, timeout: int = 60):
+    def send_reference_signature(self, attestation_id, ref_signature, wait: bool = False, timeout: int = 60):
         try:
-            ref_signatures_bytes32 = as_bytes32_triplet(ref_signatures)
+            ref_signature_bytes = as_bytes32(ref_signature)
 
-            tx_data = self.contract.functions.SendRefSignatures(
+            tx_data = self.contract.functions.SendRefSignature(
                 text_to_bytes32(attestation_id),
-                ref_signatures_bytes32
+                ref_signature_bytes
             ).build_transaction({'from': self.eth_address})
 
             return self._send_tx(tx_data, wait=wait, timeout=timeout)
@@ -333,7 +333,7 @@ class BlockchainClient:
         try:
             att_id = text_to_bytes32(attestation_id)
             fresh, ref = self.contract.functions.GetAttestationSignatures(att_id, self.eth_address).call()            
-            return [Web3.to_hex(x) for x in list(fresh)], [Web3.to_hex(x) for x in list(ref)]
+            return Web3.to_hex(fresh), Web3.to_hex(ref)
         except Exception as e:
             raise Exception(f"An error occurred while getting the attestation signatures: {str(e)}")
         

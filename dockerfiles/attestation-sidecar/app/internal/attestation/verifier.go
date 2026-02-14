@@ -195,7 +195,7 @@ func processVerifierAttestation(
 	timestamps["get_signatures_start"] = utils.NowMs()
 	p0 := utils.PerfNs()
 
-	freshSigs, refSigs, err := client.GetAttestationSignatures(attestationID)
+	freshSig, refSig, err := client.GetAttestationSignatures(attestationID)
 	if err != nil {
 		logger.Error("%s Failed to get signatures: %v", logPrefix, err)
 		return
@@ -210,19 +210,8 @@ func processVerifierAttestation(
 	p0 = utils.PerfNs()
 
 	// Logic: Compare signatures
-	isSuccess := true
-	if len(freshSigs) != len(refSigs) {
-		isSuccess = false
-	} else {
-		for i := range freshSigs {
-			if freshSigs[i] != refSigs[i] {
-				isSuccess = false
-				break
-			}
-		}
-	}
-	// For simulation/testing as per your python code:
-	// is_success = True
+	isSuccess := strings.EqualFold(freshSig, refSig)
+	// For testing
 	isSuccess = true
 
 	p1 = utils.PerfNs()

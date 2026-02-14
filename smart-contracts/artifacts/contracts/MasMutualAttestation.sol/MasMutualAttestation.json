@@ -381,7 +381,7 @@
           "type": "bytes32[3]"
         }
       ],
-      "name": "SendRefSignatures",
+      "name": "SendRefSignature",
       "outputs": [
         {
           "internalType": "bool",

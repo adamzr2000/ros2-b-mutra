@@ -33,12 +33,11 @@ def as_bytes32(v) -> bytes:
         return b
     raise TypeError(f"Unsupported type for bytes32: {type(v)}")
 
-def as_bytes32_triplet(values) -> list:
-    if values is None or len(values) != 3:
-        raise ValueError("Expected 3 signatures: [robot, prover, verifier]")
-    # 4. Update internal calls
-    return [as_bytes32(values[0]), as_bytes32(values[1]), as_bytes32(values[2])]
-
+# Old
+# def as_bytes32_triplet(values) -> list:
+#     if values is None or len(values) != 3:
+#         raise ValueError("Expected 3 signatures: [robot, prover, verifier]")
+#     return [as_bytes32(values[0]), as_bytes32(values[1]), as_bytes32(values[2])]
 
 class AttestationState(IntEnum):
     Open = 0

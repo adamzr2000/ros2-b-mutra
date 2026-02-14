@@ -98,8 +98,8 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir: str):
         "eth_address": creds["eth_address"],
         "private_key": creds["private_key"],
         "robot_hash": fake_hash,
-        "prover_hash": fake_hash,
-        "verifier_hash": fake_hash
+        "attestation_sidecar_hash": fake_hash,
+        "combined_hash": fake_hash
     }
 
     os.makedirs(ref_dir, exist_ok=True)

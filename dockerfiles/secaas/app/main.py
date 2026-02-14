@@ -245,17 +245,16 @@ async def sync_agents_endpoint():
             addr = data.get("eth_address")
             name = data.get("name", os.path.basename(file_path))
 
-            # New fields (hash-based)
-            prover_hash = data.get("prover_hash")
-            verifier_hash = data.get("verifier_hash")
             robot_hash = data.get("robot_hash")
+            attestation_sidecar_hash = data.get("attestation_sidecar_hash")
+            combined_hash = data.get("combined_hash")
 
-            if addr and prover_hash and verifier_hash and robot_hash:
+            if addr and attestation_sidecar_hash and combined_hash and robot_hash:
                 success = app.state.db_client.add_ref_signatures(
                     addr,
-                    prover_hash,
-                    verifier_hash,
                     robot_hash,
+                    attestation_sidecar_hash,
+                    combined_hash
                 )
                 if success:
                     success_count += 1
@@ -265,8 +264,8 @@ async def sync_agents_endpoint():
             else:
                 missing = []
                 if not addr: missing.append("eth_address")
-                if not prover_hash: missing.append("prover_hash")
-                if not verifier_hash: missing.append("verifier_hash")
+                if not attestation_sidecar_hash: missing.append("attestation_sidecar_hash")
+                if not combined_hash: missing.append("combined_hash")
                 if not robot_hash: missing.append("robot_hash")
 
                 results.append({
