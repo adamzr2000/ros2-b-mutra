@@ -71,7 +71,7 @@ def _order_key_att(att_label: str):
 
 def _collect_files(in_dir: Path) -> List[Tuple[str, int, Path]]:
     files: List[Tuple[str, int, Path]] = []
-    for p in sorted(in_dir.glob("*.json")):
+    for p in sorted(in_dir.rglob("*.json")):
         m = ROBOT_RE.match(p.name)
         if m:
             participant = m.group("participant").lower()

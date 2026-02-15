@@ -1,44 +1,13 @@
-# Specify the ROS2 distribution as a build argument
 ARG ROS_DISTRO=humble
-
-# Use an official ROS base image
 FROM osrf/ros:${ROS_DISTRO}-desktop
 
-# Define maintainer
 LABEL maintainer="azahir@pa.uc3m.es"
 
-# Set up user with sudo access
-WORKDIR /root
-
-# Create a new user 'agent' with sudo privileges and set a password
-RUN useradd -m agent && \
-    echo "agent:agent" | chpasswd && \
-    adduser agent sudo
-
-# Set an environment variable to noninteractive to avoid prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
 
-# Use bash shell for subsequent commands
-SHELL [ "/bin/bash" , "-c" ]
-
-# Remove pre-installed packages to avoid conflicts
-RUN apt-get remove -y ros-${ROS_DISTRO}-robot-state-publisher || true
-# RUN apt-get remove -y ros-${ROS_DISTRO}-gazebo-ros-pkgs || true
-
-# Switch to the newly created user for better security (avoid using root)
-USER agent
-WORKDIR /home/agent
-
-# Clone the necessary ROS packages into the workspace
-RUN mkdir -p ros2_ws/src 
-COPY ros2_ws/src /home/agent/ros2_ws/src
-
-RUN mkdir scripts && mkdir smart-contracts && mkdir config && mkdir ros2-scripts
-
-USER root
-
-# Install necessary packages and cleaning up the apt cache to reduce the image size
-RUN apt-get update && apt-get install -y \
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     python3 \
@@ -46,31 +15,43 @@ RUN apt-get update && apt-get install -y \
     iputils-ping \
     build-essential \
     lsb-release \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rosidl-generator-dds-idl \
     ros-${ROS_DISTRO}-turtlebot3-msgs \
     ros-${ROS_DISTRO}-gazebo-ros-pkgs && \
     rm -rf /var/lib/apt/lists/*
 
-# RUN cd /home/agent/ros2_ws && \
-#     rosdep update && \
-#     rosdep install --from-paths src --ignore-src -r -y
+# Remove pre-installed packages to avoid conflicts
+RUN apt-get remove -y ros-${ROS_DISTRO}-robot-state-publisher || true
+# RUN apt-get remove -y ros-${ROS_DISTRO}-gazebo-ros-pkgs || true
+
+
+# Create a new user 'agent' with sudo privileges and set a password
+RUN useradd -m agent && \
+    echo "agent:agent" | chpasswd && \
+    adduser agent sudo
 
 USER agent
 WORKDIR /home/agent
 
- 
-# Build the workspace
-RUN cd ros2_ws && source /opt/ros/${ROS_DISTRO}/setup.bash && colcon build --symlink-install
+# Copy workspace
+RUN mkdir -p /home/agent/ros2_ws/src /home/agent/scripts
+COPY --chown=agent:agent src/ /home/agent/ros2_ws/src/
+COPY --chown=agent:agent scripts/ /home/agent/scripts/
 
-RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
-RUN echo "source /home/agent/ros2_ws/install/setup.bash" >> ~/.bashrc
+# Build
+RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    cd /home/agent/ros2_ws && \
+    colcon build --symlink-install
 
-COPY ros2-scripts/* /home/agent/ros2-scripts/
-COPY scripts/* /home/agent/scripts/
+# Switch to user for runtime
+RUN chown -R agent:agent /home/agent
+USER agent
+
+# Source overlays in bash sessions
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /home/agent/.bashrc && \
+    echo "source /home/agent/ros2_ws/install/setup.bash" >> /home/agent/.bashrc
 
 WORKDIR /home/agent/scripts/
 
-# COPY sidecar_pause_on_process.sh .
-# RUN chmod +x sidecar_pause_on_process.sh
-
-# Indicate completion of Dockerfile setup
-RUN echo "ALL Done"
+CMD ["/bin/bash"]

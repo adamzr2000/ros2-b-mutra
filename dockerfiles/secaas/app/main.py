@@ -57,7 +57,7 @@ def start_attestation(app: FastAPI):
         if not getattr(app.state, "results_file", None):
             # Fallback only (should rarely happen now)
             app.state.results_file = _next_run_json(app.state.results_dir, app.state.participant_name)
-            info(f"Results file selected (fallback): {app.state.results_file}")
+            info(f"Results file selected (new run): {app.state.results_file}")
 
         helpers.ensure_results_initialized(
             app.state.results_dir,
@@ -88,7 +88,13 @@ def stop_attestation(app: FastAPI):
         app.state.threads.clear()
 
     if app.state.export_enabled:
-        helpers.mark_experiment_stop(app.state.results_dir, app.state.participant_name, json_path=getattr(app.state, "results_file", None))
+        helpers.mark_experiment_stop(
+            app.state.results_dir, 
+            app.state.participant_name, 
+            json_path=getattr(app.state, "results_file", None)
+        )
+        # Reset filename so next start() calculates a new one
+        app.state.results_file = None
 
 
 # -----------------------------------------------------------------------------

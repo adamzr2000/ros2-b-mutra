@@ -1,3 +1,4 @@
 postgresql_data/
 tss.zip
 checkpoints/
+__pycache__/

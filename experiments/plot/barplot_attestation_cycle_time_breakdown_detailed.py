@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
+
 import sys
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from seaborn.utils import desaturate
-
 import matplotlib.patches as mpatches
 
 # ---- Config ----
 INPUT_FILE = "../data/attestation-times/_summary/attestation_durations_summary.csv"
 OUTPUT_FILE = "./barplot_attestation_cycle_time_breakdown_detailed.pdf"
+
+USE_LOG_SCALE = True    # <--- NEW: Toggle this to True/False
+LOG_MIN_Y = 1e-4        # <--- NEW: Log scales cannot start at absolute 0.0
 
 FONT_SCALE = 1.5
 FIG_SIZE = (11, 6)
@@ -18,7 +21,8 @@ BAR_WIDTH = 0.4
 GROUP_SPACING = 1.2
 TEXT_THRESHOLD_S = 0.5
 EPS = 1e-3  # ignore tiny segments
-COLOR_SATURATION = 0.75
+COLOR_SATURATION = 0.9
+
 # Stable segment keys in preferred legend order
 SEGMENT_ORDER = [
     # Prover
@@ -39,18 +43,18 @@ SEGMENT_ORDER = [
 
 # One authoritative place for display labels (no duplication)
 LABELS = {
-    "prover_compute": "Prover: Compute Fresh Signatures\n(local hashing)",
-    "prover_tx":      "Prover: Send Fresh Signatures Tx",
-    "prover_wait":    "Prover: Wait for Attestation Result",
+    "prover_compute": "Prover: Compute Fresh Signature\n(Local Program Hashing)",
+    "prover_tx":      "Prover: Send Fresh Signature\n(Blockchain Write)",
+    "prover_wait":    "Prover: Wait for Result",
 
-    "verifier_read":     "Verifier: Read Fresh & Ref. Signatures",
+    "verifier_read":     "Verifier: Fetch Fresh & Ref. Signatures\n(Blockchain Read)",
     "verifier_verify":   "Verifier: Verify Signatures",
-    "verifier_tx":       "Verifier: Send Attestation Result Tx",
+    "verifier_tx":       "Verifier: Send Result\n(Blockchain Write)",
     "verifier_overhead": "Verifier: Overhead",
 
-    "oracle_creds":    "Oracle: Read Prover Credentials",
-    "oracle_db":       "Oracle: DB Read Prover Ref. Signatures",
-    "oracle_tx":       "Oracle: Send Prover Ref. Signatures Tx",
+    "oracle_creds":    "Oracle: Fetch Prover Address\n(Blockchain Read)",
+    "oracle_db":       "Oracle: Fetch Prover Ref. Signature\n(DB)",
+    "oracle_tx":       "Oracle: Send Prover Ref. Signature\n(Blockchain Write)",
     "oracle_overhead": "Oracle: Overhead",
 }
 
@@ -90,9 +94,10 @@ def main():
         font_scale=FONT_SCALE,
     )
 
-    # Colors: fully automated but stable across runs because order is stable
-    palette = sns.color_palette("colorblind", n_colors=len(SEGMENT_ORDER))
-    COLOR = {k: palette[i] for i, k in enumerate(SEGMENT_ORDER)}
+    base_palette = list(sns.color_palette("colorblind"))
+    extended_palette = base_palette + ["#4d4d4d", "#cccccc"]
+
+    COLOR = {k: extended_palette[i] for i, k in enumerate(SEGMENT_ORDER)}
 
     fig, ax = plt.subplots(figsize=FIG_SIZE)
 
@@ -101,12 +106,13 @@ def main():
 
     def build_left_segments(p: str, is_secaas: bool):
         if is_secaas:
-            total = get_val(p, "oracle", "total_lifecycle")
-            db = get_val(p, "oracle", "db_lookup")
-            creds = get_val(p, "oracle", "prover_credentials_blockchain_read")
-            tx = get_val(p, "oracle", "ref_signatures_blockchain_write")
+            total    = get_val(p, "oracle", "total_lifecycle")
+            reaction = get_val(p, "oracle", "reaction_time")
+            creds    = get_val(p, "oracle", "prover_addr_fetch")
+            db       = get_val(p, "oracle", "db_lookup")
+            tx      = get_val(p, "oracle", "ref_signature_call")
 
-            overhead = max(0.0, total - creds - db - tx)
+            overhead = max(0.0, total - reaction - creds - db - tx)
 
             return [
                 ("oracle_creds", creds),
@@ -117,19 +123,24 @@ def main():
         else:
             total = get_val(p, "prover", "total_lifecycle")
             e2e = get_val(p, "prover", "e2e_blockchain")
-            tx = get_val(p, "prover", "evidence_blockchain_write")
+            tx = get_val(p, "prover", "evidence_call")
+
+            compute   = max(0.0, total - e2e)
+            wait      = max(0.0, e2e - tx)
+            
             return [
-                ("prover_compute", max(0.0, total - e2e)),
+                ("prover_compute", compute),
                 ("prover_tx", tx),
-                ("prover_wait", max(0.0, e2e - tx)),
+                ("prover_wait", wait),
             ]
 
     def build_verifier_segments(p: str):
         total = get_val(p, "verifier", "total_lifecycle")
-        read_v = get_val(p, "verifier", "signatures_blockchain_read")
+        reaction = get_val(p, "verifier", "reaction_time")
+        read_v = get_val(p, "verifier", "signatures_fetch")
         comp_v = get_val(p, "verifier", "verify_compute")
-        write_v = get_val(p, "verifier", "result_blockchain_write")
-        overhead = max(0.0, total - (read_v + comp_v + write_v))
+        write_v = get_val(p, "verifier", "result_call")
+        overhead = max(0.0, total - (reaction + read_v + comp_v + write_v))
         return [
             ("verifier_read", read_v),
             ("verifier_verify", comp_v),
@@ -138,7 +149,9 @@ def main():
         ]
 
     def draw_stack(x_pos, segments):
-        bottom = 0.0
+        # NEW: Handle absolute zero bounds for log scales
+        bottom = LOG_MIN_Y if USE_LOG_SCALE else 0.0
+        
         for key, val in segments:
             if val <= EPS:
                 continue
@@ -155,24 +168,30 @@ def main():
                 zorder=3,
             )
 
-            if val > TEXT_THRESHOLD_S:
+            # We lower the text threshold if log scale is enabled to see smaller labels
+            threshold = TEXT_THRESHOLD_S if not USE_LOG_SCALE else 0.05
+            
+            if val > threshold:
                 ax.text(
                     x_pos,
                     bottom + val / 2,
-                    f"{val:.1f}",
+                    f"{val:.2f}",
                     ha="center",
                     va="center",
-                    color="white",
+                    color="white" if val > 0.5 else "black",
                     fontsize=9,
                     fontweight="normal",
                     zorder=4,
                 )
             bottom += val
 
+        # NEW: Log scales need geometric multipliers, not linear additions, for offsets
+        top_offset = bottom * 1.25 if USE_LOG_SCALE else bottom + 0.05
+        
         ax.text(
             x_pos,
-            bottom + 0.1,
-            f"{bottom:.1f}s",
+            top_offset,
+            f"{bottom:.2f}s",
             ha="center",
             va="bottom",
             color="black",
@@ -199,7 +218,18 @@ def main():
     # Axes styling
     ax.set_xticks(xticks)
     ax.set_xticklabels(xlabels, rotation=45, ha="right", rotation_mode="anchor")
-    ax.set_ylabel("Time (s)")
+    
+    # NEW: Apply the Log Scale rules
+    if USE_LOG_SCALE:
+        ax.set_yscale("log")
+        ax.set_ylabel("Time (s) [Log Scale]")
+        y_lim = ax.get_ylim()[1]
+        ax.set_ylim(LOG_MIN_Y, y_lim * 15) # Log scales need heavily multiplied headroom for legends
+    else:
+        ax.set_ylabel("Time (s)")
+        y_lim = ax.get_ylim()[1]
+        ax.set_ylim(0, y_lim * 1.25)
+
     ax.set_xlabel("")
     ax.set_axisbelow(True)
     ax.grid(axis="y", linestyle="-", linewidth=1.0, alpha=0.8)
@@ -214,9 +244,6 @@ def main():
         for k in legend_keys
     ]
 
-    y_lim = ax.get_ylim()[1]
-    ax.set_ylim(0, y_lim * 1.25)
-
     ax.legend(
         handles=patches,
         loc="upper right",
@@ -230,11 +257,15 @@ def main():
     ax.set_title("Breakdown of Attestation Cycle Time by Role and Participant")
 
     plt.tight_layout()
-    out_path = script_dir / OUTPUT_FILE
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
-    print(f"[OK] Saved plot to: {out_path}")
+    
+    # NEW: Save as a different file if using log scale to prevent overwriting
+    final_output = str(script_dir / OUTPUT_FILE)
+    if USE_LOG_SCALE:
+        final_output = final_output.replace(".pdf", "_log.pdf")
+        
+    fig.savefig(final_output, dpi=300, bbox_inches="tight")
+    print(f"[OK] Saved plot to: {final_output}")
     plt.close(fig)
-
 
 if __name__ == "__main__":
     main()

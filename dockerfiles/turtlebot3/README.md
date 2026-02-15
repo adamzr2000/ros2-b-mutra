@@ -89,6 +89,3 @@ colcon build
    ```
 
  `/opt/ros/humble/lib/libgazebo_ros_ray_sensor.so`
-
-![gazebo sensor executable](./../../gazebo-so.png)
-![ros nodes executable](./../../ros-nodes-exec.png)

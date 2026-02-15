@@ -23,4 +23,3 @@ for d in "attestation-times" "docker-stats"; do
 done
 
 echo "Done."
-

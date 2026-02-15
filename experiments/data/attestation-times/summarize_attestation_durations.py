@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 summarize_attestation_durations.py
-Updates: Saves RAW data (for CDFs) AND full summary stats with quartiles (for Boxplots).
+Updates: Adapted to the high-precision "Sync Pair" architecture (_ns and _ms floats).
 """
 
 import json
@@ -19,23 +19,29 @@ OUT_DIR = BASE_DIR / "_summary"
 SUMMARY_FILE = "attestation_durations_summary.csv"
 RAW_FILE = "attestation_durations_raw.csv"
 
+# Updated to match the new ROLE_PRECISION_MAP prefixes in helpers.py/go
 METRICS_CONFIG = {
     "prover": [
-        ("e2e_blockchain", "dur_prover_e2e_ms", "t_evidence_sent", "t_result_received"),
-        ("evidence_blockchain_write", "dur_send_evidence_tx_confirm_ms", "t_evidence_sent", "t_evidence_sent_tx_confirmed"),
-        ("total_lifecycle", "dur_prover_total_ms", "t_prover_start", "t_prover_finished"),
+        ("e2e_blockchain", "dur_prover_e2e", "t_evidence_sent", "t_result_received"),
+        ("evidence_call", "dur_send_evidence_call", "t_prover_start", "t_evidence_sent"),
+        ("evidence_tx_confirm", "dur_send_evidence_tx_confirm", "t_evidence_sent", "t_evidence_sent_tx_confirmed"),
+        ("total_lifecycle", "dur_prover_total", "t_prover_start", "t_prover_finished"),
     ],
     "verifier": [
-        ("signatures_blockchain_read", "dur_signatures_fetch_ms", "t_get_signatures_start", "t_get_signatures_finished"),
-        ("verify_compute", "dur_verify_compute_ms", "t_verify_compute_start", "t_verify_compute_finished"),
-        ("result_blockchain_write", "dur_result_tx_ms", "t_result_sent", "t_verifier_finished"),
-        ("total_lifecycle", "dur_verifier_total_ms", "t_verifier_start", "t_verifier_finished"),
+        ("reaction_time", "dur_verifier_reaction", "t_ready_for_evaluation_received", "t_verifier_start"),
+        ("signatures_fetch", "dur_signatures_fetch", "t_get_signatures_start", "t_get_signatures_finished"),
+        ("verify_compute", "dur_verify_compute", "t_verify_compute_start", "t_verify_compute_finished"),
+        ("result_call", "dur_send_result_call", "t_verify_compute_finished", "t_result_sent"),
+        ("result_tx_confirm", "dur_send_result_tx_confirm", "t_result_sent", "t_result_sent_tx_confirmed"),
+        ("total_lifecycle", "dur_verifier_total", "t_verifier_start", "t_verifier_finished"),
     ],
     "oracle": [
-        ("prover_credentials_blockchain_read", "dur_prover_addr_fetch_ms", "t_get_prover_addr_start", "t_get_prover_addr_finished"),
-        ("db_lookup", "dur_oracle_db_fetch_ms", "t_get_prover_ref_signatures_db_start", "t_get_prover_ref_signatures_db_finished"),
-        ("ref_signatures_blockchain_write", "dur_send_prover_ref_signatures_tx_confirm_ms", "t_prover_ref_signatures_sent", "t_oracle_finished"),
-        ("total_lifecycle", "dur_oracle_total_ms", "t_oracle_start", "t_oracle_finished"),
+        ("reaction_time", "dur_oracle_reaction", "t_attestation_started_received", "t_oracle_start"),
+        ("prover_addr_fetch", "dur_prover_addr_fetch", "t_get_prover_addr_start", "t_get_prover_addr_finished"),
+        ("db_lookup", "dur_db_fetch", "t_get_prover_ref_signatures_db_start", "t_get_prover_ref_signatures_db_finished"),
+        ("ref_signature_call", "dur_send_prover_ref_signature_call", "t_get_prover_ref_signatures_db_finished", "t_prover_ref_signatures_sent"),
+        ("ref_signature_tx_confirm", "dur_send_prover_ref_signatures_tx_confirm", "t_prover_ref_signatures_sent", "t_prover_ref_signatures_sent_tx_confirmed"),
+        ("total_lifecycle", "dur_oracle_total", "t_oracle_start", "t_oracle_finished"),
     ]
 }
 
@@ -61,8 +67,9 @@ def main():
 
     data_points = []
     print(f"Reading JSONs from: {in_dir}")
-    found_files = sorted(in_dir.glob("*.json"))
-    
+    # Using rglob to catch json files even if they are in subdirectories
+    found_files = sorted(in_dir.rglob("*.json"))
+
     for json_path in found_files:
         m = FILE_PATTERN.match(json_path.name)
         if not m: continue
@@ -78,29 +85,25 @@ def main():
         for role, metrics in METRICS_CONFIG.items():
             entries = doc.get(role, [])
             if not isinstance(entries, list): continue
-            
-            for (metric_name, dur_key, start_key, end_key) in metrics:
+
+            for (metric_name, dur_prefix, start_key, end_key) in metrics:
                 for entry in entries:
-                    # 1. Try the standard MS key (e.g. dur_verify_compute_ms)
-                    val_ms = _safe_get(entry, dur_key)
+                    val_ms = None
 
-                    # 2. If result is 0 (precision loss) or None (missing), try finding a Microsecond key
-                    if val_ms == 0 or val_ms is None:
-                        # Construct a probable US key (e.g. dur_verify_compute_us)
-                        # This works because your keys strictly follow the _ms / _us naming convention
-                        us_key = dur_key.replace("_ms", "_us")
-                        val_us = _safe_get(entry, us_key)
-                        
-                        if val_us is not None and val_us > 0:
-                            # Convert microseconds to milliseconds
-                            val_ms = val_us / 1000.0
+                    # 1. Try Native Nanoseconds first (Highest Precision)
+                    val_ns = _safe_get(entry, f"{dur_prefix}_ns")
+                    if val_ns is not None:
+                        val_ms = val_ns / 1_000_000.0
+                    else:
+                        # 2. Fallback to pre-calculated High-Precision MS
+                        val_ms = _safe_get(entry, f"{dur_prefix}_ms")
 
-                    # 3. If STILL None (or 0 and we want to try fallback), use Timestamps
-                    if val_ms is None:
-                        t_s = _safe_get(entry, start_key)
-                        t_e = _safe_get(entry, end_key)
-                        if t_s is not None and t_e is not None:
-                            val_ms = t_e - t_s
+                        # 3. Fallback to Wall-Clock Timestamps subtraction
+                        if val_ms is None:
+                            t_s = _safe_get(entry, start_key)
+                            t_e = _safe_get(entry, end_key)
+                            if t_s is not None and t_e is not None:
+                                val_ms = t_e - t_s
 
                     if val_ms is not None and val_ms >= 0:
                         data_points.append({
@@ -108,7 +111,7 @@ def main():
                             "run": run_id,
                             "role": role,
                             "metric": metric_name,
-                            "duration_s": val_ms / 1000.0
+                            "duration_s": val_ms / 1000.0  # Kept in seconds for your existing downstream plots
                         })
 
     if not data_points:
@@ -123,16 +126,16 @@ def main():
 
     # --- SAVE SUMMARY (With Percentiles) ---
     summary = df.groupby(["participant", "role", "metric"])["duration_s"].agg(
-        count="count", 
-        mean_s="mean", 
-        std_s="std", 
-        min_s="min", 
-        max_s="max", 
+        count="count",
+        mean_s="mean",
+        std_s="std",
+        min_s="min",
+        max_s="max",
         median_s="median",
-        p25_s=lambda x: x.quantile(0.25),  # <--- FIXED
-        p75_s=lambda x: x.quantile(0.75)   # <--- FIXED
+        p25_s=lambda x: x.quantile(0.25),
+        p75_s=lambda x: x.quantile(0.75)
     ).reset_index()
-    
+
     sum_path = out_dir / SUMMARY_FILE
     summary.to_csv(sum_path, index=False)
     print(f"[OK] Summary saved to: {sum_path}")

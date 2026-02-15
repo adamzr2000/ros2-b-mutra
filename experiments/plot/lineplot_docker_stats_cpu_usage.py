@@ -16,7 +16,7 @@ SPINES_WIDTH = 1.0
 FIG_SIZE = (9, 5.5)
 
 # --- Smoothing: time-based rolling mean ---
-WINDOW_S = 5
+WINDOW_S = 1
 
 
 def _clean_container_label(raw: str) -> str:

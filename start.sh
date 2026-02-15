@@ -15,70 +15,44 @@ export COMPOSE_IGNORE_ORPHANS=1
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--auto|--no-auto] [--export|--no-export]
-
-Defaults:
-  --no-auto     (AUTO_START=FALSE)
-  --no-export   (EXPORT_RESULTS=FALSE)
+Usage: $(basename "$0") [--auto] [--export]
 
 Options:
-  --auto        Set AUTO_START=TRUE
-  --no-auto     Set AUTO_START=FALSE
-  --export      Set EXPORT_RESULTS=TRUE
-  --no-export   Set EXPORT_RESULTS=FALSE
+  --auto      Set AUTO_START=TRUE
+  --export    Set EXPORT_RESULTS=TRUE
+  --wait-tx   Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
+  -h|--help   Show this help
 
-Examples:
-  ./start.sh
-  ./start.sh --auto
-  ./start.sh --export
-  ./start.sh --auto --export
 EOF
 }
 
-# Defaults (requested): no-auto + no-export
+# Default values
 AUTO_START_VAL="FALSE"
 EXPORT_RESULTS_VAL="FALSE"
+WAIT_TX_VAL="FALSE"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --auto)      AUTO_START_VAL="TRUE"; shift ;;
-    --no-auto)   AUTO_START_VAL="FALSE"; shift ;;
-    --export)    EXPORT_RESULTS_VAL="TRUE"; shift ;;
-    --no-export) EXPORT_RESULTS_VAL="FALSE"; shift ;;
-    -h|--help)   usage; exit 0 ;;
+    --auto)   AUTO_START_VAL="TRUE"; shift ;;
+    --export) EXPORT_RESULTS_VAL="TRUE"; shift ;;
+    --wait-tx) WAIT_TX_VAL="TRUE"; shift ;;
+    -h|--help) usage; exit 0 ;;
     *) echo "❌ Unknown arg: $1"; echo; usage; exit 1 ;;
   esac
 done
 
-# --- Ensure .env has desired values BEFORE anything else ---
+# --- Ensure .env has desired values ---
 upsert_env () {
   local key="$1"
   local val="$2"
   if grep -qE "^[[:space:]]*$key=" "$ENV_FILE"; then
+    # Overwrite existing key
     sed -i "s|^[[:space:]]*$key=.*|$key=$val|g" "$ENV_FILE"
   else
+    # Append new key
     echo "$key=$val" >> "$ENV_FILE"
   fi
-}
-
-wait_for_secaas () {
-  echo "⏳ Waiting for SECaaS API to be ready at $SECAAS_URL..."
-  local max_attempts=30
-  local attempt=1
-
-  while [ $attempt -le $max_attempts ]; do
-    if curl -s "$SECAAS_URL/" | grep -q "SECaaS running"; then
-      echo "✅ SECaaS is UP and running!"
-      return 0
-    fi
-    echo "   (Attempt $attempt/$max_attempts) Still waiting..."
-    sleep 2
-    attempt=$((attempt + 1))
-  done
-
-  echo "❌ SECaaS failed to start in time."
-  return 1
 }
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -86,13 +60,13 @@ if [[ ! -f "$ENV_FILE" ]]; then
   touch "$ENV_FILE"
 fi
 
-# Apply chosen flags
+# Apply the values (This effectively "resets" them to FALSE unless flags were caught)
 upsert_env "EXPORT_RESULTS" "$EXPORT_RESULTS_VAL"
 upsert_env "AUTO_START" "$AUTO_START_VAL"
+upsert_env "WAIT_FOR_TX_CONFIRMATIONS" "$WAIT_TX_VAL"
 upsert_env "COMPOSE_PROJECT_NAME" "$PROJECT_NAME"
 
-echo "✅ .env updated:"
-grep -E '^(EXPORT_RESULTS|AUTO_START|COMPOSE_PROJECT_NAME)=' "$ENV_FILE" || true
+echo "✅ .env updated (Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Wait Tx: $WAIT_TX_VAL)"
 echo
 
 # Reset EventWatcher checkpoints (seen_keys/from_block) before starting experiment
@@ -124,6 +98,24 @@ docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.robots.yml" up 
 
 # 5) Start docker-compose.secaas.yml
 docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.secaas.yml" up -d
+
+
+wait_for_secaas () {
+  echo "⏳ Waiting for SECaaS API to be ready at $SECAAS_URL..."
+  local max_attempts=30
+  local attempt=1
+  while [ $attempt -le $max_attempts ]; do
+    if curl -s "$SECAAS_URL/" | grep -q "SECaaS running"; then
+      echo "✅ SECaaS is UP and running!"
+      return 0
+    fi
+    echo "   (Attempt $attempt/$max_attempts) Still waiting..."
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+  echo "❌ SECaaS failed to start in time."
+  return 1
+}
 
 # 6) Wait and Sync
 if wait_for_secaas; then

@@ -7,12 +7,11 @@ from pathlib import Path
 import sys
 
 # ---- Config ----
-# UPDATED: Points to the RAW file we just created
 INPUT_FILE = "../data/attestation-times/_summary/attestation_durations_raw.csv"
 OUTPUT_FILE = "./cdfplot_attestation_cycle_time_per_robot.pdf"
 
-# UPDATED: Metric to plot
-TARGET_METRIC = "e2e_blockchain" 
+TARGET_METRIC = "total_lifecycle"
+TARGET_ROLE = "prover"  # <--- ADDED: Must isolate the Prover's perspective!
 
 FONT_SCALE = 1.5
 SPINES_WIDTH = 1.0
@@ -23,7 +22,7 @@ def main():
     script_dir = Path(__file__).parent.resolve()
     # Try multiple paths to find the file
     csv_path = (script_dir / INPUT_FILE).resolve()
-    
+
     if not csv_path.exists():
         print(f"[ERR] CSV not found at: {csv_path}")
         print("Did you run the updated 'summarize_attestation_durations.py' first?")
@@ -31,11 +30,14 @@ def main():
 
     df = pd.read_csv(csv_path)
 
-    # Filter for the specific metric
-    df = df[df["metric"] == TARGET_METRIC].copy()
-    
+    # Filter for the specific metric AND role
+    df = df[
+        (df["metric"] == TARGET_METRIC) & 
+        (df["role"] == TARGET_ROLE)
+    ].copy()
+
     if df.empty:
-        print(f"[ERR] No data found for metric: {TARGET_METRIC}")
+        print(f"[ERR] No data found for metric: {TARGET_METRIC} and role: {TARGET_ROLE}")
         sys.exit(1)
 
     # Sort Logic
@@ -46,8 +48,8 @@ def main():
     df = df.sort_values(by="participant", key=sort_key).reset_index(drop=True)
 
     # Theme
-    sns.set_theme(context="paper", style="ticks", 
-                  rc={"xtick.direction": "in", "ytick.direction": "in"}, 
+    sns.set_theme(context="paper", style="ticks",
+                  rc={"xtick.direction": "in", "ytick.direction": "in"},
                   font_scale=FONT_SCALE)
 
     ordered_labels = df["participant"].unique().tolist()

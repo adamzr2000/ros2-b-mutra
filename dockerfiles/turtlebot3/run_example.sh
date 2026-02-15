@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Default container name
-container_name="ros2-agent"
+container_image="turtlebot3-gazebo"
+
+container_name=$container_image
 
 # Parse options
 while [[ "$#" -gt 0 ]]; do
@@ -18,16 +19,15 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Host directory
-host_dir="./ros2_ws/src"
+host_dir="./src"
 
 # Run the container
 docker run \
     -it \
     --name "${container_name}" \
-    --hostname "${container_name}" \
     -v "${host_dir}:/home/agent/ros2_ws/src" \
     --rm \
     --privileged \
-    turtlebot3-simulation-ros2:latest
+    $container_image:latest
 
 echo "Done."

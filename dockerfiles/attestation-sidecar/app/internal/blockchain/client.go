@@ -241,14 +241,14 @@ func (bc *BlockchainClient) estimateGasLimit(ctx context.Context, data []byte) (
 	est, err := bc.client.EstimateGas(ctx, msg)
 	if err != nil {
 		// fallback
-		logger.Warn("EstimateGas failed (%v); using fallback gas=500000", err)
-		return 500_000, nil
+		logger.Debug("EstimateGas simulation unavailable; using safe fallback 300000")
+		return 300000, nil
 	}
 
-	// add 20% buffer
-	gas := uint64((uint64(est) * 120) / 100)
+	// If simulation works, add a 30% buffer
+	gas := uint64((uint64(est) * 130) / 100)
 
-	// protect from absurdly low values (rare, but safe)
+	// Standard safety floor
 	if gas < 21_000 {
 		gas = 21_000
 	}

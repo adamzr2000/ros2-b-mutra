@@ -40,6 +40,7 @@ type ProverConfig struct {
 	MemoryStorageFile string
 	SelfIntegrity     SelfIntegrityInfo
 	OneShot           bool
+	WaitForTxConfirmations bool
 }
 
 // ProverState holds the runtime state of the prover
@@ -60,28 +61,33 @@ func ProcessProverAttestation(
 	exportEnabled bool,
 	participantName string,
 	resultsDir string,
-	startTs int64, // Passed from the continuous loop
+	resultsFile string,
+	startTs int64,
+    startP int64,
+    waitForTx bool,
 ) {
 	timestamps := make(map[string]interface{})
 
 	// 1. Capture Prover Start (from the loop's start time)
 	timestamps["prover_start"] = startTs
+	timestamps["p_prover_start"] = startP
 
 	logPrefix := fmt.Sprintf("[Prover-%s]", utils.ShortAttID(attestationID, 4))
 
 	// 2. Send Evidence
 	timestamps["evidence_sent"] = utils.NowMs()
-
-	// Start timer for call duration
-	p0 := utils.PerfNs()
+	timestamps["p_send_evidence_start"] = utils.PerfNs()
 
 	// Send evidence with wait=true and timeout=60s
-	_, err := bc.SendEvidence(attestationID, measurement, true, 60)
+	_, err := bc.SendEvidence(attestationID, measurement, waitForTx, 60)
 
-	// Stop timer
-	p1 := utils.PerfNs()
-	timestamps["evidence_sent_tx_confirmed"] = utils.NowMs()
-	timestamps["dur_send_evidence_call_us"] = utils.NsToUs(p0, p1)
+	timestamps["p_send_evidence_finished"] = utils.PerfNs()
+
+	// Only record confirmation if we actually waited for it!
+    if waitForTx {
+        timestamps["p_send_evidence_finished_tx_confirmed"] = timestamps["p_send_evidence_finished"]
+        timestamps["evidence_sent_tx_confirmed"] = utils.NowMs()
+    }
 
 	if err != nil {
 		logger.Error("%s Failed to send evidence: %v", logPrefix, err)
@@ -138,6 +144,7 @@ func ProcessProverAttestation(
 		time.Sleep(15 * time.Millisecond)
 	}
 
+	timestamps["p_result_received"] = utils.PerfNs()
 	timestamps["result_received"] = utils.NowMs()
 
 	// 5. Retrieve Result
@@ -156,6 +163,7 @@ func ProcessProverAttestation(
 		logger.Info("%s Verified by: %s at %v", logPrefix, verifier.Hex(), ts)
 	}
 
+	timestamps["p_prover_finished"] = utils.PerfNs()
 	timestamps["prover_finished"] = utils.NowMs()
 
 	// 6. Export Results
@@ -166,7 +174,7 @@ func ProcessProverAttestation(
 			"prover",
 			timestamps,
 			resultsDir,
-			"", // result file path handled by helper if empty
+			resultsFile, // result file path handled by helper if empty
 		)
 	}
 }
@@ -177,10 +185,9 @@ func RunProverAndCleanup(
 	attestationID string,
 	measurement string,
 	startTs int64,
+	startP int64,
 	stopCh <-chan struct{},
-	exportEnabled bool,
-	participantName string,
-	resultsDir string,
+	config ProverConfig,
 	activeAttestations *sync.Map,
 ) {
 	start := time.Now()
@@ -192,7 +199,11 @@ func RunProverAndCleanup(
 		activeAttestations.Delete(attestationID)
 	}()
 
-	ProcessProverAttestation(bc, attestationID, measurement, stopCh, exportEnabled, participantName, resultsDir, startTs)
+	ProcessProverAttestation(
+		bc, attestationID, measurement, stopCh, 
+		config.ExportEnabled, config.AgentName, config.ResultsDir, config.ResultsFile,
+		startTs, startP, config.WaitForTxConfirmations,
+	)
 }
 
 // RunProverLogicContinuousMode runs the continuous prover loop
@@ -232,6 +243,7 @@ func RunProverLogicContinuousMode(
 		// Record the start time of *this specific attestation cycle*
 		// This will be passed down to become timestamps["prover_start"]
 		batchStartTs := utils.NowMs()
+		batchStartP := utils.PerfNs()
 
 		// 1. Measure / Compute Hash
 		var digest string
@@ -339,20 +351,19 @@ func RunProverLogicContinuousMode(
 		attestationID := utils.GenerateAttestationID()
 
 		wg.Add(1)
-		go func(attID string, evidence string, startTs int64) {
+		go func(attID string, evidence string, startTs int64, startP int64) {
 			defer wg.Done()
 			RunProverAndCleanup(
 				bc,
 				attID,
 				evidence,
-				startTs, // Pass batchStartTs here
+				startTs,
+				startP,
 				stopCh,
-				config.ExportEnabled,
-				config.AgentName,
-				config.ResultsDir,
+				config,
 				activeAttestations,
 			)
-		}(attestationID, combinedDigest, batchStartTs)
+		}(attestationID, combinedDigest, batchStartTs, batchStartP)
 
 		activeAttestations.Store(attestationID, true)
 

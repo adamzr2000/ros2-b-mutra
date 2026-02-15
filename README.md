@@ -30,26 +30,39 @@ The following modules will be built and tagged locally:
 
 ## Quick Setup
 
+1. Create agent configurations:
+
 ```bash
 python3 create_agent_config.py --num-agents 10
 ```
 
-Start the full experiment with all services:
+2. Start the full experiment:
+```bash
+./start.sh --auto
+```
+
+This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
 - **4-node Private Ethereum-based blockchain** with [Hyperledger Besu](https://besu.hyperledger.org/private-networks) platform running [QBFT](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft) consensus algorithm
 - **Gazebo** robot simulator
 - **Robot(s)** with `turtlebot3-gazebo` and `attestation-sidecar`
 - **Security-as-a-Service (SECaaS)**
 
 ```bash
-./start.sh --auto
+./start.sh -h
+Usage: start.sh [--auto] [--export]
+
+Options:
+  --auto      Set AUTO_START=TRUE
+  --export    Set EXPORT_RESULTS=TRUE
+  --wait-tx   Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
+  -h|--help   Show this help
 ```
 
-> Note: This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
-
-Stop the experiment:
+3. Stop the experiment:
 ```bash
 ./stop.sh
 ```
+
 ---
 
 ## Blockchain Network Setup
@@ -76,14 +89,14 @@ cd blockchain/quorum-test-network
 
 ---
 
-## Data collection (auto)
+## Data collection (attestation times + docker stats)
 
 ```bash
-./start.sh --no-auto --no-export
+./start.sh --export
 ```
 
 ```bash
-python3 run_experiments_and_collect_results.py --runs 5 --duration 180
+python3 run_experiments_and_collect_results.py --runs 3 --duration 120
 ```
 
 ```bash
@@ -92,10 +105,10 @@ python3 run_experiments_and_collect_results.py --runs 5 --duration 180
 
 ---
 
-## Data collection (manual)
+<!-- ## Data collection (manual)
 1. Start containers:
 ```bash
-./start.sh --no-auto --no-export
+./start.sh
 ```
 
 2. Start docker stats data collection
@@ -134,4 +147,4 @@ curl -X POST "http://localhost:6000/monitor/stop" | jq
 6. Stop workflow
 ```bash
 ./stop.sh
-```
+``` -->

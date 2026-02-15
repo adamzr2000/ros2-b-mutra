@@ -65,9 +65,9 @@ class DatabaseClient:
                 row = cur.fetchone()
                 if row:
                     return {
-                        "robot_hash": row[0]
+                        "robot_hash": row[0],
                         "attestation_sidecar_hash": row[1],
-                        "combined_hash": row[2],
+                        "combined_hash": row[2]
                     }
                 return None
         except Exception as e:

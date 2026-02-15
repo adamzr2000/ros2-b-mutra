@@ -169,7 +169,12 @@ contract MasMutualAttestation {
     function GetAttestationSignatures(bytes32 id, address callAddress) public view returns (bytes32, bytes32) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.verifier == callAddress, "Only the verifier can retrieve the signatures");
-        require(currentAttestation.state == AttestationState.ReadyForEvaluation, "Attestation process is not completed");
+        // readiness: either process completed OR this attestation is verified by secaas
+        require(
+            currentAttestation.state == AttestationState.ReadyForEvaluation ||
+            currentAttestation.verifier == secaas,
+            "Attestation not completed (unless verifier is secaas)"
+        );
         return (currentAttestation.fresh_signature, currentAttestation.ref_signature);
     }
 
@@ -211,6 +216,31 @@ contract MasMutualAttestation {
 
         emit AttestationCompleted(id);
         return true;
+    }
+
+    function ResolveAttestationSECaaS(bytes32 id, bool verified) public {
+        require(msg.sender == secaas, "Only the SECaaS can resolve attestations");
+        
+        MutualAttestation storage currentAttestation = attestation[id];
+        
+        require(currentAttestation.state == AttestationState.Open, "Not in Open state");
+        require(currentAttestation.verifier == secaas, "SECaaS not elected as verifier");
+
+        currentAttestation.state = AttestationState.Closed;
+        currentAttestation.timestamp = block.timestamp;
+        
+        if (verified) {
+            currentAttestation.result = AttestationResult.Success;
+            lastSuccess[currentAttestation.prover] = block.timestamp;
+        } else {
+            currentAttestation.result = AttestationResult.Failure;
+        }
+
+        // Record keeping
+        agent[currentAttestation.prover].completedAttestations.push(id);
+        attestationChain.push(id);
+
+        emit AttestationCompleted(id);
     }
 
     function IsProver(bytes32 id, address callAddress) public view returns (bool) {

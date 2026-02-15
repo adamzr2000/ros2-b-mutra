@@ -3,12 +3,12 @@
 x-common-commands:
   gzserver_command: &gzserver_command >
     bash -c "
-    source /home/agent/ros2_ws/install/setup.bash && ros2 launch turtlebot3_gazebo gazebo_server.launch.py verbose:=true
+    ./start_gazebo_server.sh
     "
 
   robot_entrypoint: &robot_entrypoint >
     bash -c "
-    cd ~/scripts && ./start_turtlebot.sh
+    ./start_turtlebot.sh
     "
     
 services:
@@ -17,7 +17,7 @@ services:
     container_name: gazebo-server
     hostname: gazebo-server
     environment:
-      - ROS_DOMAIN_ID=42   
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}   
       - GAZEBO_AUDIO_DEVICE=none
     ports:
       - "11345:11345"
@@ -32,7 +32,7 @@ services:
     container_name: gazebo-client
     hostname: gazebo-client
     environment:
-      - ROS_DOMAIN_ID=42
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
       - GAZEBO_MASTER_URI=http://gazebo-server:11345    
     depends_on:
       - gazebo-server    
@@ -49,7 +49,7 @@ services:
     container_name: robot1
     hostname: robot1
     environment:
-        - ROS_DOMAIN_ID=42
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot1
         - X_POSE=0
@@ -67,7 +67,7 @@ services:
     container_name: robot2
     hostname: robot2
     environment:
-        - ROS_DOMAIN_ID=42
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot2
         - X_POSE=5
@@ -85,9 +85,9 @@ services:
     container_name: robot3
     hostname: robot3
     environment:
-        - ROS_DOMAIN_ID=42
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
-        - NAMESPACE=robot2
+        - NAMESPACE=robot3
         - X_POSE=10
         - Y_POSE=15
     command: *robot_entrypoint
@@ -103,7 +103,7 @@ services:
     container_name: robot4
     hostname: robot4
     environment:
-        - ROS_DOMAIN_ID=42
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot4
         - X_POSE=40
@@ -119,5 +119,4 @@ services:
 networks:
   ros-net:
     driver: bridge
-    internal: true
     name: ros-net

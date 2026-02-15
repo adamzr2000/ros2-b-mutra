@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -24,6 +25,9 @@ var (
 	jsonFileLocks = make(map[string]*sync.Mutex)
 	// Mutex to protect the map creation itself
 	globalLockCreation sync.Mutex
+
+	// Provides a monotonic baseline for PerfNs
+	programStartTime = time.Now()
 )
 
 // getJSONLock returns a thread-safe mutex for a specific file path.
@@ -49,11 +53,6 @@ func NowMs() int64 {
 // PerfNs returns a high-resolution monotonic clock in nanoseconds.
 func PerfNs() int64 {
 	return time.Now().UnixNano()
-}
-
-// NsToUs converts nanosecond delta to microseconds.
-func NsToUs(startNs, endNs int64) int64 {
-	return (endNs - startNs) / 1000
 }
 
 // -------------------------------------------------------------------------
@@ -188,7 +187,6 @@ func EnsureResultsInitialized(jsonDir string, participant string, jsonPath strin
 	
 	// Check if already valid
 	if _, err := os.Stat(jsonPath); err == nil {
-		// FIXED: Changed ioutil.ReadFile to os.ReadFile
 		fileBytes, err := os.ReadFile(jsonPath)
 		if err == nil {
 			var loaded map[string]interface{}
@@ -221,62 +219,61 @@ func EnsureResultsInitialized(jsonDir string, participant string, jsonPath strin
 var (
 	roleFields = map[string]map[string][]string{
 		"prover": {
-			"t_prover_start":                {"prover_start"},
-			"t_evidence_sent":               {"evidence_sent"},
-			"t_evidence_sent_tx_confirmed":  {"evidence_sent_tx_confirmed"},
-			"t_result_received":             {"result_received"},
-			"t_prover_finished":             {"prover_finished"},
-			"dur_send_evidence_call_us":     {"dur_send_evidence_call_us"},
+			"t_prover_start":               {"prover_start"},
+			"t_evidence_sent":              {"evidence_sent"},
+			"t_evidence_sent_tx_confirmed": {"evidence_sent_tx_confirmed"},
+			"t_result_received":            {"result_received"},
+			"t_prover_finished":            {"prover_finished"},
 		},
 		"verifier": {
-			"meta_verification_result":      {"verification_result"},
-			"t_verifier_start":              {"verifier_start"},
-			"t_get_signatures_start":        {"get_signatures_start"},
-			"t_get_signatures_finished":     {"get_signatures_finished"},
-			"t_verify_compute_start":        {"verify_compute_start"},
-			"t_verify_compute_finished":     {"verify_compute_finished"},
-			"t_result_sent":                 {"result_sent"},
-			"t_result_sent_tx_confirmed":    {"result_sent_tx_confirmed"},
-			"t_verifier_finished":           {"verifier_finished"},
-			"dur_signatures_fetch_us":       {"dur_signatures_fetch_us"},
-			"dur_verify_compute_us":         {"dur_verify_compute_us"},
-			"dur_send_result_call_us":       {"dur_send_result_call_us"},
-			"dur_verifier_reaction_ms":      {"dur_verifier_reaction_ms"},
+			"meta_verification_result":        {"verification_result"},
+			"meta_is_secaas_verifier":         {"is_secaas_verifier"},
+			"t_ready_for_evaluation_received": {"ready_for_evaluation_received"},
+			"t_verifier_start":                {"verifier_start"},
+			"t_get_signatures_start":          {"get_signatures_start"},
+			"t_get_signatures_finished":       {"get_signatures_finished"},
+			"t_verify_compute_start":          {"verify_compute_start"},
+			"t_verify_compute_finished":       {"verify_compute_finished"},
+			"t_result_sent":                   {"result_sent"},
+			"t_result_sent_tx_confirmed":      {"result_sent_tx_confirmed"},
+			"t_verifier_finished":             {"verifier_finished"},
 		},
 		"oracle": {
-			"t_oracle_start":                            {"oracle_start"},
-			"t_get_prover_addr_start":                   {"get_prover_addr_start"},
-			"t_get_prover_addr_finished":                {"get_prover_addr_finished"},
-			"t_get_prover_ref_signatures_db_start":      {"get_prover_ref_signatures_db_start"},
-			"t_get_prover_ref_signatures_db_finished":   {"get_prover_ref_signatures_db_finished"},
-			"t_prover_ref_signatures_sent":              {"prover_ref_signatures_sent"},
-			"t_prover_ref_signatures_sent_tx_confirmed": {"prover_ref_signatures_sent_tx_confirmed"},
-			"t_oracle_finished":                         {"oracle_finished"},
-			"dur_prover_addr_fetch_us":                  {"dur_prover_addr_fetch_us"},
-			"dur_oracle_db_fetch_us":                    {"dur_oracle_db_fetch_us"},
-			"dur_send_prover_ref_signatures_call_us":    {"dur_send_prover_ref_signatures_call_us"},
-			"dur_oracle_reaction_ms":                    {"dur_oracle_reaction_ms"},
+			"meta_is_secaas_verifier":                  {"is_secaas_verifier"},
+			"t_attestation_started_received":           {"attestation_started_received"},
+			"t_oracle_start":                           {"oracle_start"},
+			"t_get_prover_addr_start":                  {"get_prover_addr_start"},
+			"t_get_prover_addr_finished":               {"get_prover_addr_finished"},
+			"t_get_prover_ref_signature_db_start":      {"get_prover_ref_signatures_db_start"},
+			"t_get_prover_ref_signature_db_finished":   {"get_prover_ref_signatures_db_finished"},
+			"t_prover_ref_signature_sent":              {"prover_ref_signatures_sent"},
+			"t_prover_ref_signature_sent_tx_confirmed": {"prover_ref_signatures_sent_tx_confirmed"},
+			"t_oracle_finished":                        {"oracle_finished"},
 		},
 	}
 
-	// start_out, end_out
-	roleDursMs = map[string][][3]string{
+	rolePrecisionMap = map[string][][3]string{
 		"prover": {
-			{"dur_send_evidence_tx_confirm_ms", "t_evidence_sent", "t_evidence_sent_tx_confirmed"},
-			{"dur_prover_e2e_ms", "t_evidence_sent", "t_result_received"},
-			{"dur_prover_total_ms", "t_prover_start", "t_prover_finished"},
+			{"dur_send_evidence_call", "p_send_evidence_start", "p_send_evidence_finished"},
+			{"dur_send_evidence_tx_confirm", "p_send_evidence_start", "p_send_evidence_finished_tx_confirmed"},
+			{"dur_prover_e2e", "p_send_evidence_start", "p_result_received"},
+			{"dur_prover_total", "p_prover_start", "p_prover_finished"},
 		},
 		"verifier": {
-			{"dur_signatures_fetch_ms", "t_get_signatures_start", "t_get_signatures_finished"},
-			{"dur_verify_compute_ms", "t_verify_compute_start", "t_verify_compute_finished"},
-			{"dur_send_result_tx_confirm_ms", "t_result_sent", "t_result_sent_tx_confirmed"},
-			{"dur_verifier_total_ms", "t_verifier_start", "t_verifier_finished"},
+			{"dur_signatures_fetch", "p_get_signatures_start", "p_get_signatures_finished"},
+			{"dur_verify_compute", "p_verify_compute_start", "p_verify_compute_finished"},
+			{"dur_send_result_call", "p_send_result_start", "p_send_result_finished"},
+			{"dur_send_result_tx_confirm", "p_send_result_start", "p_send_result_finished_tx_confirmed"},
+			{"dur_verifier_reaction", "p_ready_for_evaluation_received", "p_verifier_start"},
+			{"dur_verifier_total", "p_verifier_start", "p_verifier_finished"},
 		},
 		"oracle": {
-			{"dur_prover_addr_fetch_ms", "t_get_prover_addr_start", "t_get_prover_addr_finished"},
-			{"dur_oracle_db_fetch_ms", "t_get_prover_ref_signatures_db_start", "t_get_prover_ref_signatures_db_finished"},
-			{"dur_send_prover_ref_signatures_tx_confirm_ms", "t_prover_ref_signatures_sent", "t_prover_ref_signatures_sent_tx_confirmed"},
-			{"dur_oracle_total_ms", "t_oracle_start", "t_oracle_finished"},
+			{"dur_prover_addr_fetch", "p_get_prover_addr_start", "p_get_prover_addr_finished"},
+			{"dur_db_fetch", "p_get_prover_ref_signatures_db_start", "p_get_prover_ref_signatures_db_finished"},
+			{"dur_send_prover_ref_signature_call", "p_send_prover_ref_signature_start", "p_send_prover_ref_signature_finished"},
+			{"dur_send_prover_ref_signatures_tx_confirm", "p_send_prover_ref_signature_start", "p_send_prover_ref_signature_finished_tx_confirmed"},
+			{"dur_oracle_reaction", "p_attestation_started_received", "p_oracle_start"},
+			{"dur_oracle_total", "p_oracle_start", "p_oracle_finished"},
 		},
 	}
 )
@@ -295,7 +292,7 @@ func ExportAttestationTimesJSON(participantName string, attestationID string, ro
 	att := make(map[string]interface{})
 	att["attestation_id"] = attestationID
 
-	// 1) Copy fields based on mapping
+	// 1) Copy Wall-clock timestamps and Metadata based on mapping
 	fields, ok := roleFields[role]
 	if ok {
 		for outKey, candidates := range fields {
@@ -308,10 +305,8 @@ func ExportAttestationTimesJSON(participantName string, attestationID string, ro
 		}
 	}
 
-	// 2) Compute Durations
-	// Helpers to get int64 safely from map
+	// Helper to extract int64 safely from the original timestamps map
 	getInt := func(m map[string]interface{}, k string) (int64, bool) {
-		// Handle json unmarshal float64 or int64 or int
 		v, exists := m[k]
 		if !exists {
 			return 0, false
@@ -328,14 +323,23 @@ func ExportAttestationTimesJSON(participantName string, attestationID string, ro
 		}
 	}
 
-	durs, ok := roleDursMs[role]
+	// 2) Compute High-Precision Durations (p_ fields)
+	durs, ok := rolePrecisionMap[role]
 	if ok {
 		for _, triplet := range durs {
-			durKey, startKey, endKey := triplet[0], triplet[1], triplet[2]
-			startVal, ok1 := getInt(att, startKey)
-			endVal, ok2 := getInt(att, endKey)
+			prefix, pStart, pEnd := triplet[0], triplet[1], triplet[2]
+			startVal, ok1 := getInt(timestamps, pStart)
+			endVal, ok2 := getInt(timestamps, pEnd)
+
 			if ok1 && ok2 {
-				att[durKey] = endVal - startVal
+				deltaNs := endVal - startVal
+				
+				// Export native nanoseconds
+				att[fmt.Sprintf("%s_ns", prefix)] = deltaNs
+				
+				// Export float ms rounded to 4 decimals (e.g. 1.2345 ms)
+				msVal := float64(deltaNs) / 1000000.0
+				att[fmt.Sprintf("%s_ms", prefix)] = math.Round(msVal*10000) / 10000
 			}
 		}
 	}
@@ -358,7 +362,7 @@ func ExportAttestationTimesJSON(participantName string, attestationID string, ro
 	}
 
 	data.LastWriteMs = nowMs
-	
+
 	if err := atomicWriteJSON(jsonPath, data); err == nil {
 		logger.Info("💾 Results saved to '%s'", jsonPath)
 	}

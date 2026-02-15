@@ -18,5 +18,4 @@ services:
 networks:
   mon-net:
     driver: bridge
-    internal: true
     name: mon-net

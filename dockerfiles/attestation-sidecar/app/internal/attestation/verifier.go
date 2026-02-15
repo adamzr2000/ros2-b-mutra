@@ -112,6 +112,7 @@ func RunVerifierLogicSequential(
 	// ---------------------------------------------------------
 	handle := func(log types.Log, parsedData map[string]interface{}) error {
 		arrivalTs := utils.NowMs()
+		arrivalP := utils.PerfNs()
 
 		// Extract Attestation ID
 		// It usually comes as [32]byte from the watcher. Convert to string.
@@ -143,7 +144,8 @@ func RunVerifierLogicSequential(
 				enqueuedIDs[attID] = true
 
 				seed := map[string]interface{}{
-					"evaluation_ready_received": arrivalTs,
+					"ready_for_evaluation_received": arrivalTs,
+					"p_ready_for_evaluation_received": arrivalP,
 				}
 
 				// Non-blocking send to avoid stalling watcher if queue is full
@@ -188,12 +190,13 @@ func processVerifierAttestation(
 	}
 
 	timestamps["verifier_start"] = utils.NowMs()
+	timestamps["p_verifier_start"] = utils.PerfNs()
 	logPrefix := fmt.Sprintf("[Verifier-%s]", utils.ShortAttID(attestationID, 4))
 	logger.Info("%s SECaaS Oracle finished. Retrieving signatures for evaluation...", logPrefix)
 
 	// 1. Retrieve Signatures
 	timestamps["get_signatures_start"] = utils.NowMs()
-	p0 := utils.PerfNs()
+	timestamps["p_get_signatures_start"] = utils.PerfNs()
 
 	freshSig, refSig, err := client.GetAttestationSignatures(attestationID)
 	if err != nil {
@@ -201,22 +204,20 @@ func processVerifierAttestation(
 		return
 	}
 
-	p1 := utils.PerfNs()
+	timestamps["p_get_signatures_finished"] = utils.PerfNs()
 	timestamps["get_signatures_finished"] = utils.NowMs()
-	timestamps["dur_signatures_fetch_us"] = utils.NsToUs(p0, p1)
 
 	// 2. Evaluation (compute)
 	timestamps["verify_compute_start"] = utils.NowMs()
-	p0 = utils.PerfNs()
+	timestamps["p_verify_compute_start"] = utils.PerfNs()
 
 	// Logic: Compare signatures
 	isSuccess := strings.EqualFold(freshSig, refSig)
 	// For testing
 	isSuccess = true
 
-	p1 = utils.PerfNs()
+	timestamps["p_verify_compute_finished"] = utils.PerfNs()
 	timestamps["verify_compute_finished"] = utils.NowMs()
-	timestamps["dur_verify_compute_us"] = utils.NsToUs(p0, p1)
 
 	// 3. Submit Result
 	statusIcon := "❌ FAILURE"
@@ -225,9 +226,9 @@ func processVerifierAttestation(
 	}
 	logger.Info("%s Attestation closed (result: %s)", logPrefix, statusIcon)
 
+	timestamps["verification_result"] = isSuccess
 	timestamps["result_sent"] = utils.NowMs()
-	timestamps["verification_result"] = isSuccess // stores bool, helpers handles conversion
-	p0 = utils.PerfNs()
+	timestamps["p_send_result_start"] = utils.PerfNs()
 
 	// Wait logic based on config
 	timeout := 60 // default timeout
@@ -237,21 +238,15 @@ func processVerifierAttestation(
 		// We continue to record what we can
 	}
 
-	p1 = utils.PerfNs()
-	timestamps["dur_send_result_call_us"] = utils.NsToUs(p0, p1)
+	timestamps["p_send_result_finished"] = utils.PerfNs()
 
 	if cfg.WaitForTxConfirmations {
-		timestamps["result_sent_tx_confirmed"] = utils.NowMs()
+			timestamps["p_send_result_finished_tx_confirmed"] = utils.PerfNs()
+			timestamps["result_sent_tx_confirmed"] = utils.NowMs()
 	}
 
+	timestamps["p_verifier_finished"] = utils.PerfNs()
 	timestamps["verifier_finished"] = utils.NowMs()
-
-	// 4. Reaction Metrics
-	if startVal, ok := timestamps["verifier_start"].(int64); ok {
-		if readyVal, ok := timestamps["evaluation_ready_received"].(int64); ok {
-			timestamps["dur_verifier_reaction_ms"] = startVal - readyVal
-		}
-	}
 
 	// 5. Summary Log (simplified)
 	logger.Debug("%s summary: result=%v | total_dur=%dms",

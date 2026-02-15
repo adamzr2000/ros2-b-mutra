@@ -142,14 +142,14 @@ func Load() (*AppConfig, error) {
 		if runID != "" {
 			appCfg.ResultsFile = filepath.Join(appCfg.ResultsDir, fmt.Sprintf("%s-run%s.json", appCfg.Agent.Name, runID))
 		} else {
-			appCfg.ResultsFile = getNextRunJSON(appCfg.ResultsDir, appCfg.Agent.Name)
+			appCfg.ResultsFile = GetNextRunJSON(appCfg.ResultsDir, appCfg.Agent.Name)
 		}
 	}
 
 	return appCfg, nil
 }
 
-func getNextRunJSON(resultsDir string, participant string) string {
+func GetNextRunJSON(resultsDir string, participant string) string {
 	utils.EnsureDir(resultsDir)
 	pattern := filepath.Join(resultsDir, fmt.Sprintf("%s-run*.json", participant))
 

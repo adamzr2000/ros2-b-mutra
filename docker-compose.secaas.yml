@@ -24,6 +24,7 @@ services:
     environment:
       - CONFIG_PATH=/config/secaas.json
       - AUTO_START=${AUTO_START}
+      - WAIT_FOR_TX_CONFIRMATIONS=${WAIT_FOR_TX_CONFIRMATIONS}
       - EXPORT_RESULTS=${EXPORT_RESULTS}
       - RESULTS_DIR=${RESULTS_DIR}
       - EVENT_CONFIRMATIONS=${EVENT_CONFIRMATIONS}
@@ -89,7 +90,6 @@ services:
 networks:
   secaas-net:
     driver: bridge
-    internal: true
     name: secaas-net
 
   quorum-dev-quickstart:

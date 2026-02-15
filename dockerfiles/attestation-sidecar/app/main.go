@@ -51,6 +51,11 @@ func startAttestation(state *AppState) {
 	}
 
 	if state.Config.ExportEnabled {
+		// If filename is empty (because we stopped previously), calculate a new one
+		if state.Config.ResultsFile == "" {
+			state.Config.ResultsFile = config.GetNextRunJSON(state.Config.ResultsDir, state.Config.Agent.Name)
+			logger.Info("Results file selected (new run): %s", state.Config.ResultsFile)
+		}
 		utils.EnsureResultsInitialized(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile)
 	}
 
@@ -150,6 +155,7 @@ func stopAttestation(state *AppState) {
 
 	if state.Config.ExportEnabled {
 		utils.MarkExperimentStop(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile)
+		state.Config.ResultsFile = ""
 	}
 }
 

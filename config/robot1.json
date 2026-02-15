@@ -6,7 +6,7 @@
     "text_section_prefix": "",
     "eth_address": "0xb255c0555a18dfe7d2f748db75102e71c69b0249",
     "private_key": "0xd7ccfebed10f4cbce7308bcbe69981ccbe4caf9fd4e96908f72d59832c9e2c61",
-    "eth_node_url": "http://validator3:8545",
+    "eth_node_url": "http://validator1:8545",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {
@@ -206,14 +206,14 @@
             "name": "GetAttestationSignatures",
             "outputs": [
                 {
-                    "internalType": "bytes32[3]",
+                    "internalType": "bytes32",
                     "name": "",
-                    "type": "bytes32[3]"
+                    "type": "bytes32"
                 },
                 {
-                    "internalType": "bytes32[3]",
+                    "internalType": "bytes32",
                     "name": "",
-                    "type": "bytes32[3]"
+                    "type": "bytes32"
                 }
             ],
             "stateMutability": "view",
@@ -364,9 +364,27 @@
                     "type": "bytes32"
                 },
                 {
-                    "internalType": "bytes32[3]",
-                    "name": "freshMeasurements",
-                    "type": "bytes32[3]"
+                    "internalType": "bool",
+                    "name": "verified",
+                    "type": "bool"
+                }
+            ],
+            "name": "ResolveAttestationSECaaS",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "id",
+                    "type": "bytes32"
+                },
+                {
+                    "internalType": "bytes32",
+                    "name": "freshMeasurement",
+                    "type": "bytes32"
                 }
             ],
             "name": "SendEvidence",
@@ -382,9 +400,9 @@
                     "type": "bytes32"
                 },
                 {
-                    "internalType": "bytes32[3]",
-                    "name": "refMeasurements",
-                    "type": "bytes32[3]"
+                    "internalType": "bytes32",
+                    "name": "refMeasurement",
+                    "type": "bytes32"
                 }
             ],
             "name": "SendRefSignature",

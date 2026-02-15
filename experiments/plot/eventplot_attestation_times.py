@@ -38,9 +38,9 @@ EVENT_LABELS_FONT_SIZE = 8
 # UPDATED: 7 Events as requested
 EVENT_LABELS: Dict[int, str] = {
     1: "Start local hashing",
-    2: "Fresh signatures sent",
+    2: "Fresh signature sent",
     3: "Attestation started",
-    4: "Ref. signatures sent",
+    4: "Ref. signature sent",
     5: "Evaluation ready",
     6: "Result sent",
     7: "Result received",
@@ -106,8 +106,8 @@ def _map_to_event_code(is_robot: bool, is_secaas: bool, role: str, t_key: str) -
             if t_lower == "t_oracle_start": return 3
             # 4. Ref. signatures sent
             # Check both requested key and standard key just in case
-            if t_lower == "t_prover_ref_signatures_sent": return 4
-            if t_lower == "t_ref_signatures_sent": return 4
+            if t_lower == "t_prover_ref_signature_sent": return 4
+            if t_lower == "t_ref_signature_sent": return 4
 
         elif r == "verifier":
             # 5. Evaluation ready (Verifier start)
@@ -121,7 +121,7 @@ def _collect_rows(data_root: Dict, mode_single_run: bool) -> pd.DataFrame:
     rows: List[Dict] = []
     for participant, roles in data_root.items():
         is_robot  = participant.lower().startswith("robot")
-        is_secaas = (participant == "SECaaS")
+        is_secaas = (participant.lower() == "secaas")
         
         for role_name, per_att in roles.items():
             role_name_l = role_name.strip().lower()

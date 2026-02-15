@@ -6,11 +6,15 @@ xhost +local:docker
 # XAUTH=/tmp/.docker.xauth
 XAUTH=$HOME/.Xauthority
 
-host_dir="./ros2_ws/src"
+host_dir="./src"
+
+container_image="turtlebot3-gazebo"
+
+container_name=$container_image
 
 docker run \
     -it \
-    --name ros2-agent \
+    --name $container_name \
     --env="DISPLAY=$DISPLAY" \
     --env="QT_X11_NO_MITSHM=1" \
     --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
@@ -20,7 +24,7 @@ docker run \
     --rm \
     --net host \
     --privileged \
-    ros2-agent:latest 
+    $container_image:latest
 
 # Revoke access to the X server after the container exits
 xhost -local:docker

@@ -11,6 +11,7 @@ services:
       - USE_REDIS=${USE_REDIS}
       - ONE_SHOT=${ONE_SHOT}
       - AUTO_START=${AUTO_START}
+      - WAIT_FOR_TX_CONFIRMATIONS=${WAIT_FOR_TX_CONFIRMATIONS}
       - PROC_COMM=robot_state_pub
       - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
       - ATTESTATION_INTERVAL_MS=${ATTESTATION_INTERVAL_MS}
@@ -51,6 +52,7 @@ services:
       - USE_REDIS=${USE_REDIS}
       - ONE_SHOT=${ONE_SHOT}
       - AUTO_START=${AUTO_START}
+      - WAIT_FOR_TX_CONFIRMATIONS=${WAIT_FOR_TX_CONFIRMATIONS}
       - PROC_COMM=robot_state_pub
       - MEMORY_STORAGE_FILE=/measurements/robot2_measurements.json
       - ATTESTATION_INTERVAL_MS=${ATTESTATION_INTERVAL_MS}
@@ -91,6 +93,7 @@ services:
       - USE_REDIS=${USE_REDIS}
       - ONE_SHOT=${ONE_SHOT}
       - AUTO_START=${AUTO_START}
+      - WAIT_FOR_TX_CONFIRMATIONS=${WAIT_FOR_TX_CONFIRMATIONS}
       - PROC_COMM=robot_state_pub
       - MEMORY_STORAGE_FILE=/measurements/robot1_measurements.json
       - ATTESTATION_INTERVAL_MS=${ATTESTATION_INTERVAL_MS}
@@ -131,6 +134,7 @@ services:
       - USE_REDIS=${USE_REDIS}
       - ONE_SHOT=${ONE_SHOT}
       - AUTO_START=${AUTO_START}
+      - WAIT_FOR_TX_CONFIRMATIONS=${WAIT_FOR_TX_CONFIRMATIONS}
       - PROC_COMM=robot_state_pub
       - MEMORY_STORAGE_FILE=/measurements/robot4_measurements.json
       - ATTESTATION_INTERVAL_MS=${ATTESTATION_INTERVAL_MS}

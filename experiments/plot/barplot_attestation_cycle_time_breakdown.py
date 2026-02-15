@@ -32,8 +32,8 @@ def main():
     df = pd.read_csv(csv_path)
 
     # 1. Define Labels
-    LBL_BLOCKCHAIN = "Attestation procedures using blockchain"
-    LBL_OFFCHAIN   = "Local compute (hashing, signature comparison, DB query)"
+    LBL_BLOCKCHAIN = "Attestation procedures using blockchain (read & write operations)"
+    LBL_OFFCHAIN   = "Local compute (hashing, db query, cryptographic comparison)"
 
     # 2. Colors (Blue for Blockchain, Orange for Off-chain)
     palette = sns.color_palette("colorblind", n_colors=10)
@@ -84,19 +84,19 @@ def main():
 
         # --- CALCULATE LEFT BAR (Prover or Oracle) ---
         if is_secaas:
-            # Oracle Logic
             total = get_val(p, "oracle", "total_lifecycle")
             db    = get_val(p, "oracle", "db_lookup")
-            
+
             val_offchain   = db
-            val_blockchain = max(0, total - db)
+            val_blockchain = max(0, total - val_offchain)
         else:
             # Prover Logic
             total = get_val(p, "prover", "total_lifecycle")
+            rpc_call = get_val(p, "prover", "evidence_call")
             e2e   = get_val(p, "prover", "e2e_blockchain")
             
-            val_blockchain = e2e
-            val_offchain   = max(0, total - e2e)
+            val_blockchain = e2e + rpc_call
+            val_offchain   = max(0, total - val_blockchain)
 
         left_stack = [(val_offchain, c_offchain), (val_blockchain, c_blockchain)]
 
@@ -105,7 +105,7 @@ def main():
         comp_v  = get_val(p, "verifier", "verify_compute")
 
         val_offchain_v   = comp_v
-        val_blockchain_v = max(0, total_v - comp_v)
+        val_blockchain_v = max(0, total_v - val_offchain_v)
         
         right_stack = [(val_offchain_v, c_offchain), (val_blockchain_v, c_blockchain)]
 
@@ -161,7 +161,7 @@ def main():
               framealpha=0.9,
               fancybox=True)
 
-    ax.set_title("Breakdown of Attestation Cycle Time by Role and Participant")
+    ax.set_title("Breakdown of attestation cycle time by role and participant")
 
     plt.tight_layout()
     out_path = script_dir / OUTPUT_FILE

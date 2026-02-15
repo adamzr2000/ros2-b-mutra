@@ -206,14 +206,14 @@
             "name": "GetAttestationSignatures",
             "outputs": [
                 {
-                    "internalType": "bytes32[3]",
+                    "internalType": "bytes32",
                     "name": "",
-                    "type": "bytes32[3]"
+                    "type": "bytes32"
                 },
                 {
-                    "internalType": "bytes32[3]",
+                    "internalType": "bytes32",
                     "name": "",
-                    "type": "bytes32[3]"
+                    "type": "bytes32"
                 }
             ],
             "stateMutability": "view",
@@ -364,9 +364,27 @@
                     "type": "bytes32"
                 },
                 {
-                    "internalType": "bytes32[3]",
-                    "name": "freshMeasurements",
-                    "type": "bytes32[3]"
+                    "internalType": "bool",
+                    "name": "verified",
+                    "type": "bool"
+                }
+            ],
+            "name": "ResolveAttestationSECaaS",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "id",
+                    "type": "bytes32"
+                },
+                {
+                    "internalType": "bytes32",
+                    "name": "freshMeasurement",
+                    "type": "bytes32"
                 }
             ],
             "name": "SendEvidence",
@@ -382,9 +400,9 @@
                     "type": "bytes32"
                 },
                 {
-                    "internalType": "bytes32[3]",
-                    "name": "refMeasurements",
-                    "type": "bytes32[3]"
+                    "internalType": "bytes32",
+                    "name": "refMeasurement",
+                    "type": "bytes32"
                 }
             ],
             "name": "SendRefSignature",

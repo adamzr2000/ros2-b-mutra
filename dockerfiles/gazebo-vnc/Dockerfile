@@ -1,13 +1,6 @@
-# Specify the ROS distribution as a build argument
 FROM tiryoh/ros2-desktop-vnc:humble
 
-# Define maintainer
-LABEL maintainer="azahir@pa.uc3m.es"
-
-# Set an environment variable to noninteractive to avoid prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
-
-# Use bash shell for subsequent commands
 SHELL [ "/bin/bash" , "-c" ]
 
 # Install necessary packages and cleaning up the apt cache to reduce the image size

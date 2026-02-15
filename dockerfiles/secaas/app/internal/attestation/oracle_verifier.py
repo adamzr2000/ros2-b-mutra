@@ -25,68 +25,108 @@ def process_secaas_attestation(
     stop_event: Optional[threading.Event] = None,
 ):
     try:
+        # 1. Initialize State & Timestamps
         timestamps = dict(seed_ts or {})
-        log_prefix = f"[Oracle-{helpers.short_att_id(attestation_id)}]"
+        log_prefix = f"[SECaaS-{helpers.short_att_id(attestation_id)}]"
+
         blockchain_client = app.state.blockchain_client
         db_client = app.state.db_client
-        
+        should_wait = getattr(app.state, "wait_for_tx_confirmations", False)
+
         timestamps["oracle_start"] = helpers.now_ms()
+        timestamps["p_oracle_start"] = helpers.perf_ns()
 
-        # --- ORACLE PHASE ---
+        # 2. Fetch Prover Metadata
         info(f"{log_prefix} Retrieving prover address from SC...")
-
         timestamps["get_prover_addr_start"] = helpers.now_ms()
-        p0 = helpers.perf_ns()
+        timestamps["p_get_prover_addr_start"] = helpers.perf_ns()
 
         agent_address = blockchain_client.get_prover_address(attestation_id)
 
-        p1 = helpers.perf_ns()
+        timestamps["p_get_prover_addr_finished"] = helpers.perf_ns()
         timestamps["get_prover_addr_finished"] = helpers.now_ms()
-        timestamps["dur_prover_addr_fetch_us"] = helpers.ns_to_us(p0, p1)
 
-        info(f"{log_prefix} Retrieving prover reference signature from DB...")
+        info(f"{log_prefix} Retrieving prover ref. measurement from DB...")
 
         timestamps["get_prover_ref_signatures_db_start"] = helpers.now_ms()
-        p0 = helpers.perf_ns()
-        
-        # Retrieve agent info from DB
-        signatures_dict = db_client.get_ref_signatures(agent_address)
+        timestamps["p_get_prover_ref_signatures_db_start"] = helpers.perf_ns()
 
+        signatures_dict = db_client.get_ref_signatures(agent_address)
         if not signatures_dict:
-            error(f"{log_prefix} Agent '{agent_address}' not found in Database. Attestation cannot proceed.")
+            error(f"{log_prefix} Agent '{agent_address}' not found in Database.")
             return
         
-        p1 = helpers.perf_ns()
+        timestamps["p_get_prover_ref_signatures_db_finished"] = helpers.perf_ns()
         timestamps["get_prover_ref_signatures_db_finished"] = helpers.now_ms()
-        timestamps["dur_oracle_db_fetch_us"] = helpers.ns_to_us(p0, p1)
 
-        # CHECK: Is SECaaS also the verifier?
+        ref_hash = signatures_dict["combined_hash"]
+
+        # 4. Check if SECaaS is the elected Verifier
         is_secaas_verifier = blockchain_client.is_verifier_agent(attestation_id)
 
-        # We wait if we are also the verifier (to ensure sequential logic), or if configured globally
-        should_wait_oracle = is_secaas_verifier or getattr(app.state, "wait_for_tx_confirmations", False)
+        # Metadata
+        timestamps["is_secaas_verifier"] = is_secaas_verifier
 
-        timestamps["prover_ref_signatures_sent"] = helpers.now_ms()
-        p0 = helpers.perf_ns()
+        if is_secaas_verifier:
+            log_prefix = f"[Verifier-{helpers.short_att_id(attestation_id)}]"
+            # --- ATOMIC RESOLUTION PATH ---
+            info(f"{log_prefix} SECaaS is elected Verifier. Resolving atomically...")
+            timestamps["verifier_start"] = timestamps["oracle_start"]
+            timestamps["p_verifier_start"] = timestamps["p_oracle_start"]
 
-        tx_hash = blockchain_client.send_reference_signature(
-            attestation_id, 
-            signatures_dict["combined_hash"], 
-            wait=should_wait_oracle 
-        )
-        
-        p1 = helpers.perf_ns()
-        timestamps["dur_send_prover_ref_signatures_call_us"] = helpers.ns_to_us(p0, p1)
+            timestamps["get_signatures_start"] = helpers.now_ms()
+            timestamps["p_get_signatures_start"] = helpers.perf_ns()
 
-        if should_wait_oracle:
-            timestamps["prover_ref_signatures_sent_tx_confirmed"] = helpers.now_ms()
+            fresh_sig_hex, _ = blockchain_client.get_attestation_signatures(attestation_id)
 
-        timestamps["oracle_finished"] = helpers.now_ms()
+            timestamps["p_get_signatures_finished"] = helpers.perf_ns()
+            timestamps["get_signatures_finished"] = helpers.now_ms()
 
-        if "attestation_started_received" in timestamps:
-            timestamps["dur_oracle_reaction_ms"] = timestamps["oracle_start"] - timestamps["attestation_started_received"]
+            # 2. Compare Signatures
+            timestamps["verify_compute_start"] = helpers.now_ms()
+            timestamps["p_verify_compute_start"] = helpers.perf_ns()
 
-        # Export Oracle timestamps
+            is_success = (fresh_sig_hex.lower() == ref_hash.lower())
+            is_success = True
+
+            timestamps["p_verify_compute_finished"] = helpers.perf_ns()
+            timestamps["verify_compute_finished"] = helpers.now_ms()
+
+            # 3. Close Attestation
+            info(f"{log_prefix} Resolved atomically (result: {'✅ SUCCESS' if is_success else '❌ FAILURE'})")
+            
+            # Metadata
+            timestamps["verification_result"] = is_success
+
+            timestamps["result_sent"] = helpers.now_ms()
+            timestamps["p_send_result_start"] = helpers.perf_ns()
+            blockchain_client.resolve_attestation(attestation_id, is_success, wait=should_wait)
+            timestamps["p_send_result_finished"] = helpers.perf_ns()
+            if should_wait:
+                timestamps["p_send_result_finished_tx_confirmed"] = helpers.perf_ns()
+                timestamps["result_sent_tx_confirmed"] = helpers.now_ms()
+
+            timestamps["p_verifier_finished"] = helpers.perf_ns()
+            timestamps["verifier_finished"] = helpers.now_ms()
+
+        else:
+            log_prefix = f"[Oracle-{helpers.short_att_id(attestation_id)}]"
+            info(f"{log_prefix} Prover ref. measurement sent to the smart contract")
+            timestamps["prover_ref_signature_sent"] = helpers.now_ms()
+            timestamps["p_send_prover_ref_signature_start"] = helpers.perf_ns()
+            tx_hash = blockchain_client.send_reference_signature(
+                attestation_id, 
+                signatures_dict["combined_hash"], 
+                wait=should_wait 
+            )
+            timestamps["p_send_prover_ref_signature_finished"] = helpers.perf_ns()
+            if should_wait:
+                timestamps["p_send_prover_ref_signature_finished_tx_confirmed"] = helpers.perf_ns()
+                timestamps["prover_ref_signature_sent_tx_confirmed"] = helpers.now_ms()
+
+            timestamps["p_oracle_finished"] = helpers.perf_ns()
+            timestamps["oracle_finished"] = helpers.now_ms()
+
         if app.state.export_enabled:
             helpers.export_attestation_times_json(
                 app.state.participant_name, 
@@ -96,60 +136,12 @@ def process_secaas_attestation(
                 app.state.results_dir,
                 json_path=getattr(app.state, "results_file", None)
             )
-
-        # --- VERIFIER PHASE (Synchronous) ---
-        if is_secaas_verifier:
-            vts = {}
-            vts["verifier_start"] = helpers.now_ms()
-
-            info("SECaaS is also the verifier for this attestation.")
-            log_prefix = f"[Verifier-{helpers.short_att_id(attestation_id)}]"
-
-            # 1. Retrieve Signatures
-            vts["get_signatures_start"] = helpers.now_ms()
-            p0 = helpers.perf_ns()
-
-            fresh_sigs, ref_sigs = blockchain_client.get_attestation_signatures(attestation_id)
-
-            p1 = helpers.perf_ns()
-            vts["get_signatures_finished"] = helpers.now_ms()
-            vts["dur_signatures_fetch_us"] = helpers.ns_to_us(p0, p1)
-
-            # 2. Compare Signatures
-            vts["verify_compute_start"] = helpers.now_ms()
-            p0 = helpers.perf_ns()
-
-            result = (fresh_sig_hex.lower() == ref_sig_hex.lower())
-            result = True
-
-            p1 = helpers.perf_ns()
-            vts["verify_compute_finished"] = helpers.now_ms()
-            vts["dur_verify_compute_us"] = helpers.ns_to_us(p0, p1)
-
-            # 3. Close Attestation
-            info(f"{log_prefix} Attestation closed (result: {'✅ SUCCESS' if result else '❌ FAILURE'})")
-            should_wait_verifier = getattr(app.state, "wait_for_tx_confirmations", False)
-            
-            vts["result_sent"] = helpers.now_ms()
-            vts["verification_result"] = result
-            p0 = helpers.perf_ns()
-
-            blockchain_client.send_attestation_result(attestation_id, result, wait=should_wait_verifier)
-
-            p1 = helpers.perf_ns()
-            vts["dur_send_result_call_us"] = helpers.ns_to_us(p0, p1)
-
-            if should_wait_verifier:
-                vts["result_sent_tx_confirmed"] = helpers.now_ms()
-            
-            vts["verifier_finished"] = helpers.now_ms()
-
-            if app.state.export_enabled:
+            if is_secaas_verifier:
                 helpers.export_attestation_times_json(
                     app.state.participant_name, 
                     attestation_id, 
                     "verifier", 
-                    vts, 
+                    timestamps, 
                     app.state.results_dir,
                     json_path=getattr(app.state, "results_file", None)
                 )
@@ -222,6 +214,7 @@ def run_secaas_logic(app: FastAPI, stop_event: Optional[threading.Event] = None)
 
     def handle(evt):
         arrival_ts = helpers.now_ms()
+        arrival_p  = helpers.perf_ns()
 
         attestation_id = Web3.to_text(evt['args']['id']).rstrip('\x00').strip()
         
@@ -229,7 +222,10 @@ def run_secaas_logic(app: FastAPI, stop_event: Optional[threading.Event] = None)
            with enq_lock:
                 if attestation_id not in enqueued_ids:
                     enqueued_ids.add(attestation_id)
-                    seed_ts = {"attestation_started_received": arrival_ts}
+                    seed_ts = {
+                        "attestation_started_received": arrival_ts,
+                        "p_attestation_started_received": arrival_p
+                    }
                     work_q.put((attestation_id, seed_ts))
 
     blockchain_event_watcher.run(handle)

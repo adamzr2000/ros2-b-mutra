@@ -348,7 +348,18 @@ class BlockchainClient:
 
         except Exception as e:
             raise Exception(f"An error occurred while closing the attestation process: {str(e)}")
-        
+
+    def resolve_attestation(self, attestation_id: str, verified: bool, wait: bool = False, timeout: int = 60) -> str:
+        try:
+            tx_data = self.contract.functions.ResolveAttestationSECaaS(
+                text_to_bytes32(attestation_id),
+                verified
+            ).build_transaction({'from': self.eth_address})
+            
+            return self._send_tx(tx_data, wait=wait, timeout=timeout)
+        except Exception as e:
+            raise Exception(f"An error occurred while resolving attestation: {str(e)}")
+
     def get_agent_info(self, agent_address):
         try:
             name, is_registered, completed_attestations  = self.contract.functions.GetAgentInfo(agent_address, self.eth_address).call()
