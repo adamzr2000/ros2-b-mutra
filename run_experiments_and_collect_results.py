@@ -147,5 +147,7 @@ if __name__ == "__main__":
         try:
             os.remove(ghost_file)
             print(f"🧹 Cleaned up artifact: {ghost_file}")
-        except OSError:
-            pass
+        except PermissionError as e:
+            print(f"⚠️ Permission denied deleting {ghost_file}. Try: sudo rm -f {ghost_file}")
+        except OSError as e:
+            print(f"⚠️ Failed deleting {ghost_file}: {e}")

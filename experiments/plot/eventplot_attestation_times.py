@@ -14,7 +14,7 @@ from matplotlib.colors import to_rgb
 # ---- Config ----
 # Set to integer (e.g., 1) for a specific run, or None for Average
 TARGET_RUN = 1 
-ZOOM_X_LIMIT = 65  # Set to None to auto-scale
+ZOOM_X_LIMIT = 60  # Set to None to auto-scale
 
 # ---- IO ----
 SUMMARY_DIR = "../data/attestation-times/_summary"
@@ -111,7 +111,7 @@ def _map_to_event_code(is_robot: bool, is_secaas: bool, role: str, t_key: str) -
 
         elif r == "verifier":
             # 5. Evaluation ready (Verifier start)
-            if t_lower == "t_verifier_start": return 5
+            # if t_lower == "t_verifier_start": return 5
             # 6. Result sent
             if t_lower == "t_result_sent": return 6
 

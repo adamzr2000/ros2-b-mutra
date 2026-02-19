@@ -120,20 +120,19 @@ def main():
             )
 
         if SHOW_VALUE_LABELS:
-            base_y = (mean + std) if SHOW_ERROR_BARS else mean
-            y_text = base_y + 0.02 * ax.get_ylim()[1]
+            y_text = mean / 2.0
 
             ax.text(
                 i,
                 y_text,
                 f"{mean:.2f}",
                 ha="center",
-                va="bottom",
-                color=ERR_COLOR,
-                fontsize=12,
+                va="center",
+                color="white",   # good contrast inside colored bars
                 zorder=20,
-                clip_on=False,
+                clip_on=True,
             )
+
 
     # Dynamic Label based on metric
     label_map = {

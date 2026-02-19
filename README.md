@@ -36,7 +36,10 @@ The following modules will be built and tagged locally:
 python3 create_agent_config.py --num-agents 10
 ```
 
+> Note: To create blockchain agent credentials see [blockchain/quorum-test-network/extra](./blockchain/quorum-test-network/extra)
+
 2. Start the full experiment:
+
 ```bash
 ./start.sh --auto
 ```
@@ -59,6 +62,7 @@ Options:
 ```
 
 3. Stop the experiment:
+
 ```bash
 ./stop.sh
 ```
@@ -66,7 +70,8 @@ Options:
 ---
 
 ## Blockchain Network Setup
-1. Initialize the network
+
+1. Initialize the network:
 ```bash
 cd blockchain/quorum-test-network
 ./run.sh
@@ -76,12 +81,14 @@ Services exposed:
 - [Block Explorer](http://localhost:25000/explorer/nodes)
 - [Grafana](http://localhost:3000)
 
-2. Deploy the [MasMutualAttestation.sol](./smart-contracts/contracts/MasMutualAttestation.sol) `smart contract`
+2. Deploy the [MasMutualAttestation.sol](./smart-contracts/contracts/MasMutualAttestation.sol) `smart contract`:
+
 ```bash
 ./deploy_smart_contract.sh --rpc_url http://10.5.99.99:21001 --chain_id 1337
 ```
 
-3. Remove the network
+3. Remove the network:
+
 ```bash
 cd blockchain/quorum-test-network
 ./remove.sh
@@ -91,13 +98,19 @@ cd blockchain/quorum-test-network
 
 ## Data collection (attestation times + docker stats)
 
+1. Start the experimental setup:
+
 ```bash
 ./start.sh --export
 ```
 
+2. Run attestation workflow in loop:
+
 ```bash
 python3 run_experiments_and_collect_results.py --runs 3 --duration 120
 ```
+
+3. Stop the experimental setup:
 
 ```bash
 ./stop.sh
