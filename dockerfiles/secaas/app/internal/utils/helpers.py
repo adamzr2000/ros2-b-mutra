@@ -103,7 +103,8 @@ def ensure_results_initialized(json_dir: str, participant: str, json_path: str =
     with lock:
         if os.path.isfile(json_path):
             try:
-                data = json.load(open(json_path, "r"))
+                with open(json_path, "r") as f:
+                    data = json.load(f)
                 # If already initialized with t_start, do nothing
                 if "t_start" in data:
                     return

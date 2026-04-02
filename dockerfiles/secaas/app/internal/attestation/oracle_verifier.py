@@ -190,10 +190,17 @@ def run_secaas_logic(app: FastAPI, stop_event: Optional[threading.Event] = None)
     enq_lock = threading.Lock()
 
     def worker():
-        while not _should_stop(stop_event):
+        # Exit only when BOTH: stop is set AND the queue is empty.
+        # This guarantees every in-flight / already-queued item is processed and
+        # task_done() is called before the thread exits, so work_q.join() in
+        # stop_attestation never deadlocks and all exports finish before
+        # mark_experiment_stop sets Stopped=true.
+        while True:
             try:
-                attestation_id, seed_ts = work_q.get(timeout=0.5)
+                attestation_id, seed_ts = work_q.get(timeout=0.05)
             except Empty:
+                if _should_stop(stop_event):
+                    break  # queue empty + stop requested → exit cleanly
                 continue
             try:
                 info(f"Processing attestation '{attestation_id}'")
@@ -218,19 +225,30 @@ def run_secaas_logic(app: FastAPI, stop_event: Optional[threading.Event] = None)
 
         attestation_id = Web3.to_text(evt['args']['id']).rstrip('\x00').strip()
         
-        if blockchain_client.get_attestation_state(attestation_id) == AttestationState.Open:
-           with enq_lock:
-                if attestation_id not in enqueued_ids:
-                    enqueued_ids.add(attestation_id)
-                    seed_ts = {
-                        "attestation_started_received": arrival_ts,
-                        "p_attestation_started_received": arrival_p
-                    }
-                    work_q.put((attestation_id, seed_ts))
+        # if blockchain_client.get_attestation_state(attestation_id) == AttestationState.Open:
+        #    with enq_lock:
+        #         if attestation_id not in enqueued_ids:
+        #             enqueued_ids.add(attestation_id)
+        #             seed_ts = {
+        #                 "attestation_started_received": arrival_ts,
+        #                 "p_attestation_started_received": arrival_p
+        #             }
+        #             work_q.put((attestation_id, seed_ts))
 
-    blockchain_event_watcher.run(handle)
-    # After watcher exits, signal worker to stop and drain
+        with enq_lock:
+            if attestation_id not in enqueued_ids:
+                enqueued_ids.add(attestation_id)
+                seed_ts = {
+                    "attestation_started_received": arrival_ts,
+                    "p_attestation_started_received": arrival_p
+                }
+                work_q.put((attestation_id, seed_ts))
+
+    blockchain_event_watcher.run(handle, stop_event=stop_event)
+    # After watcher exits, signal worker to stop and drain.
+    # Worker exits only when queue is empty + stop set, so joining here
+    # guarantees all exports are written before run_secaas_logic returns.
     if stop_event:
         stop_event.set()
-    t_worker.join(timeout=3)
+    t_worker.join(timeout=30)
     info("SECaaS logic stopped")

@@ -382,7 +382,12 @@ func RunProverLogicContinuousMode(
 			return
 		}
 
-		time.Sleep(attestationInterval())
+		select {
+		case <-stopCh:
+			logger.Info("Attestation process stopped")
+			return
+		case <-time.After(attestationInterval()):
+		}
 	}
 }
 

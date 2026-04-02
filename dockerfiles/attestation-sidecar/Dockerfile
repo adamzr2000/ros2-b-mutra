@@ -1,7 +1,7 @@
 # ---------------------------------------------------------
 # Stage 1: Builder
 # ---------------------------------------------------------
-FROM golang:1.23-bookworm AS builder
+FROM golang:1.25-bookworm AS builder
 
 WORKDIR /src
 
@@ -13,13 +13,15 @@ COPY app/ ./app/
 WORKDIR /src/app
 
 # 1. Init module 'app' if go.mod doesn't exist
-# 2. Pin go-ethereum to a compatible version (v1.14.12 is stable for Go 1.23)
+# 2. Pin go-ethereum to a compatible version
 # 3. Tidy dependencies
-# 4. Build the binary named 'sidecar'
+# 4. Build binaries
 RUN [ ! -f go.mod ] && go mod init app || true \
     && go get github.com/ethereum/go-ethereum@v1.14.12 \
     && go mod tidy \
-    && CGO_ENABLED=0 go build -o /bin/attestation-sidecar .
+    && CGO_ENABLED=0 go build -o /bin/attestation-sidecar . \
+    && CGO_ENABLED=0 go build -o /bin/txbench ./cmd/txbench \
+    && CGO_ENABLED=0 go build -o /bin/txbench-parallel ./cmd/txbench-parallel
 
 # ---------------------------------------------------------
 # Stage 2: Runtime
@@ -45,6 +47,8 @@ WORKDIR /app
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /bin/attestation-sidecar .
+COPY --from=builder /bin/txbench .
+COPY --from=builder /bin/txbench-parallel .
 
 # Expose the port configured in main.go (Default 8000)
 # Note: Your Python version used 8080, but your Go main.go uses 8000.

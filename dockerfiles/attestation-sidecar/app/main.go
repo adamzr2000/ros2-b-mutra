@@ -20,6 +20,16 @@ import (
 	"app/internal/utils"
 )
 
+// StatusResponse represents the JSON structure returned by /status
+type StatusResponse struct {
+	Status     string `json:"status"` // "idle", "running", or "finished"
+	OneShot    bool   `json:"oneshot"`
+	LastResult string `json:"last_result,omitempty"`
+}
+
+// lastResult tracks the last attestation result for /status
+var lastResult string
+
 // -----------------------------------------------------------------------------
 // App State
 // -----------------------------------------------------------------------------
@@ -45,40 +55,47 @@ func startAttestation(state *AppState) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 
+	// Reset lastResult at the start (protected by mutex)
+	lastResult = ""
+
 	if state.measuring {
-		logger.Info("Agent attestation already running; ignoring start request")
 		return
 	}
 
 	if state.Config.ExportEnabled {
-		// If filename is empty (because we stopped previously), calculate a new one
 		if state.Config.ResultsFile == "" {
-			state.Config.ResultsFile = config.GetNextRunJSON(state.Config.ResultsDir, state.Config.Agent.Name)
+			prefix := "continuous-"
+			if state.Config.OneShot {
+				prefix = "startup-"
+			}
+			state.Config.ResultsFile = config.GetNextRunJSONWithPrefix(state.Config.ResultsDir, prefix, state.Config.Agent.Name)
 			logger.Info("Results file selected (new run): %s", state.Config.ResultsFile)
 		}
-		utils.EnsureResultsInitialized(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile)
+		if err := utils.EnsureResultsInitialized(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile); err != nil {
+			logger.Error("Failed to initialize results file: %v", err)
+			state.measuring = false
+			return
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	state.cancelFunc = cancel
 	state.measuring = true
 
-	logger.Info("Agent attestation loop started")
-
 	// 1. Map Config -> Prover Config
 	proverCfg := attestation.ProverConfig{
-		CmdName:           state.Config.Agent.CmdName,
-		TextSectionSize:   state.Config.Agent.TextSectionSize,
-		Offset:            state.Config.Agent.Offset,
-		TextSectionPrefix: state.Config.Agent.TextSectionPrefix,
-		Threshold:         state.Config.ProverThreshold,
-		AgentName:         state.Config.Agent.Name,
-		ExportEnabled:     state.Config.ExportEnabled,
-		ResultsDir:        state.Config.ResultsDir,
-		MemoryStorageFile: state.Config.MemoryStorageFile,
-		ResultsFile:       state.Config.ResultsFile,
-		OneShot:           state.Config.OneShot,
-		// Pass the auto-discovered SelfIntegrity config
+		CmdName:                state.Config.Agent.CmdName,
+		TextSectionSize:        state.Config.Agent.TextSectionSize,
+		Offset:                 state.Config.Agent.Offset,
+		TextSectionPrefix:      state.Config.Agent.TextSectionPrefix,
+		Threshold:              state.Config.ProverThreshold,
+		AgentName:              state.Config.Agent.Name,
+		ExportEnabled:          state.Config.ExportEnabled,
+		ResultsDir:             state.Config.ResultsDir,
+		MemoryStorageFile:      state.Config.MemoryStorageFile,
+		ResultsFile:            state.Config.ResultsFile,
+		OneShot:                state.Config.OneShot,
+		WaitForTxConfirmations: state.Config.VerifierWaitTx,
 		SelfIntegrity: attestation.SelfIntegrityInfo{
 			Enabled:           state.Config.SelfIntegrity.Enabled,
 			CmdName:           state.Config.SelfIntegrity.CmdName,
@@ -99,6 +116,48 @@ func startAttestation(state *AppState) {
 			state.activeAttestations,
 			&state.workersWg,
 		)
+		// OneShot: prover self-completes — wait for all background attestation
+		// goroutines to finish exporting before marking the file as stopped.
+		// MarkExperimentStop sets Stopped=true in the JSON; ExportAttestationTimesJSON
+		// silently drops writes when Stopped=true, so the order must be:
+		//   all exports done → MarkExperimentStop → transition to "finished"
+		//
+		// We cannot use workersWg.Wait() here because it also includes the verifier
+		// goroutine, which never exits unless context is cancelled — causing a deadlock.
+		// Instead, poll activeAttestations (emptied by RunProverAndCleanup's defer after
+		// ProcessProverAttestation returns) to know when all exports are written, then
+		// cancel the context to stop the verifier.
+		if state.Config.OneShot {
+			// 1. Wait for RunProverAndCleanup goroutines to finish (exports written).
+			//    activeAttestations.Delete is called in RunProverAndCleanup's defer,
+			//    which runs after ProcessProverAttestation (and its export) returns.
+			deadline := time.Now().Add(90 * time.Second)
+			for time.Now().Before(deadline) {
+				count := 0
+				state.activeAttestations.Range(func(_, _ interface{}) bool {
+					count++
+					return true
+				})
+				if count == 0 {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+
+			// 2. Cancel context to stop the verifier goroutine.
+			if state.cancelFunc != nil {
+				state.cancelFunc()
+			}
+
+			state.mu.Lock()
+			defer state.mu.Unlock()
+			lastResult = "success"
+			state.measuring = false
+			if state.Config.ExportEnabled {
+				utils.MarkExperimentStop(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile)
+				state.Config.ResultsFile = ""
+			}
+		}
 	}()
 
 	// 2. Map Config -> Verifier Config
@@ -130,12 +189,22 @@ func stopAttestation(state *AppState) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 
-	if !state.measuring {
-		return
+	// Set lastResult to "stopped" if not already set (protected by mutex)
+	if lastResult == "" {
+		lastResult = "stopped"
 	}
 
+	// Always cancel the context so background goroutines (e.g. RunProverAndCleanup
+	// goroutines that outlive the prover loop in ONE_SHOT mode) are signalled to
+	// exit immediately rather than running until their 60 s internal timeout.
 	if state.cancelFunc != nil {
 		state.cancelFunc()
+	}
+
+	// In OneShot mode the prover goroutine already set measuring=false and
+	// cleaned up — this guard makes /stop a safe no-op in that case.
+	if !state.measuring {
+		return
 	}
 
 	done := make(chan struct{})
@@ -176,15 +245,13 @@ func main() {
 	// ---------------------------------------------------------
 	if cfg.SelfIntegrityEnabled {
 		logger.Info("Computing self-integrity info from /proc/self/exe...")
-		
-		// Use internal/compute to analyze the running binary
+
 		selfInfo, err := compute.ComputeSelfIntegrityInfo(32) // 32 byte prefix
 		if err != nil {
 			logger.Warn("Failed to compute self-integrity info: %v", err)
 			logger.Warn("Self-integrity check will be DISABLED.")
 			cfg.SelfIntegrity.Enabled = false
 		} else {
-			// Find the offset of .text section in memory
 			selfPid := os.Getpid()
 			textOffset, err := compute.FindTextSectionOffsetInMemory(selfPid, selfInfo.TextSectionPrefix)
 			if err != nil {
@@ -192,9 +259,8 @@ func main() {
 				logger.Warn("Self-integrity check will be DISABLED.")
 				cfg.SelfIntegrity.Enabled = false
 			} else {
-				// Success! Populate the config struct
 				cfg.SelfIntegrity.Enabled = true
-				cfg.SelfIntegrity.CmdName = "attestation-si" // Specific requirement
+				cfg.SelfIntegrity.CmdName = "attestation-si"
 				cfg.SelfIntegrity.TextSectionSize = selfInfo.Size
 				cfg.SelfIntegrity.TextSectionOffset = textOffset
 				cfg.SelfIntegrity.TextSectionPrefix = selfInfo.TextSectionPrefix
@@ -248,7 +314,6 @@ func main() {
 		sec := utils.GetEnvInt("CHAIN_DISPLAY_SEC", 30)
 		go bcClient.PeriodicAttestationChainDisplay(n, sec)
 	} else {
-		// Check registration
 		isReg, err := bcClient.IsRegistered()
 		if err != nil {
 			logger.Error("Failed to check registration: %v", err)
@@ -262,7 +327,6 @@ func main() {
 			logger.Info("%s registered (Tx: %s)", cfg.Agent.Name, tx)
 		}
 
-		// Auto-Start loop
 		if cfg.AutoStart {
 			startAttestation(appState)
 		}
@@ -279,6 +343,23 @@ func main() {
 		c.JSON(200, gin.H{"status": "running", "agent": cfg.Agent.Name})
 	})
 
+	r.GET("/status", func(c *gin.Context) {
+		appState.mu.Lock()
+		defer appState.mu.Unlock()
+		resp := StatusResponse{
+			OneShot:    cfg.OneShot,
+			LastResult: lastResult,
+		}
+		if appState.measuring {
+			resp.Status = "running"
+		} else if cfg.OneShot && lastResult == "success" {
+			resp.Status = "finished"
+		} else {
+			resp.Status = "idle"
+		}
+		c.JSON(200, resp)
+	})
+
 	r.POST("/start", func(c *gin.Context) {
 		startAttestation(appState)
 		c.JSON(200, gin.H{"message": "Attestation started."})
@@ -287,6 +368,99 @@ func main() {
 	r.POST("/stop", func(c *gin.Context) {
 		stopAttestation(appState)
 		c.JSON(200, gin.H{"message": "Attestation stopped."})
+	})
+
+	// POST /mode  {"one_shot": true|false}
+	// Switches between startup (one-shot) and continuous mode at runtime.
+	// Rejected while an attestation is in progress.
+	// Resets lastResult so /status returns "idle" cleanly after a mode change.
+	r.POST("/mode", func(c *gin.Context) {
+		var body struct {
+			OneShot bool `json:"one_shot"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(400, gin.H{"error": "invalid body: expected {\"one_shot\": true|false}"})
+			return
+		}
+
+		appState.mu.Lock()
+		defer appState.mu.Unlock()
+
+		if appState.measuring {
+			c.JSON(409, gin.H{"error": "cannot change mode while attestation is running"})
+			return
+		}
+
+		appState.Config.OneShot = body.OneShot
+		lastResult = "" // reset so /status returns "idle" after a mode change
+
+		mode := "continuous"
+		if body.OneShot {
+			mode = "startup"
+		}
+		logger.Info("Mode switched to %s (one_shot=%v)", mode, body.OneShot)
+		c.JSON(200, gin.H{"message": fmt.Sprintf("Mode set to %s.", mode), "one_shot": body.OneShot})
+	})
+
+	// POST /config  {"results_dir": "...", "one_shot": true|false, "export_enabled": true|false}
+	// Partial update — only fields present in the body are applied.
+	// Rejected while an attestation is in progress.
+	// results_dir change also clears ResultsFile so the next /start picks a fresh run number.
+	// one_shot change resets lastResult so /status returns "idle" cleanly.
+	r.POST("/config", func(c *gin.Context) {
+		var body struct {
+			ResultsDir    *string `json:"results_dir"`
+			OneShot       *bool   `json:"one_shot"`
+			ExportEnabled *bool   `json:"export_enabled"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(400, gin.H{"error": "invalid body"})
+			return
+		}
+		if body.ResultsDir == nil && body.OneShot == nil && body.ExportEnabled == nil {
+			c.JSON(400, gin.H{"error": "no recognized fields: use results_dir, one_shot, export_enabled"})
+			return
+		}
+
+		appState.mu.Lock()
+		defer appState.mu.Unlock()
+
+		if appState.measuring {
+			c.JSON(409, gin.H{"error": "cannot change config while attestation is running"})
+			return
+		}
+
+		applied := gin.H{}
+
+		if body.ResultsDir != nil {
+			if *body.ResultsDir == "" {
+				c.JSON(400, gin.H{"error": "results_dir must not be empty"})
+				return
+			}
+			appState.Config.ResultsDir = *body.ResultsDir
+			appState.Config.ResultsFile = "" // force fresh run-number selection on next /start
+			applied["results_dir"] = *body.ResultsDir
+			logger.Info("Results dir set to: %s", *body.ResultsDir)
+		}
+
+		if body.OneShot != nil {
+			appState.Config.OneShot = *body.OneShot
+			lastResult = ""
+			mode := "continuous"
+			if *body.OneShot {
+				mode = "startup"
+			}
+			applied["one_shot"] = *body.OneShot
+			logger.Info("Mode switched to %s (one_shot=%v)", mode, *body.OneShot)
+		}
+
+		if body.ExportEnabled != nil {
+			appState.Config.ExportEnabled = *body.ExportEnabled
+			applied["export_enabled"] = *body.ExportEnabled
+			logger.Info("Export enabled set to: %v", *body.ExportEnabled)
+		}
+
+		c.JSON(200, gin.H{"applied": applied})
 	})
 
 	// 7. Graceful Shutdown
@@ -301,7 +475,7 @@ func main() {
 	}()
 
 	logger.Info("Server listening on port %d", srvPort)
-	<-quit // Block until signal
+	<-quit
 
 	logger.Info("Shutting down...")
 	stopAttestation(appState)

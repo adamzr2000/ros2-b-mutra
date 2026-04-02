@@ -24,7 +24,7 @@ RESET_SCRIPT="$CHECKPOINT_DIR/reset_event_watcher.sh"
 
 if [[ -d "$CHECKPOINT_DIR" && -f "$RESET_SCRIPT" ]]; then
   echo "🧹 Resetting EventWatcher checkpoints..."
-  ( cd "$CHECKPOINT_DIR" && bash "./$(basename "$RESET_SCRIPT")" )
+  ( cd "$CHECKPOINT_DIR" && echo "$PASSWORD" | sudo -S bash "./$(basename "$RESET_SCRIPT")" )
 else
   echo "⚠️  Checkpoints reset skipped (missing $RESET_SCRIPT or $CHECKPOINT_DIR)"
 fi

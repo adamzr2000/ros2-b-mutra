@@ -52,11 +52,12 @@ This will start all required containers and start processing attestations (`AUTO
 
 ```bash
 ./start.sh -h
-Usage: start.sh [--auto] [--export]
+Usage: start.sh [--auto] [--export] [--startup]
 
 Options:
   --auto      Set AUTO_START=TRUE
   --export    Set EXPORT_RESULTS=TRUE
+  --startup   Set ONE_SHOT=TRUE (only for startup attestation process)
   --wait-tx   Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
   -h|--help   Show this help
 ```
@@ -84,7 +85,7 @@ Services exposed:
 2. Deploy the [MasMutualAttestation.sol](./smart-contracts/contracts/MasMutualAttestation.sol) `smart contract`:
 
 ```bash
-./deploy_smart_contract.sh --rpc_url http://10.5.99.99:21001 --chain_id 1337
+./deploy_sc.sh --rpc_url http://10.5.99.99:21001 --chain_id 1337
 ```
 
 3. Remove the network:
@@ -98,17 +99,25 @@ cd blockchain/quorum-test-network
 
 ## Data collection (attestation times + docker stats)
 
-1. Start the experimental setup:
+1. Start the experimental setup (default: 4 robots):
 
 ```bash
-./start.sh --export
+./start.sh --robots 4 --export
 ```
+
+Use `--startup` for one-shot mode, `--robots N` for scale scenarios (1–100).
 
 2. Run attestation workflow in loop:
 
 ```bash
-python3 run_experiments_and_collect_results.py --runs 3 --duration 120
+# Continuous mode
+python3 run_experiments_and_collect_results.py --robots 4 --runs 3 --duration 120
+
+# Startup (one-shot) mode
+python3 run_experiments_and_collect_results.py --robots 4 --runs 10 --startup
 ```
+
+`--robots N` must match the value used in `start.sh`.
 
 3. Stop the experimental setup:
 

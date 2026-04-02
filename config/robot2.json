@@ -4,8 +4,8 @@
     "text_section_size": 42223,
     "offset": 0,
     "text_section_prefix": "",
-    "eth_address": "0x11bdd9da7d1f9d5495950d376288f62d428b5f0d",
-    "private_key": "0xd55287f2775a68deace345c8557831d86ef1e88d2ef56a4c22e4a7a25977f005",
+    "eth_address": "0x8d7e642d7beb76e8328f5f49f42615e38134a875",
+    "private_key": "0xd83d86a20bee1d2457fed510e3a00e05d144418c157b7e8878c3a025bbb7966d",
     "eth_node_url": "http://validator2:8545",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [

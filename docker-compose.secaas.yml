@@ -49,18 +49,18 @@ services:
       - secaas-net
       - quorum-dev-quickstart
 
-  attestation-chain-display:
-    container_name: attestation-chain-display
-    image: attestation-sidecar:latest
-    environment:
-      - CONFIG_PATH=/config/secaas.json
-      - CHAIN_DISPLAY=TRUE
-      - CHAIN_DISPLAY_N=10
-      - CHAIN_DISPLAY_SEC=5
-    volumes:
-      - ./config/secaas.json:/config/secaas.json
-    networks:
-      - quorum-dev-quickstart
+  # attestation-chain-display:
+  #   container_name: attestation-chain-display
+  #   image: attestation-sidecar:latest
+  #   environment:
+  #     - CONFIG_PATH=/config/secaas.json
+  #     - CHAIN_DISPLAY=TRUE
+  #     - CHAIN_DISPLAY_N=10
+  #     - CHAIN_DISPLAY_SEC=5
+  #   volumes:
+  #     - ./config/secaas.json:/config/secaas.json
+  #   networks:
+  #     - quorum-dev-quickstart
 
   # secaas-wrapper:
   #   container_name: secaas-wrapper

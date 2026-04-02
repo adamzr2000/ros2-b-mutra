@@ -173,7 +173,7 @@ func upsertByAttestationID(roleList *[]map[string]interface{}, att map[string]in
 }
 
 // EnsureResultsInitialized ensures the results file exists and has the header.
-func EnsureResultsInitialized(jsonDir string, participant string, jsonPath string) {
+func EnsureResultsInitialized(jsonDir string, participant string, jsonPath string) error {
 	EnsureDir(jsonDir)
 	if jsonPath == "" {
 		jsonPath = filepath.Join(jsonDir, fmt.Sprintf("%s.json", participant))
@@ -184,7 +184,7 @@ func EnsureResultsInitialized(jsonDir string, participant string, jsonPath strin
 	defer lock.Unlock()
 
 	nowMs := NowMs()
-	
+
 	// Check if already valid
 	if _, err := os.Stat(jsonPath); err == nil {
 		fileBytes, err := os.ReadFile(jsonPath)
@@ -192,7 +192,7 @@ func EnsureResultsInitialized(jsonDir string, participant string, jsonPath strin
 			var loaded map[string]interface{}
 			if err := json.Unmarshal(fileBytes, &loaded); err == nil {
 				if _, ok := loaded["t_start"]; ok {
-					return
+					return nil
 				}
 			}
 		}
@@ -208,7 +208,7 @@ func EnsureResultsInitialized(jsonDir string, participant string, jsonPath strin
 		Verifier:    []map[string]interface{}{},
 		Oracle:      []map[string]interface{}{},
 	}
-	atomicWriteJSON(jsonPath, data)
+	return atomicWriteJSON(jsonPath, data)
 }
 
 // -------------------------------------------------------------------------

@@ -142,7 +142,11 @@ func Load() (*AppConfig, error) {
 		if runID != "" {
 			appCfg.ResultsFile = filepath.Join(appCfg.ResultsDir, fmt.Sprintf("%s-run%s.json", appCfg.Agent.Name, runID))
 		} else {
-			appCfg.ResultsFile = GetNextRunJSON(appCfg.ResultsDir, appCfg.Agent.Name)
+			prefix := "continuous-"
+			if appCfg.OneShot {
+				prefix = "startup-"
+			}
+			appCfg.ResultsFile = GetNextRunJSONWithPrefix(appCfg.ResultsDir, prefix, appCfg.Agent.Name)
 		}
 	}
 

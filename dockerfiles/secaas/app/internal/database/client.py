@@ -42,15 +42,20 @@ class DatabaseClient:
         error("Final attempt failed. Could not connect to database.")
         self.connection_pool = None
             
+    @staticmethod
+    def _normalize_address(eth_address: str) -> str:
+        """Canonical form for DB storage/lookup: lowercase with 0x prefix."""
+        a = eth_address.strip().lower()
+        return a if a.startswith("0x") else f"0x{a}"
+
     def get_ref_signatures(self, eth_address: str) -> Optional[Dict[str, str]]:
         """
         Fetches the triplet of reference hashes for a specific agent.
         """
         if not self.connection_pool:
             return None
-            
-        # Normalize address for lookup
-        addr = eth_address.lower() if eth_address.startswith("0x") else f"0x{eth_address.lower()}"
+
+        addr = self._normalize_address(eth_address)
         
         conn = None
         try:
@@ -71,7 +76,7 @@ class DatabaseClient:
                     }
                 return None
         except Exception as e:
-            print(f"[DBClient] Query error: {e}")
+            error(f"[DBClient] Query error: {e}")
             return None
         finally:
             if conn:
@@ -84,8 +89,8 @@ class DatabaseClient:
         """
         if not self.connection_pool: return False
 
-        addr = eth_address.lower() if eth_address.startswith("0x") else f"0x{eth_address.lower()}"
-        
+        addr = self._normalize_address(eth_address)
+
         conn = None
         try:
             conn = self.connection_pool.getconn()

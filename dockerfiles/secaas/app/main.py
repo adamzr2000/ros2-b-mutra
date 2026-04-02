@@ -20,6 +20,8 @@ init_logging()
 
 app = FastAPI()
 
+_config_lock = threading.Lock()
+
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
@@ -76,12 +78,14 @@ def stop_attestation(app: FastAPI):
     if hasattr(app.state, "stop_event"):
         app.state.stop_event.set()
 
-    # Best-effort join of all tracked threads
+    # Best-effort join of all tracked threads.
+    # run_secaas_logic internally drains work_q before returning, so this
+    # join guarantees all exports are written before mark_experiment_stop fires.
     for t in getattr(app.state, "threads", []):
         try:
-            t.join(timeout=3)
+            t.join(timeout=30)
         except Exception as e:
-            warning(f"Failed joining thread {t.name}: {e}")
+            warn(f"Failed joining thread {t.name}: {e}")
 
     # Reset the thread list after stopping
     if hasattr(app.state, "threads"):
@@ -130,11 +134,19 @@ async def startup():
         with open(config_path, "r") as json_file:
             data = json.load(json_file)
 
+        required_fields = ["eth_address", "private_key", "eth_node_url", "contract_address"]
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            error(f"Missing required config fields: {', '.join(missing)}")
+            raise SystemExit(1)
+
         eth_address = data["eth_address"]
         private_key = data["private_key"]
         eth_node_url = data["eth_node_url"]
         contract_address = data["contract_address"]
 
+    except SystemExit:
+        raise
     except Exception as e:
         error(f"Configuration error: {str(e)}")
         raise SystemExit(1)
@@ -223,6 +235,40 @@ def reset_attestation_chain():
         return {"message": "Chain reset", "tx_hash": tx_hash}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/config")
+async def config_endpoint(body: dict):
+    """Partial runtime config update. Accepted fields: results_dir, export_enabled.
+    Rejected while an attestation is in progress.
+    results_dir change also clears results_file so the next /start picks a fresh run number.
+    """
+    results_dir    = body.get("results_dir")
+    export_enabled = body.get("export_enabled")
+
+    if results_dir is None and export_enabled is None:
+        return JSONResponse(status_code=400, content={"error": "no recognized fields: use results_dir, export_enabled"})
+
+    with _config_lock:
+        running = any(t.is_alive() for t in getattr(app.state, "threads", []))
+        if running:
+            return JSONResponse(status_code=409, content={"error": "cannot change config while attestation is running"})
+
+        applied = {}
+
+        if results_dir is not None:
+            if not results_dir:
+                return JSONResponse(status_code=400, content={"error": "results_dir must not be empty"})
+            app.state.results_dir = results_dir
+            app.state.results_file = None  # force fresh run-number selection on next /start
+            applied["results_dir"] = results_dir
+            info(f"Results dir set to: {results_dir}")
+
+        if export_enabled is not None:
+            app.state.export_enabled = bool(export_enabled)
+            applied["export_enabled"] = bool(export_enabled)
+            info(f"Export enabled set to: {export_enabled}")
+
+    return {"applied": applied}
 
 @app.post("/sync-agents")
 async def sync_agents_endpoint():

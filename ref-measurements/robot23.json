@@ -1,0 +1,8 @@
+{
+    "name": "robot23",
+    "eth_address": "0xf961fa527997a7df713689930af741665cf83898",
+    "private_key": "0x13ed7837ffdd3822c4e28f4cd5f4eddd61a63b3c45bef73290bd00bd8ee09773",
+    "robot_hash": "d86d6dabe2e3688e4d395570082aeb33ef9d8d8696b8dfcd5f6e6cc1635356c5",
+    "attestation_sidecar_hash": "d86d6dabe2e3688e4d395570082aeb33ef9d8d8696b8dfcd5f6e6cc1635356c5",
+    "combined_hash": "d86d6dabe2e3688e4d395570082aeb33ef9d8d8696b8dfcd5f6e6cc1635356c5"
+}

@@ -1,0 +1,8 @@
+{
+    "name": "robot22",
+    "eth_address": "0x0a12e12ec11d0d32bc16d08d680649f8864c5cd5",
+    "private_key": "0x8c00c6a5f6bf3fbe4a7f462f57a3dbbc505214b89c8fcb43e5f9c09a77d009cb",
+    "robot_hash": "169b6049cf865eba7d01e1ad26975f1d5ff29d570297ff18d40a53c8281dff5d",
+    "attestation_sidecar_hash": "169b6049cf865eba7d01e1ad26975f1d5ff29d570297ff18d40a53c8281dff5d",
+    "combined_hash": "169b6049cf865eba7d01e1ad26975f1d5ff29d570297ff18d40a53c8281dff5d"
+}

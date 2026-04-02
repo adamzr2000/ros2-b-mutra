@@ -89,7 +89,11 @@ func RunVerifierLogicSequential(
 			case <-ctx.Done():
 				logger.Info("Verifier worker stopped")
 				return
-			case job := <-workChan:
+			case job, ok := <-workChan:
+				if !ok {
+					logger.Info("Verifier worker stopped")
+					return
+				}
 				start := time.Now()
 
 				logger.Info("Processing attestation '%s'", job.AttestationID)
@@ -160,18 +164,19 @@ func RunVerifierLogicSequential(
 		return nil
 	}
 
-	// Run Watcher (Blocks until loop ends)
-	// We run it in a goroutine so we can handle ctx.Done() cancellation
+	// Run Watcher in a goroutine; close workChan once it exits so the worker
+	// drains any remaining buffered jobs and then stops cleanly.
+	watcherDone := make(chan struct{})
 	go func() {
-		// EventWatcher.Run blocks forever. We don't have a Stop() method on it yet,
-		// but since the main app cancels the context, the whole process will die anyway.
-		// For cleaner shutdown, we'd modify EventWatcher to accept context.
-		// For now, this is acceptable.
-		watcher.Run(handle)
+		defer close(watcherDone)
+		watcher.Run(ctx, handle)
 	}()
 
-	// Block here until context cancelled
+	// Block until context cancelled, then wait for watcher to finish before
+	// closing workChan (guarantees no send-on-closed-channel panic).
 	<-ctx.Done()
+	<-watcherDone
+	close(workChan)
 	logger.Info("Verifier logic stopped")
 }
 

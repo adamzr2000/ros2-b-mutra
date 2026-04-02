@@ -81,7 +81,7 @@ class EventWatcher:
             
         return self.w3.eth.get_logs(filter_params)
 
-    def run(self, handle_event):
+    def run(self, handle_event, stop_event=None):
         event_name = self.event_abi.get("name", "UnknownEvent")
         topics_str = str(self.topics) if self.topics else "None"
 
@@ -90,8 +90,8 @@ class EventWatcher:
             f"from_block={self.from_block} confirmations={self.confirmations} "
             f"batch_size={self.batch_size} poll_interval={self.poll_interval:.3f}s topics={topics_str}"
         )
-        
-        while True:
+
+        while not (stop_event and stop_event.is_set()):
             try:
                 safe_to = self._latest_safe_block()
                 
@@ -118,9 +118,12 @@ class EventWatcher:
                         except Exception as e:
                             error(f"Error decoding/handling log {key}: {e}")
 
-                    self.seen_keys.clear()
+                    # Advance from_block and persist checkpoint before clearing seen_keys
+                    # so a crash between here and the clear still yields a valid,
+                    # deduplicated restart point (new from_block + keys for replay dedup).
                     self.from_block = to_block + 1
                     self._save_checkpoint()
+                    self.seen_keys.clear()
 
                 time.sleep(self.poll_interval)
 

@@ -9,6 +9,19 @@ GENESIS_PATH = "besu/QBFTgenesis.json"
 AGENT_GLOB = "nodes/agent*/address"
 BALANCE_FOR_AGENTS = "1000000000000000000000000000"  # 1e24 (like your base genesis)
 
+# Addresses that must NEVER be removed from alloc.
+# This includes: validators, members, rpcnode, pre-funded test accounts,
+# and the permissioning smart contracts (0x...8888, 0x...9999).
+# We identify them by checking if they do NOT belong to an agent directory.
+# As a safety net, we also whitelist the well-known genesis addresses here.
+PROTECTED_PREFIXES = {
+    "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",  # pre-funded test account
+    "0x627306090abab3a6e1400e9345bc60c78a8bef57",  # pre-funded test account
+    "0xf17f52151ebef6c7334fad080c5704d77216b732",  # pre-funded test account
+    "0x0000000000000000000000000000000000008888",  # Account Ingress contract
+    "0x0000000000000000000000000000000000009999",  # Node Ingress contract
+}
+
 # ---------- Minimal RLP encoding ----------
 def int_to_min_bytes(x: int) -> bytes:
     if x == 0:
@@ -41,7 +54,6 @@ def rlp_encode(item):
         l = int_to_min_bytes(len(bts))
         return bytes([0xb7 + len(l)]) + l + bts
     elif isinstance(item, str):
-        # treat hex string as raw bytes if it looks like hex, else utf-8
         hs = item.lower()
         if hs.startswith("0x"):
             hs = hs[2:]
@@ -88,7 +100,6 @@ def load_agent_node_addresses(n):
     return addrs
 
 def load_agent_account_address(directory):
-    # Read V3 keystore and pick the "address" field
     keystore_path = os.path.join(directory, "accountKeystore")
     with open(keystore_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -97,20 +108,91 @@ def load_agent_account_address(directory):
         raise RuntimeError(f"No 'address' in {keystore_path}")
     return "0x" + normalize_hex_addr(acc)
 
+def collect_non_agent_addresses():
+    """
+    Collect account addresses from all NON-agent node directories
+    (validators, members, rpcnode) so we know what to protect.
+    """
+    protected = set(PROTECTED_PREFIXES)
+    node_base = "nodes"
+    if not os.path.isdir(node_base):
+        return protected
+    for entry in os.listdir(node_base):
+        # Skip agent directories
+        if re.match(r"^agent\d+$", entry):
+            continue
+        ks_path = os.path.join(node_base, entry, "accountKeystore")
+        if os.path.isfile(ks_path):
+            try:
+                with open(ks_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                acc = data.get("address", "")
+                if acc:
+                    protected.add("0x" + normalize_hex_addr(acc))
+            except Exception:
+                pass
+        # Also protect the node's own address file if present
+        addr_path = os.path.join(node_base, entry, "address")
+        if os.path.isfile(addr_path):
+            try:
+                raw = read_file(addr_path).strip()
+                protected.add("0x" + normalize_hex_addr(raw))
+            except Exception:
+                pass
+    return protected
+
 def update_alloc_for_agents(genesis_obj, count):
     alloc = genesis_obj.setdefault("alloc", {})
-    # Map from address file to its agent dir
+
+    # 1) Build the set of addresses we must NOT remove
+    protected = collect_non_agent_addresses()
+
+    # 2) Build the new agent address set
+    new_agent_addrs = set()
     paths = find_agent_dirs_sorted()[:count]
     for addr_path in paths:
         vdir = os.path.dirname(addr_path)
         acc_addr = load_agent_account_address(vdir)
+        new_agent_addrs.add(acc_addr)
+
+    # 3) Remove old entries that are NOT protected and NOT in the new agent set.
+    #    These are the orphaned old-agent allocations.
+    to_remove = []
+    for addr in alloc:
+        addr_lower = addr.lower()
+        if addr_lower in protected:
+            continue
+        if addr_lower in new_agent_addrs:
+            continue
+        # Check if the entry has code/storage (smart contract) — keep those
+        entry = alloc[addr]
+        if entry.get("code") or entry.get("storage"):
+            continue
+        # Check if it has a privateKey comment (original test accounts) — keep
+        if entry.get("privateKey") or entry.get("comment"):
+            continue
+        # This is a balance-only entry not belonging to any current agent → stale
+        to_remove.append(addr)
+
+    for addr in to_remove:
+        del alloc[addr]
+
+    if to_remove:
+        print(f"🧹 Removed {len(to_remove)} stale agent alloc entries")
+
+    # 4) Add new agent entries
+    added = 0
+    for acc_addr in new_agent_addrs:
         if acc_addr not in alloc:
             alloc[acc_addr] = {"balance": BALANCE_FOR_AGENTS}
+            added += 1
+
+    print(f"➕ Added {added} new agent alloc entries (total agents: {count})")
     return alloc
 
 def main():
     if len(sys.argv) != 2 or not sys.argv[1].isdigit():
-        print("Usage: python3 update_qbft_genesis.py <NUM_AGENTS>")
+        print("Usage: python3 update_qbft_genesis_agent_credentials.py <NUM_AGENTS>")
         sys.exit(1)
     n = int(sys.argv[1])
     if n <= 0:
@@ -124,7 +206,7 @@ def main():
     # Collect list from nodes/agentX/address
     agents = load_agent_node_addresses(n)
 
-    # Add account addresses to alloc (funding)
+    # Clean old + add new agent addresses to alloc (funding)
     update_alloc_for_agents(genesis, n)
 
     # Write back
@@ -133,9 +215,7 @@ def main():
         f.write("\n")
 
     print(f"✅ Updated QBFT genesis at {GENESIS_PATH}")
-    print("Included agents:")
-    for v in agents:
-        print(f"  0x{v}")
+    print(f"   {n} agent accounts funded")
 
 if __name__ == "__main__":
     main()

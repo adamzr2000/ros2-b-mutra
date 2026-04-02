@@ -141,8 +141,8 @@ func (ew *EventWatcher) uniqueKey(log types.Log) string {
 	return fmt.Sprintf("%s-%d", log.BlockHash.Hex(), log.Index)
 }
 
-// Run starts the infinite polling loop. It blocks, so run in a goroutine.
-func (ew *EventWatcher) Run(handler EventHandler) {
+// Run starts the infinite polling loop. It blocks until ctx is cancelled.
+func (ew *EventWatcher) Run(ctx context.Context, handler EventHandler) {
 	logger.Info("EventWatcher start: event=%s address=%s from_block=%s confirm=%d",
 		ew.eventName, ew.address.Hex(), ew.fromBlock.String(), ew.confirmations)
 
@@ -151,7 +151,11 @@ func (ew *EventWatcher) Run(handler EventHandler) {
 
 		// If fromBlock > safeTo, we are ahead of safe chain, wait.
 		if ew.fromBlock.Cmp(safeTo) > 0 {
-			time.Sleep(ew.pollInterval)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(ew.pollInterval):
+			}
 			continue
 		}
 
@@ -172,10 +176,17 @@ func (ew *EventWatcher) Run(handler EventHandler) {
 				Topics:    ew.topics,
 			}
 
-			logs, err := ew.client.client.FilterLogs(context.Background(), query)
+			logs, err := ew.client.client.FilterLogs(ctx, query)
 			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				logger.Error("Watcher fetch error: %v. Backing off...", err)
-				time.Sleep(3 * time.Second)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(3 * time.Second):
+				}
 				break // break inner loop to retry
 			}
 
@@ -213,7 +224,7 @@ func (ew *EventWatcher) Run(handler EventHandler) {
 						if topicIndex >= len(log.Topics) {
 							break
 						}
-						
+
 						// Manual extraction based on type
 						switch arg.Type.T {
 						case abi.AddressTy:
@@ -237,15 +248,21 @@ func (ew *EventWatcher) Run(handler EventHandler) {
 				ew.seenKeys[key] = true
 			}
 
-			// Clear seen keys and advance
-			ew.seenKeys = make(map[string]bool)
+			// Advance fromBlock and save checkpoint before clearing seenKeys so
+			// that a crash between here and the clear still results in a valid
+			// checkpoint (new fromBlock + old seenKeys for dedup on replay).
 			ew.fromBlock.Add(toBlock, big.NewInt(1))
 			ew.saveCheckpoint()
+			ew.seenKeys = make(map[string]bool)
 
 			// Refresh safeTo
 			safeTo = ew.latestSafeBlock()
 		}
 
-		time.Sleep(ew.pollInterval)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(ew.pollInterval):
+		}
 	}
 }

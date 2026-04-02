@@ -241,8 +241,7 @@ func (bc *BlockchainClient) estimateGasLimit(ctx context.Context, data []byte) (
 	est, err := bc.client.EstimateGas(ctx, msg)
 	if err != nil {
 		// fallback
-		logger.Debug("EstimateGas simulation unavailable; using safe fallback 300000")
-		return 300000, nil
+		return 1_000_000, nil
 	}
 
 	// If simulation works, add a 30% buffer
@@ -844,6 +843,50 @@ func (bc *BlockchainClient) safeDisplay(n int) {
 		n,
 	)
 	logger.Info("\n%s", tableStr)
+}
+
+type TxReceiptInfo struct {
+	TxHash            string   `json:"tx_hash"`
+	Status            uint64   `json:"status"`
+	GasUsed           uint64   `json:"gas_used"`
+	EffectiveGasPrice *big.Int `json:"effective_gas_price"`
+	BlockNumber       uint64   `json:"block_number"`
+	BlockTimestamp    uint64   `json:"block_timestamp"`
+	BlockSize         uint64   `json:"block_size"`
+	TransactionCount  uint64   `json:"transaction_count"`
+}
+
+func (bc *BlockchainClient) GetTransactionReceipt(txHashStr string) (*TxReceiptInfo, error) {
+	txHash := common.HexToHash(txHashStr)
+
+	receipt, err := bc.client.TransactionReceipt(context.Background(), txHash)
+	if err != nil {
+		return nil, err
+	}
+	if receipt == nil {
+		return nil, fmt.Errorf("receipt not found for tx %s", txHashStr)
+	}
+
+	header, err := bc.client.HeaderByNumber(context.Background(), receipt.BlockNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := bc.client.BlockByNumber(context.Background(), receipt.BlockNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TxReceiptInfo{
+		TxHash:            txHashStr,
+		Status:            receipt.Status,
+		GasUsed:           receipt.GasUsed,
+		EffectiveGasPrice: receipt.EffectiveGasPrice,
+		BlockNumber:       receipt.BlockNumber.Uint64(),
+		BlockTimestamp:    header.Time,
+		BlockSize:         uint64(block.Size()),
+		TransactionCount:  uint64(len(block.Transactions())),
+	}, nil
 }
 
 func (bc *BlockchainClient) Close() {
