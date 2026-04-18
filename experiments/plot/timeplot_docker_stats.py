@@ -2,20 +2,22 @@
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
 import seaborn as sns
 import re
 from pathlib import Path
+from functools import reduce
 
 INPUT_FILE_TEMPLATE = "../data/docker-stats/_summary/timeline_resource_usage_per_container_run{run}.csv"
 TARGET_RUN = 1
-N_ROBOTS = 4
-MODES = ["startup", "continuous"]
+N_ROBOTS   = 4
+MODES      = ["startup", "continuous"]
 
-LINE_WIDTH        = 2
-FONT_SCALE        = 1.5
-SPINES_WIDTH      = 1.0
-THREE_PANEL_HEIGHT = 9.5
-WINDOW_S          = 2      # rolling-mean smoothing window (seconds)
+LINE_WIDTH   = 2.0
+FONT_SCALE   = 1.6
+WINDOW_S     = 1      # rolling-mean smoothing window (seconds)
+BAND_ALPHA   = 0.25   # opacity of ±std shaded band
 
 
 def _clean_container_label(raw: str) -> str:
@@ -87,59 +89,101 @@ def generate_plot(df, n_robots, mode, script_dir):
                     .fillna(0.0).clip(lower=0.0)
             )
 
-    containers = sorted(df["Container"].unique(), key=_label_order)
+    containers       = sorted(df["Container"].unique(), key=_label_order)
+    robot_containers = [c for c in containers if c.startswith("Robot")]
+    has_secaas       = "SECaaS" in containers
 
     sns.set_theme(context="paper", style="ticks",
                   rc={"xtick.direction": "out", "ytick.direction": "out"},
                   font_scale=FONT_SCALE)
-    palette   = sns.color_palette("tab10", n_colors=len(containers))
-    color_map = dict(zip(containers, palette))
+    plt.rcParams.update({"font.family": "serif"})
+    color_robot  = "#336699"   # steel blue
+    color_secaas = "#993333"   # dark red
 
-    fig = plt.figure(figsize=(10, THREE_PANEL_HEIGHT), constrained_layout=True)
-    gs  = fig.add_gridspec(3, 1, height_ratios=[1.0, 1.0, 1.0])
-    ax_cpu = fig.add_subplot(gs[0, 0])
-    ax_rx  = fig.add_subplot(gs[1, 0], sharex=ax_cpu)
-    ax_tx  = fig.add_subplot(gs[2, 0], sharex=ax_cpu)
+    fig = plt.figure(figsize=(10, 8.5), constrained_layout=False)
+    gs  = fig.add_gridspec(3, 1, height_ratios=[1.0, 1.0, 1.0], hspace=0.10)
+    ax_cpu = fig.add_subplot(gs[0])
+    ax_rx  = fig.add_subplot(gs[1], sharex=ax_cpu)
+    ax_tx  = fig.add_subplot(gs[2], sharex=ax_cpu)
 
     panels = [
-        (ax_cpu, "cpu_vcpus",    "CPU usage (vCPUs)"),
-        (ax_rx,  "net_rx_kbps",  "Net RX (kbit/s)"),
-        (ax_tx,  "net_tx_kbps",  "Net TX (kbit/s)"),
+        (ax_cpu, "cpu_vcpus",   "CPU (vCPUs)"),
+        (ax_rx,  "net_rx_kbps", "Net RX (kbit/s)"),
+        (ax_tx,  "net_tx_kbps", "Net TX (kbit/s)"),
     ]
+
+    def _robot_band(col):
+        """Return (t, mean, std) arrays aggregated across robot containers."""
+        smoothed = {}
+        for c in robot_containers:
+            sub = df[df["Container"] == c].sort_values("t_rel_s").copy()
+            sm  = _rolling(sub[col], sub["t_rel_s"])
+            smoothed[c] = pd.Series(sm, index=sub["t_rel_s"].values)
+        band = (
+            pd.DataFrame(smoothed)
+              .sort_index()
+              .interpolate(method="index", limit_direction="both")
+        )
+        t    = band.index.values
+        mean = band.mean(axis=1).values
+        std  = band.std(axis=1).fillna(0.0).values
+        return t, mean, std
 
     for ax, col, ylabel in panels:
         y_max = 0.0
-        for c in containers:
-            sub   = df[df["Container"] == c].sort_values("t_rel_s").copy()
-            if sub.empty:
-                continue
-            color = color_map[c]
-            t     = sub["t_rel_s"].values
-            sm    = _rolling(sub[col], sub["t_rel_s"])
-            ax.plot(t, sm, color=color, linewidth=LINE_WIDTH, label=c)
+
+        # ── Robot band ────────────────────────────────────────────────────────
+        if robot_containers:
+            t, mean, std = _robot_band(col)
+            ax.plot(t, mean, color=color_robot, linewidth=LINE_WIDTH, zorder=3)
+            ax.fill_between(t, (mean - std).clip(0), mean + std,
+                            color=color_robot, alpha=BAND_ALPHA, zorder=2)
+            y_max = max(y_max, (mean + std).max())
+
+        # ── SECaaS line ───────────────────────────────────────────────────────
+        if has_secaas:
+            sub = df[df["Container"] == "SECaaS"].sort_values("t_rel_s").copy()
+            sm  = _rolling(sub[col], sub["t_rel_s"])
+            ax.plot(sub["t_rel_s"].values, sm,
+                    color=color_secaas, linewidth=LINE_WIDTH, zorder=3)
             y_max = max(y_max, sm.max() if len(sm) else 0.0)
 
         ax.set_ylabel(ylabel)
         ax.set_axisbelow(True)
-        ax.grid(axis="both", linestyle="-", linewidth=1.0, alpha=0.8)
-        for side in ("top", "right", "bottom", "left"):
-            ax.spines[side].set_color("black")
-            ax.spines[side].set_linewidth(SPINES_WIDTH)
+        ax.grid(axis="both", linestyle="-", linewidth=0.7, alpha=0.75)
         y_max = y_max if not pd.isna(y_max) and y_max > 0 else 1.0
-        ax.set_ylim(0, y_max * 1.08)
+        ax.set_ylim(0, y_max * 1.10)
 
     ax_cpu.set_xlim(left=0)
     ax_cpu.tick_params(axis="x", labelbottom=False)
     ax_rx.tick_params(axis="x", labelbottom=False)
-    ax_cpu.set_xlabel("")
-    ax_rx.set_xlabel("")
     ax_tx.set_xlabel("Time (s)")
-    ax_cpu.set_title(f"N={n_robots}  mode={mode}  rolling mean={WINDOW_S}s")
 
-    handles, labels = ax_cpu.get_legend_handles_labels()
-    ax_cpu.legend(handles, labels, loc="upper right", frameon=True, ncol=len(containers))
+    # ── Figure legend (top centre) ────────────────────────────────────────────
+    legend_handles = []
+    if robot_containers:
+        legend_handles += [
+            mlines.Line2D([], [], color=color_robot, linewidth=LINE_WIDTH,
+                          label="Robot sidecar"),
+        ]
+    if has_secaas:
+        legend_handles.append(
+            mlines.Line2D([], [], color=color_secaas, linewidth=LINE_WIDTH,
+                          label="SECaaS")
+        )
 
-    out_path = script_dir / f"./timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}.pdf"
+    fig.legend(handles=legend_handles,
+               loc="upper center", bbox_to_anchor=(0.5, 0.995),
+               ncol=len(legend_handles), frameon=True, framealpha=0.9,
+               fancybox=True,
+               fontsize=plt.rcParams.get("legend.fontsize", 9))
+
+    # fig.suptitle(f"N={n_robots}  mode={mode}  rolling mean={WINDOW_S}s",
+    #              y=-0.02, fontsize=plt.rcParams.get("axes.titlesize", 11))
+
+    plt.subplots_adjust(top=0.90)
+
+    out_path = script_dir / f"timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"[OK] Saved plot to: {out_path}")
     plt.close(fig)

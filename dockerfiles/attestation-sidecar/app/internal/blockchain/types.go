@@ -2,9 +2,16 @@ package blockchain
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// ErrAttestationClosed is returned by IsProver when the attestation is already
+// in the Closed state. This lets callers distinguish "not yet the prover"
+// (nil error, false) from "attestation already resolved" (this error, false)
+// so they can exit early instead of spinning until a 60 s timeout.
+var ErrAttestationClosed = errors.New("attestation already closed")
 
 // AttestationState matches your Python IntEnum
 type AttestationState int

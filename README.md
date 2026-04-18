@@ -111,7 +111,7 @@ Use `--startup` for one-shot mode, `--robots N` for scale scenarios (1–100).
 
 ```bash
 # Continuous mode
-python3 run_experiments_and_collect_results.py --robots 4 --runs 3 --duration 120
+python3 run_experiments_and_collect_results.py --robots 4 --runs 5 --duration 120
 
 # Startup (one-shot) mode
 python3 run_experiments_and_collect_results.py --robots 4 --runs 10 --startup
@@ -126,6 +126,31 @@ python3 run_experiments_and_collect_results.py --robots 4 --runs 10 --startup
 ```
 
 ---
+
+## Data collection (ros2 topic hz)
+
+1. Start the experimental setup:
+
+```bash
+./start.sh --robots 4
+```
+
+2. Run:
+
+```bash
+COMPOSE_IGNORE_ORPHANS=1 docker compose -f docker-compose.robots.yml -f docker-compose.benchmark-collector.yml up -d topic-collector
+
+python3 run_benchmark.py --condition with_sidecar --mode continuous --runs 5
+```
+
+`--robots N` must match the value used in `start.sh`.
+
+3. Stop the experimental setup:
+
+```bash
+./stop.sh
+```
+
 
 <!-- ## Data collection (manual)
 1. Start containers:

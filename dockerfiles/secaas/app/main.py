@@ -271,14 +271,29 @@ async def config_endpoint(body: dict):
     return {"applied": applied}
 
 @app.post("/sync-agents")
-async def sync_agents_endpoint():
+async def sync_agents_endpoint(n_robots: int = 0):
     """
-    Scans the config directory for robot*.json files and 
+    Scans the config directory for robot*.json files and
     updates the database with their reference signatures.
+    If n_robots > 0, only robot1.json .. robotN.json are processed.
+    Results are always returned in ascending numeric order.
     """
     config_dir = "/ref-measurements"
     pattern = os.path.join(config_dir, "robot*.json")
-    config_files = glob.glob(pattern)
+    all_files = glob.glob(pattern)
+
+    # Extract numeric index from filename and sort
+    def robot_index(path: str):
+        m = re.search(r"robot(\d+)\.json$", os.path.basename(path))
+        return int(m.group(1)) if m else -1
+
+    all_files.sort(key=robot_index)
+
+    # Filter to the active robot set when n_robots is specified
+    if n_robots > 0:
+        config_files = [f for f in all_files if 1 <= robot_index(f) <= n_robots]
+    else:
+        config_files = all_files
     
     if not config_files:
         return JSONResponse(

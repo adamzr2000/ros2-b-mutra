@@ -3,6 +3,7 @@ package attestation
 import (
     "crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -97,12 +98,25 @@ func ProcessProverAttestation(
 	logger.Info("%s Evidence sent (attestation started)", logPrefix)
 
 	// 3. Wait to become Prover (Poll Loop)
+	//
+	// Two exit conditions:
+	//   a) IsProver returns true  → normal path (Open state, we are the elected prover)
+	//   b) IsProver returns ErrAttestationClosed → SECaaS resolved atomically
+	//      (startup/one-shot mode where lastSuccess=0 so SECaaS is always verifier).
+	//      In this case the attestation is already Closed; step 4 will immediately
+	//      confirm Closed and we proceed to read the result.  Without this check the
+	//      loop spins for the full 60 s timeout because IsProver always returns
+	//      (false, nil) for Closed attestations.
 	startWait := time.Now()
 	timeout := 60 * time.Second
 
 	for {
 		isProver, err := bc.IsProver(attestationID)
 		if err == nil && isProver {
+			break
+		}
+		if errors.Is(err, blockchain.ErrAttestationClosed) {
+			logger.Info("%s Attestation already closed (SECaaS resolved atomically); proceeding to result retrieval.", logPrefix)
 			break
 		}
 

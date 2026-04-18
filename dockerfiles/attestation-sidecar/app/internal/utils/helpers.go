@@ -1,10 +1,11 @@
 package utils
 
 import (
+	crand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -442,12 +443,16 @@ func GetEnvBool(name string, def bool) bool {
 // -------------------------------------------------------------------------
 
 func GenerateAttestationID() string {
-	timestamp := time.Now().Unix() // 10 digits usually
-	// Seed random if strictly needed, though Go 1.20+ seeds global rand automatically.
-	// For older Go versions or safety:
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	suffix := r.Intn(9000) + 1000 // 1000 to 9999
-	return fmt.Sprintf("attestation%d%d", timestamp%1000000000, suffix)
+	// Use crypto/rand for 8 bytes of entropy → 16 hex chars.
+	// Total length: "attestation" (11) + 16 = 27 chars ≤ 32 bytes (bytes32 safe).
+	// This avoids the seed-collision bug where containers starting simultaneously
+	// share the same UnixNano value and produce identical IDs.
+	var b [8]byte
+	if _, err := crand.Read(b[:]); err != nil {
+		// Unreachable in practice; fall back to nanosecond timestamp.
+		return fmt.Sprintf("attestation%016x", uint64(time.Now().UnixNano()))
+	}
+	return fmt.Sprintf("attestation%s", hex.EncodeToString(b[:]))
 }
 
 func NormalizeEthAddress(addr string) string {

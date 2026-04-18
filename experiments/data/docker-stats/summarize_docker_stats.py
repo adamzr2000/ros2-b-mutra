@@ -145,11 +145,22 @@ def main():
     # ---------------------------
     # OVERALL SUMMARY (equal-run)
     # ---------------------------
-    per_run = (
-        all_df.groupby(GROUP_KEYS, dropna=False)[METRICS]
+    # cpu_percent and mem_mb are instantaneous — mean across samples is correct.
+    # blk_*/net_* are cumulative counters — total usage per run = max - min.
+    CUMULATIVE_METRICS = ["blk_read_mb", "blk_write_mb", "net_rx_mb", "net_tx_mb"]
+    MEAN_METRICS       = [m for m in METRICS if m not in CUMULATIVE_METRICS]
+
+    per_run_mean = (
+        all_df.groupby(GROUP_KEYS, dropna=False)[MEAN_METRICS]
               .mean(numeric_only=True)
               .reset_index()
     )
+    per_run_total = (
+        all_df.groupby(GROUP_KEYS, dropna=False)[CUMULATIVE_METRICS]
+              .agg(lambda x: x.max() - x.min())
+              .reset_index()
+    )
+    per_run = per_run_mean.merge(per_run_total, on=GROUP_KEYS, how="outer")
     overall = (
         per_run.groupby(["n_robots", "mode", "container"], dropna=False)
                .agg({m: ["mean", "std"] for m in METRICS})

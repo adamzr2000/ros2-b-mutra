@@ -49,8 +49,8 @@ METRICS_CONFIG = {
         ("reaction_time",           "dur_oracle_reaction",                    "t_attestation_started_received",             "t_oracle_start"),
         ("prover_addr_fetch",       "dur_prover_addr_fetch",                  "t_get_prover_addr_start",                    "t_get_prover_addr_finished"),
         ("db_lookup",               "dur_db_fetch",                           "t_get_prover_ref_signatures_db_start",       "t_get_prover_ref_signatures_db_finished"),
-        ("ref_signature_call",      "dur_send_prover_ref_signature_call",     "t_get_prover_ref_signatures_db_finished",    "t_prover_ref_signatures_sent"),
-        ("ref_signature_tx_confirm","dur_send_prover_ref_signatures_tx_confirm","t_prover_ref_signatures_sent",             "t_prover_ref_signatures_sent_tx_confirmed"),
+        ("ref_signature_call",      "dur_send_prover_ref_signature_call",     "t_get_prover_ref_signatures_db_finished",    "t_prover_ref_signature_sent"),
+        ("ref_signature_tx_confirm","dur_send_prover_ref_signature_tx_confirm","t_prover_ref_signature_sent",              "t_prover_ref_signature_sent_tx_confirmed"),
         ("total_lifecycle",         "dur_oracle_total",                       "t_oracle_start",                             "t_oracle_finished"),
     ],
 }

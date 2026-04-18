@@ -125,8 +125,14 @@ func startAttestation(state *AppState) {
 		// We cannot use workersWg.Wait() here because it also includes the verifier
 		// goroutine, which never exits unless context is cancelled — causing a deadlock.
 		// Instead, poll activeAttestations (emptied by RunProverAndCleanup's defer after
-		// ProcessProverAttestation returns) to know when all exports are written, then
-		// cancel the context to stop the verifier.
+		// ProcessProverAttestation returns) to know when all exports are written.
+		//
+		// IMPORTANT: do NOT cancel the context here. In a multi-robot run the smart
+		// contract may elect THIS robot as the verifier for another robot's attestation
+		// after SECaaS's lastSuccess becomes the most recent timestamp. If we cancel the
+		// context now the verifier goroutine stops and that ReadyForEvaluation event is
+		// never handled, causing the other robot's prover to time out waiting for close.
+		// The context is cancelled later by stopAttestation() when /stop is called.
 		if state.Config.OneShot {
 			// 1. Wait for RunProverAndCleanup goroutines to finish (exports written).
 			//    activeAttestations.Delete is called in RunProverAndCleanup's defer,
@@ -142,11 +148,6 @@ func startAttestation(state *AppState) {
 					break
 				}
 				time.Sleep(50 * time.Millisecond)
-			}
-
-			// 2. Cancel context to stop the verifier goroutine.
-			if state.cancelFunc != nil {
-				state.cancelFunc()
 			}
 
 			state.mu.Lock()

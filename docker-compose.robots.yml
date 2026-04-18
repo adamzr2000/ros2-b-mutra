@@ -1,5 +1,5 @@
 # docker-compose.robots.yml
-# AUTO-GENERATED for 10 robot(s) — edit generate_compose.py, not this file.
+# AUTO-GENERATED for 15 robot(s) — edit generate_compose.py, not this file.
 
 services:
   gazebo-server:
@@ -14,23 +14,6 @@ services:
     tty: true
     stdin_open: true
     command: bash -c "./start_gazebo_server.sh"
-    networks:
-      - ros-net
-
-  gazebo-client:
-    image: gazebo-vnc:latest
-    container_name: gazebo-client
-    hostname: gazebo-client
-    environment:
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
-      - GAZEBO_MASTER_URI=http://gazebo-server:11345
-    depends_on:
-      - gazebo-server
-    ports:
-      - "6080:80"
-    security_opt:
-      - seccomp=unconfined
-    restart: unless-stopped
     networks:
       - ros-net
 
@@ -206,6 +189,96 @@ services:
         - NAMESPACE=robot10
         - X_POSE=45
         - Y_POSE=0
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot11:
+    image: turtlebot3-gazebo
+    container_name: robot11
+    hostname: robot11
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot11
+        - X_POSE=0
+        - Y_POSE=5
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot12:
+    image: turtlebot3-gazebo
+    container_name: robot12
+    hostname: robot12
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot12
+        - X_POSE=5
+        - Y_POSE=5
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot13:
+    image: turtlebot3-gazebo
+    container_name: robot13
+    hostname: robot13
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot13
+        - X_POSE=10
+        - Y_POSE=5
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot14:
+    image: turtlebot3-gazebo
+    container_name: robot14
+    hostname: robot14
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot14
+        - X_POSE=15
+        - Y_POSE=5
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot15:
+    image: turtlebot3-gazebo
+    container_name: robot15
+    hostname: robot15
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot15
+        - X_POSE=20
+        - Y_POSE=5
     command: bash -c "./start_turtlebot.sh"
     depends_on:
       - gazebo-server

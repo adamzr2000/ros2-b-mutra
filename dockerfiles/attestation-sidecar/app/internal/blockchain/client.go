@@ -560,10 +560,15 @@ func (bc *BlockchainClient) IsProver(attID string) (bool, error) {
 		return false, err
 	}
 
-	// Check state first (avoid revert when Closed/nonexistent depending on contract)
+	// Check state first to avoid a contract revert on closed/nonexistent IDs.
+	// Return ErrAttestationClosed (not nil) so callers can distinguish
+	// "not yet confirmed as prover" from "attestation already resolved".
 	state, err := bc.GetAttestationState(attID)
-	if err != nil || state == Closed {
+	if err != nil {
 		return false, nil
+	}
+	if state == Closed {
+		return false, ErrAttestationClosed
 	}
 
 	data, err := bc.contractABI.Pack("IsProver", attIDBytes, bc.ethAddress)

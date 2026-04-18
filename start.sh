@@ -145,7 +145,7 @@ wait_for_secaas () {
 # 6) Wait and Sync
 if wait_for_secaas; then
   echo "🔄 Synchronizing agent signatures to PostgreSQL..."
-  curl -X POST "$SECAAS_URL/sync-agents" -H "Content-Type: application/json" | jq
+  curl -X POST "$SECAAS_URL/sync-agents?n_robots=$N_ROBOTS_VAL" -H "Content-Type: application/json" | jq
   echo "✅ Sync complete."
 else
   echo "⚠️  Skipping agent sync because SECaaS is not responding."

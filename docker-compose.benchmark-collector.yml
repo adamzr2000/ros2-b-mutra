@@ -1,0 +1,40 @@
+# docker-compose.benchmark-collector.yml
+# Adds the topic-collector service to the robots network.
+# Usage (together with docker-compose.robots.yml):
+#   docker-compose -f docker-compose.robots.yml \
+#                  -f docker-compose.benchmark-collector.yml \
+#                  up -d topic-collector
+
+services:
+  topic-collector:
+    image: turtlebot3-gazebo
+    container_name: topic-collector
+    hostname: topic-collector
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - N_ROBOTS=4
+      - COLLECTOR_PORT=7000
+    command: >
+      bash -c "
+        pip install flask -q &&
+        source /opt/ros/humble/setup.bash &&
+        source /home/agent/ros2_ws/install/setup.bash &&
+        python3 /home/agent/scripts/collect_topic_stats.py
+      "
+    ports:
+      - "7000:7000"
+    volumes:
+      - ./experiments/data/:/experiments/data:rw
+      - ./dockerfiles/turtlebot3/scripts/collect_topic_stats.py:/home/agent/scripts/collect_topic_stats.py:ro
+    depends_on:
+      - robot1
+      - robot2
+      - robot3
+      - robot4
+    networks:
+      - ros-net
+
+networks:
+  ros-net:
+    external: true
+    name: ros-net

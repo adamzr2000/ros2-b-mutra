@@ -100,7 +100,19 @@ def process_secaas_attestation(
 
             timestamps["result_sent"] = helpers.now_ms()
             timestamps["p_send_result_start"] = helpers.perf_ns()
-            blockchain_client.resolve_attestation(attestation_id, is_success, wait=should_wait)
+            # Retry resolve_attestation once on transient failure (e.g. nonce race,
+            # RPC timeout).  A second failure is a real error; let the outer
+            # except handle it so the worker moves on rather than blocking.
+            for _attempt in range(2):
+                try:
+                    blockchain_client.resolve_attestation(attestation_id, is_success, wait=should_wait)
+                    break
+                except Exception as resolve_err:
+                    if _attempt == 0:
+                        warn(f"{log_prefix} resolve_attestation failed (attempt 1), retrying: {resolve_err}")
+                        time.sleep(0.5)
+                    else:
+                        raise
             timestamps["p_send_result_finished"] = helpers.perf_ns()
             if should_wait:
                 timestamps["p_send_result_finished_tx_confirmed"] = helpers.perf_ns()

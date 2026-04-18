@@ -211,6 +211,9 @@ def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, 
     except Exception as e:
         print(f"   ⚠️ Monitor start failed: {e}")
 
+    # Allow monitor to complete one clean baseline sample before agents start
+    time.sleep(1)
+
     # 3. Start Agents (Parallel) — fires /start on all sidecars simultaneously
     print("   [Agents] Starting...")
     with ThreadPoolExecutor(max_workers=len(sidecars)) as executor:
