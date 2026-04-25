@@ -33,7 +33,13 @@ The following modules will be built and tagged locally:
 1. Create agent configurations:
 
 ```bash
-python3 create_agent_config.py --num-agents 10
+# Gazebo mode (config/)
+python3 create_agent_config.py --num-agents 100 --config-output ./config \
+    --cmd-name robot_state_publisher --text-section-size 42223 --offset 0
+
+# Dummy mode (config-dummy/)
+python3 create_agent_config.py --num-agents 100 --config-output ./config-dummy \
+    --cmd-name dummy_publisher --text-section-size 175521 --offset 5744
 ```
 
 > Note: To create blockchain agent credentials see [blockchain/quorum-test-network/extra](./blockchain/quorum-test-network/extra)
@@ -85,7 +91,7 @@ Services exposed:
 2. Deploy the [MasMutualAttestation.sol](./smart-contracts/contracts/MasMutualAttestation.sol) `smart contract`:
 
 ```bash
-./deploy_sc.sh --rpc_url http://10.5.99.99:21001 --chain_id 1337
+./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337
 ```
 
 3. Remove the network:
@@ -129,21 +135,50 @@ python3 run_experiments_and_collect_results.py --robots 4 --runs 10 --startup
 
 ## Data collection (ros2 topic hz)
 
-1. Start the experimental setup:
+Measures per-message arrival timestamps for `/robotX/<topic>` with and without
+attestation sidecars running. Results are stored under
+`experiments/data/performance-benchmark/results/<topic>/<condition>/<mode>/run*.csv`
+with columns `robot, topic, ros_stamp_ns, wall_stamp_ns`.
+
+1. Start robots (no `--export` needed — sidecars will have export disabled):
 
 ```bash
 ./start.sh --robots 4
 ```
 
-2. Run:
+2. Start the topic collector, then run both conditions back-to-back:
 
 ```bash
-COMPOSE_IGNORE_ORPHANS=1 docker compose -f docker-compose.robots.yml -f docker-compose.benchmark-collector.yml up -d topic-collector
+# Default topic: /robotX/scan
+COMPOSE_IGNORE_ORPHANS=1 \
+  docker compose -f docker-compose.robots.yml \
+                 -f docker-compose.benchmark-collector.yml \
+                 up -d topic-collector
 
-python3 run_benchmark.py --condition with_sidecar --mode continuous --runs 5
+# Baseline — no sidecars running (attestation containers not started)
+python3 run_benchmark.py --condition no_sidecar --runs 5 --topic scan
+
+# With sidecars — continuous attestation mode
+python3 run_benchmark.py --condition with_sidecar --mode continuous --runs 5 --topic scan
+
+# With sidecars — startup (one-shot) attestation mode
+python3 run_benchmark.py --condition with_sidecar --mode startup --runs 5 --topic scan
 ```
 
-`--robots N` must match the value used in `start.sh`.
+To benchmark a **different topic** (e.g. `/robotX/odom`), restart the collector with
+`TOPIC_NAME` set and pass the matching `--topic` flag to the benchmark script:
+
+```bash
+COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/odom MSG_TYPE=nav_msgs.msg/Odometry \
+  docker compose -f docker-compose.robots.yml \
+                 -f docker-compose.benchmark-collector.yml \
+                 up -d --force-recreate topic-collector
+
+python3 run_benchmark.py --condition no_sidecar --runs 5 --topic odom
+python3 run_benchmark.py --condition with_sidecar --mode continuous --runs 5 --topic odom
+```
+
+> `--robots N` in `start.sh` must match `N_ROBOTS` in the collector (default 4).
 
 3. Stop the experimental setup:
 

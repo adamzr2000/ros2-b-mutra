@@ -8,22 +8,38 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Configuration ---
-MONITOR_URL = "http://localhost:6000"
-SECAAS_URL  = "http://localhost:8000"
-SECAAS_PORT = 8000
-ROBOTS_BASE_PORT = 8001  # robot1=8001, robot2=8002, ...
+MONITOR_URL      = "http://localhost:6000"
+MONITOR_PORT     = 6000
+ETH_MONITOR_URL  = "http://localhost:7000"
+SECAAS_URL       = "http://localhost:8000"   # SECaaS is always on local machine
+SECAAS_PORT      = 8000
+ROBOTS_BASE_PORT = 8001   # robot1=8001, robot2=8002, ...
+ETH_RPC_URL      = "http://host.docker.internal:21001"
+
+# Multi-host defaults (overridable via CLI)
+_DEFAULT_REMOTE_HOST  = "10.5.1.21"   # remote host
+_DEFAULT_LOCAL_LIMIT  = 8              # robots 1-LOCAL_LIMIT are on local machine
+REMOTE_USER           = "desire6g"
+REMOTE_DIR            = "~/ros2-b-mutra"
 
 # Absolute path so the script works regardless of the working directory
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# (host, port) tuple for SECaaS — always localhost
+_SECAAS_HOST_PORT = ("localhost", SECAAS_PORT)
 
-def build_sidecars(num_robots):
-    """Builds the sidecar map dynamically based on number of robots.
-    SECaaS is always at 8000, robots start at 8001.
+
+def build_sidecars(num_robots, remote_host=None, local_limit=_DEFAULT_LOCAL_LIMIT):
+    """Return {name: (host, port)} for SECaaS and all robot sidecars.
+
+    Robots 1..local_limit are on localhost (local machine).
+    Robots local_limit+1..num_robots are on remote_host (remote host), if provided.
     """
-    sidecars = {"secaas": SECAAS_PORT}
+    sidecars = {"secaas": ("localhost", SECAAS_PORT)}
     for i in range(1, num_robots + 1):
-        sidecars[f"robot{i}"] = ROBOTS_BASE_PORT + i - 1
+        port = ROBOTS_BASE_PORT + i - 1
+        host = remote_host if (remote_host and i > local_limit) else "localhost"
+        sidecars[f"robot{i}"] = (host, port)
     return sidecars
 
 
@@ -48,9 +64,10 @@ def check_all_services(sidecars):
     """Verifies that ALL defined services are up and listening (parallel)."""
     print("\n🔍 Pre-flight check: Verifying all services...")
 
-    checks = {"monitor": f"{MONITOR_URL}/monitor/status"}
-    for name, port in sidecars.items():
-        checks[name] = f"http://localhost:{port}/"
+    checks = {"monitor": f"{MONITOR_URL}/monitor/status",
+              "eth-monitor": f"{ETH_MONITOR_URL}/monitor/status"}
+    for name, (host, port) in sidecars.items():
+        checks[name] = f"http://{host}:{port}/"
 
     all_ok = True
     with ThreadPoolExecutor(max_workers=len(checks)) as executor:
@@ -64,20 +81,22 @@ def check_all_services(sidecars):
         print("🚀 All systems GO.\n")
     return all_ok
 
-def trigger_action(name, port, action, timeout=5):
+def trigger_action(name, host_port, action, timeout=5):
     """Sends start/stop signals to the sidecar API."""
+    host, port = host_port
     try:
-        url = f"http://localhost:{port}/{action}"
+        url = f"http://{host}:{port}/{action}"
         resp = requests.post(url, timeout=timeout)
         resp.raise_for_status()
         return f"✔ {name}: {action.upper()}"
     except Exception as e:
         return f"❌ {name}: Failed to {action} ({e})"
 
-def get_status(name, port):
+def get_status(name, host_port):
     """Returns the status string from /status endpoint."""
+    host, port = host_port
     try:
-        resp = requests.get(f"http://localhost:{port}/status", timeout=5)
+        resp = requests.get(f"http://{host}:{port}/status", timeout=5)
         resp.raise_for_status()
         return resp.json().get("status", "unknown")
     except Exception as e:
@@ -86,18 +105,12 @@ def get_status(name, port):
 def _poll_statuses_parallel(robot_sidecars):
     """Fetches /status from all robot sidecars in parallel."""
     with ThreadPoolExecutor(max_workers=len(robot_sidecars)) as executor:
-        futures = {executor.submit(get_status, name, port): name for name, port in robot_sidecars.items()}
+        futures = {executor.submit(get_status, name, hp): name for name, hp in robot_sidecars.items()}
         return {futures[f]: f.result() for f in as_completed(futures)}
 
 def wait_for_all_running(robot_sidecars, timeout=30):
     """Waits until all robot sidecars have left 'idle' (i.e. report 'running'
     or already 'finished').
-
-    After /stop, sidecars return 'idle' (lastResult='stopped').  The transition
-    on /start is: idle → running → finished (ONE_SHOT) or idle → running
-    (continuous).  We accept 'finished' as a valid "has started" state so that
-    a very fast attestation cycle (completed before the first 0.5 s poll) does
-    not cause a 30 s timeout here before wait_for_all_finished is reached.
     """
     print(f"   ⏳ Waiting for all agents to start running (timeout={timeout}s)...")
     start = time.time()
@@ -114,9 +127,7 @@ def wait_for_all_running(robot_sidecars, timeout=30):
     return False
 
 def wait_for_all_finished(robot_sidecars, timeout=120):
-    """Polls all robot sidecars until all report 'finished' or timeout.
-    Excludes secaas since it has no oneshot/status concept.
-    """
+    """Polls all robot sidecars until all report 'finished' or timeout."""
     print(f"   ⏳ Waiting for all agents to finish (timeout={timeout}s)...")
     start = time.time()
     while time.time() - start < timeout:
@@ -131,10 +142,11 @@ def wait_for_all_finished(robot_sidecars, timeout=120):
     print("   ❌ Timeout: not all agents finished in time.")
     return False
 
-def set_config(name, port, payload: dict):
-    """Sends a partial config update to a single robot sidecar via POST /config."""
+def set_config(name, host_port, payload: dict):
+    """Sends a partial config update to a single sidecar via POST /config."""
+    host, port = host_port
     try:
-        resp = requests.post(f"http://localhost:{port}/config", json=payload, timeout=5)
+        resp = requests.post(f"http://{host}:{port}/config", json=payload, timeout=5)
         resp.raise_for_status()
         applied = resp.json().get("applied", payload)
         return f"✔ {name}: {applied}"
@@ -147,41 +159,20 @@ def set_config_all(robot_sidecars, payload: dict):
     """
     print(f"   [Config] Pushing to all robot sidecars: {payload}...")
     with ThreadPoolExecutor(max_workers=len(robot_sidecars)) as executor:
-        futures = [executor.submit(set_config, n, p, payload) for n, p in robot_sidecars.items()]
+        futures = [executor.submit(set_config, n, hp, payload) for n, hp in robot_sidecars.items()]
         for f in as_completed(futures):
             print(f"      {f.result()}")
 
 def stop_all_agents(sidecars):
-    """Stops all agents in parallel. Uses a longer timeout than other actions
-    because /stop blocks while draining worker goroutines (up to 10s in Go)."""
+    """Stops all agents in parallel."""
     print("   [Agents] Stopping...")
     with ThreadPoolExecutor(max_workers=len(sidecars)) as executor:
-        futures = [executor.submit(trigger_action, n, p, "stop", 15) for n, p in sidecars.items()]
+        futures = [executor.submit(trigger_action, n, hp, "stop", 15) for n, hp in sidecars.items()]
         for f in as_completed(futures):
             print(f"      {f.result()}")
 
 def reset_chain():
-    """Resets the blockchain state via SECaaS API (calls ResetChain() on the
-    contract, restricted to the SECaaS address).
-
-    What the contract actually resets:
-      - attestationChain[]  — completed attestation ID history wiped
-      - rrIndex             — round-robin verifier election counter reset to 0
-      - lastSuccess[addr]   — freshness timestamps reset to 0 for all participants
-
-    What it does NOT touch:
-      - agent[addr].registered / agent[addr].name — agents stay registered
-      - participants[]                             — participant list preserved
-
-    Consequence for startup mode: after each reset, lastSuccess=0 for
-    everyone, so ElectVerifier finds no fresh candidates and always returns
-    SECaaS as verifier. Every one-shot run therefore uses SECaaS as verifier
-    and is resolved via ResolveAttestationSECaaS (not CloseAttestationProcess).
-
-    Not needed in continuous mode where chain state accumulates intentionally.
-    The sleep(3) before calling this allows agents to finish any in-flight
-    blockchain writes before the reset fires.
-    """
+    """Resets the blockchain state via SECaaS API."""
     try:
         requests.post(f"{SECAAS_URL}/reset", timeout=10)
         print("   [Chain] State reset successfully.")
@@ -189,140 +180,165 @@ def reset_chain():
         print(f"   [Chain] ⚠️ Warning: Reset failed: {e}")
 
 
-def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, robot_sidecars, startup_mode=False):
+def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
+                        startup_mode=False, remote_monitor_url=None, blockchain_dir=None):
     print(f"\n==============================\n🏁 Run {run_id}\n==============================")
 
-    # 1. Push mode + results_dir to all sidecars before anything else.
-    #    results_dir is set every run so each sidecar writes to the correct
-    #    sub-directory regardless of what the env var was set to at startup.
-    #    SECaaS gets only results_dir (no one_shot concept).
     set_config_all(robot_sidecars, {"one_shot": startup_mode, "results_dir": attestation_dir})
-    set_config("secaas", SECAAS_PORT, {"results_dir": attestation_dir})
+    set_config("secaas", _SECAAS_HOST_PORT, {"results_dir": attestation_dir})
 
-    # 2. Start Docker Monitor
+    # 2. Start Docker Monitor(s)
     print(f"   [Monitor] Starting stats -> {stats_dir}")
+    local_containers  = ["secaas"] + [f"{r}-sidecar" for r, hp in robot_sidecars.items() if hp[0] == "localhost"]
+    remote_containers = [f"{r}-sidecar" for r, hp in robot_sidecars.items() if hp[0] != "localhost"]
     try:
         requests.post(f"{MONITOR_URL}/monitor/start", json={
-            "containers": ["secaas"] + [f"{r}-sidecar" for r in robot_sidecars],
+            "containers": local_containers,
             "interval": 1.0,
             "csv_dir": stats_dir,
             "run_id": run_id
         }, timeout=5)
     except Exception as e:
-        print(f"   ⚠️ Monitor start failed: {e}")
+        print(f"   ⚠️ Local monitor start failed: {e}")
+    if remote_monitor_url and remote_containers:
+        try:
+            requests.post(f"{remote_monitor_url}/monitor/start", json={
+                "containers": remote_containers,
+                "interval": 1.0,
+                "csv_dir": stats_dir,
+                "run_id": run_id
+            }, timeout=5)
+        except Exception as e:
+            print(f"   ⚠️ Remote monitor start failed: {e}")
+
+    # Start blockchain monitor (continuous mode only)
+    if not startup_mode and blockchain_dir:
+        print(f"   [Eth Monitor] Starting blockchain stats -> {blockchain_dir}")
+        try:
+            requests.post(f"{ETH_MONITOR_URL}/monitor/start", json={
+                "rpc_url": ETH_RPC_URL,
+                "poll_interval": 1.0,
+                "csv_dir": blockchain_dir,
+                "csv_name": f"blockchain-run{run_id}",
+            }, timeout=5)
+        except Exception as e:
+            print(f"   ⚠️ Eth monitor start failed: {e}")
 
     # Allow monitor to complete one clean baseline sample before agents start
     time.sleep(1)
 
-    # 3. Start Agents (Parallel) — fires /start on all sidecars simultaneously
+    # 3. Start Agents (Parallel)
     print("   [Agents] Starting...")
     with ThreadPoolExecutor(max_workers=len(sidecars)) as executor:
-        futures = [executor.submit(trigger_action, n, p, "start") for n, p in sidecars.items()]
+        futures = [executor.submit(trigger_action, n, hp, "start") for n, hp in sidecars.items()]
         for f in as_completed(futures):
             print(f"      {f.result()}")
 
-    # 4. Wait until all robots have left 'idle' (running or finished).
-    #    Ensures /start has been fully processed before we start timing or
-    #    polling for completion.  In startup mode, also guards against
-    #    proceeding to wait_for_all_finished while sidecars are still
-    #    transitioning from idle.
+    # 4. Wait until all robots have left 'idle'
     wait_for_all_running(robot_sidecars, timeout=30)
 
     if startup_mode:
-        # 5. Poll until all robot sidecars report "finished" (self-stop after one attestation)
-        wait_for_all_finished(robot_sidecars, timeout=120)
-
-        # 6. Explicitly stop all agents to reset sidecar state (measuring=false,
-        #    ResultsFile cleared) so the next run starts clean
+        wait_for_all_finished(robot_sidecars, timeout=180)
         stop_all_agents(sidecars)
-
-        # 7. Allow agents to finish any in-flight blockchain writes, then reset chain
-        #    so the next run starts with clean agent registration and no stale IDs
         time.sleep(3)
         reset_chain()
     else:
-        # 5. Wait fixed duration then stop explicitly (continuous mode).
-        #    Chain state accumulates intentionally across runs in this mode.
         print(f"   ⏳ Running for {duration}s...")
         time.sleep(duration)
-
-        # 6. Stop Agents (Parallel)
         stop_all_agents(sidecars)
-
-        # 7. Brief cooldown so the monitor captures the final stats window
-        #    before the stop signal is sent (monitor collects at 1s intervals).
         time.sleep(2)
 
-    # 8. Stop Monitor
+    # Stop Monitor(s) — allow up to 60s for parallel container shutdown
     try:
-        requests.post(f"{MONITOR_URL}/monitor/stop", timeout=5)
+        requests.post(f"{MONITOR_URL}/monitor/stop", timeout=60)
     except Exception:
         pass
+    if remote_monitor_url:
+        try:
+            requests.post(f"{remote_monitor_url}/monitor/stop", timeout=60)
+        except Exception:
+            pass
+    if not startup_mode and blockchain_dir:
+        try:
+            requests.post(f"{ETH_MONITOR_URL}/monitor/stop", timeout=10)
+        except Exception:
+            pass
 
 
 def run_continuous_warmup(sidecars, robot_sidecars):
-    """Runs a single one-shot attestation cycle with export disabled so that
-    every robot gets a non-zero lastSuccess timestamp on the contract before
-    the real data-collection loop starts.  Without this, ElectVerifier finds
-    no fresh candidates and always falls back to SECaaS as verifier, which
-    is not representative of steady-state continuous operation.
-
-    The warmup:
-      - disables export on all sidecars and SECaaS (no files written)
-      - sets one_shot=True so each robot self-stops after one attestation
-      - skips the docker monitor (no stats recorded)
-      - does NOT reset the chain afterward (that would undo lastSuccess)
-    """
+    """One-shot warmup run with export disabled to seed lastSuccess on-chain."""
     print("\n🔥 Continuous warmup: seeding lastSuccess via one-shot run (export disabled)...")
 
-    # Disable export everywhere for the warmup
     set_config_all(robot_sidecars, {"one_shot": True, "export_enabled": False})
-    set_config("secaas", SECAAS_PORT, {"export_enabled": False})
+    set_config("secaas", _SECAAS_HOST_PORT, {"export_enabled": False})
 
-    # Start all agents
     print("   [Warmup] Starting agents...")
     with ThreadPoolExecutor(max_workers=len(sidecars)) as executor:
-        futures = [executor.submit(trigger_action, n, p, "start") for n, p in sidecars.items()]
+        futures = [executor.submit(trigger_action, n, hp, "start") for n, hp in sidecars.items()]
         for f in as_completed(futures):
             print(f"      {f.result()}")
 
     wait_for_all_running(robot_sidecars, timeout=30)
-    wait_for_all_finished(robot_sidecars, timeout=120)
+    wait_for_all_finished(robot_sidecars, timeout=180)
     stop_all_agents(sidecars)
 
     print("   ✅ Warmup complete. lastSuccess seeded for all robots.\n")
 
 
-def reset_checkpoints():
-    """Clears all event watcher checkpoint JSON files on the host before an
-    experiment batch starts.  Without this, a watcher resumed from a stale
-    from_block may scan many old blocks before finding new events, adding
-    latency noise to timing measurements in run 1.
-    """
+def reset_checkpoints(remote_host=None, local_limit=_DEFAULT_LOCAL_LIMIT, num_robots=0):
+    """Clears all event watcher checkpoint JSON files (local + remote if multi-host)."""
     base = os.path.join(_SCRIPT_DIR, "checkpoints")
-    print("   [Checkpoints] Clearing event watcher state...")
+    print("   [Checkpoints] Clearing local event watcher state...")
     for entry in os.scandir(base):
         if entry.is_dir():
             subprocess.run(
                 ["find", entry.path, "-type", "f", "-name", "*.json", "-delete"],
                 check=True,
             )
+    if remote_host and num_robots > local_limit:
+        print(f"   [Checkpoints] Clearing remote event watcher state on {remote_host}...")
+        subprocess.run(
+            ["ssh", f"{REMOTE_USER}@{remote_host}",
+             f"find {REMOTE_DIR}/checkpoints -type f -name '*.json' -delete 2>/dev/null || true"],
+            check=True,
+        )
     print("   [Checkpoints] Done.")
 
 
-def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_sidecars, startup_mode):
-    reset_checkpoints()
+def sync_remote_results(remote_host):
+    """Rsync only results/ subdirs from remote host, never overwriting existing files."""
+    for subdir in ["attestation-times/results", "docker-stats/results"]:
+        local_dst  = os.path.join(_SCRIPT_DIR, "experiments", "data", subdir) + "/"
+        remote_src = f"{REMOTE_USER}@{remote_host}:{REMOTE_DIR}/experiments/data/{subdir}/"
+        print(f"\n📥 Syncing {remote_src} → {local_dst}")
+        os.makedirs(local_dst, exist_ok=True)
+        subprocess.run(
+            ["rsync", "-av", "--ignore-existing", remote_src, local_dst],
+            check=True,
+        )
+    print("✅ Remote results synced.")
+
+
+def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
+                    startup_mode, remote_host=None, local_limit=_DEFAULT_LOCAL_LIMIT,
+                    num_robots=0, remote_monitor_url=None, blockchain_dir=None):
+    reset_checkpoints(remote_host=remote_host, local_limit=local_limit, num_robots=num_robots)
+
+    # Pre-set SECaaS results_dir immediately so any stale blockchain events from a
+    # previous session land in the correct directory, not the old one.
+    set_config("secaas", _SECAAS_HOST_PORT, {"results_dir": attestation_dir})
 
     if not startup_mode:
         run_continuous_warmup(sidecars, robot_sidecars)
-        # Re-enable export on all sidecars and SECaaS before the real loop
         set_config_all(robot_sidecars, {"export_enabled": True})
-        set_config("secaas", SECAAS_PORT, {"export_enabled": True})
+        set_config("secaas", _SECAAS_HOST_PORT, {"export_enabled": True})
         print("   [System] Cooling down for 5s after warmup...")
         time.sleep(5)
 
     for i in range(1, runs + 1):
-        run_experiment_loop(i, duration, stats_dir, attestation_dir, sidecars, robot_sidecars, startup_mode=startup_mode)
+        run_experiment_loop(i, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
+                            startup_mode=startup_mode, remote_monitor_url=remote_monitor_url,
+                            blockchain_dir=blockchain_dir)
         if i < runs:
             print("   [System] Cooling down for 5s...")
             time.sleep(5)
@@ -334,57 +350,88 @@ if __name__ == "__main__":
         description="Data collection — two modes: startup (one-shot) or continuous (fixed duration)",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--robots",   type=int, default=4, help="Number of robot sidecars (default: 4, ports 8001..800N)")
-    parser.add_argument("--runs",     type=int, default=1, help="Number of runs (default: 1)")
+    parser.add_argument("--robots",      type=int, default=4,
+                        help="Number of robot sidecars (default: 4, ports 8001..800N)")
+    parser.add_argument("--runs",        type=int, default=1,
+                        help="Number of runs (default: 1)")
+    parser.add_argument("--remote-host", default=None,
+                        help=f"IP of remote host for robots beyond --local-limit "
+                             f"(default: {_DEFAULT_REMOTE_HOST} when N > local-limit)")
+    parser.add_argument("--local-limit", type=int, default=_DEFAULT_LOCAL_LIMIT,
+                        help=f"Robots 1-N are on localhost; rest are on --remote-host "
+                             f"(default: {_DEFAULT_LOCAL_LIMIT})")
 
-    # Mutually exclusive: either one-shot startup mode or fixed-duration continuous mode
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--startup",  action="store_true", help="One-shot mode: poll until all agents report 'finished' then stop explicitly")
-    mode.add_argument("--duration", type=int,            help="Continuous mode: run for this many seconds then stop agents")
+    mode.add_argument("--startup",  action="store_true",
+                      help="One-shot mode: poll until all agents report 'finished'")
+    mode.add_argument("--duration", type=int,
+                      help="Continuous mode: run for this many seconds then stop agents")
 
     args = parser.parse_args()
 
-    # Derive output directories from robot count and mode
-    mode_label = "startup" if args.startup else "continuous"
+    # Auto-enable remote host for multi-host deployments
+    remote_host = args.remote_host
+    if remote_host is None and args.robots > args.local_limit:
+        remote_host = _DEFAULT_REMOTE_HOST
+        print(f"ℹ️  N={args.robots} > local-limit={args.local_limit}: "
+              f"using remote host {remote_host} for robots {args.local_limit + 1}–{args.robots}")
+
+    remote_monitor_url = f"http://{remote_host}:{MONITOR_PORT}" if remote_host else None
+
+    mode_label  = "startup" if args.startup else "continuous"
     robot_label = f"N{args.robots}"
     stats_dir       = f"/experiments/data/docker-stats/results/{robot_label}/{mode_label}"
     attestation_dir = f"/experiments/data/attestation-times/results/{robot_label}/{mode_label}"
+    blockchain_dir  = f"/experiments/data/blockchain-stats/results/{robot_label}/continuous" if not args.startup else None
 
-    # Build sidecar map dynamically
-    sidecars = build_sidecars(args.robots)
+    sidecars = build_sidecars(args.robots, remote_host=remote_host, local_limit=args.local_limit)
     robot_sidecars = {k: v for k, v in sidecars.items() if k != "secaas"}
 
-    print(f"📋 Configured sidecars: { {k: v for k, v in sidecars.items()} }")
+    print(f"📋 Configured sidecars:")
+    for name, (host, port) in sidecars.items():
+        print(f"   {name}: http://{host}:{port}")
     if args.startup:
         print("🔁 Mode: STARTUP (one-shot)")
     else:
         print(f"🔁 Mode: CONTINUOUS ({args.duration}s per run)")
     print(f"📁 Stats dir:       {stats_dir}")
     print(f"📁 Attestation dir: {attestation_dir}")
+    if blockchain_dir:
+        print(f"📁 Blockchain dir:  {blockchain_dir}")
 
-    # 1. Pre-flight: wait for all services
+    if remote_monitor_url:
+        print(f"   monitor (remote): {remote_monitor_url}")
+
     if not check_all_services(sidecars):
         print("🛑 Aborting: Not all services are ready.")
         sys.exit(1)
 
-    # 2. Run experiments (args.duration is None for --startup; pass 0 as safe default)
+    if remote_monitor_url and not wait_for_http(f"{remote_monitor_url}/monitor/status"):
+        print("⚠️  Remote monitor not responding — remote sidecar stats won't be collected.")
+        remote_monitor_url = None
+
     try:
-        run_experiments(args.runs, args.duration or 0, stats_dir, attestation_dir, sidecars, robot_sidecars, startup_mode=args.startup)
+        run_experiments(args.runs, args.duration or 0, stats_dir, attestation_dir,
+                        sidecars, robot_sidecars, startup_mode=args.startup,
+                        remote_host=remote_host, local_limit=args.local_limit,
+                        num_robots=args.robots, remote_monitor_url=remote_monitor_url,
+                        blockchain_dir=blockchain_dir)
     except KeyboardInterrupt:
         print("\n🛑 Interrupted by user.")
 
     print(f"\n🎉 All runs completed. Results saved to {stats_dir}")
 
+    if remote_host:
+        sync_remote_results(remote_host)
+
     # --- Cleanup Ghost Artifacts ---
-    # secaas.json (no run number) is created when SECaaS receives /start before
-    # /config has set a results_dir, so _next_run_json hasn't run yet and the
-    # file lands as a bare "secaas.json".  It contains no useful data.
-    ghost_file = os.path.join(attestation_dir, "secaas.json")
-    if os.path.exists(ghost_file):
-        try:
-            os.remove(ghost_file)
-            print(f"🧹 Cleaned up artifact: {ghost_file}")
-        except PermissionError:
-            print(f"⚠️ Permission denied deleting {ghost_file}. Try: sudo rm -f {ghost_file}")
-        except OSError as e:
-            print(f"⚠️ Failed deleting {ghost_file}: {e}")
+    # Remove all secaas.json files anywhere under the attestation results tree.
+    # SECaaS exports its own JSON on every run; it's not useful for analysis.
+    results_root = os.path.join(_SCRIPT_DIR, "experiments", "data", "attestation-times", "results")
+    result = subprocess.run(
+        ["find", results_root, "-type", "f", "-name", "secaas.json", "-delete", "-print"],
+        capture_output=True, text=True,
+    )
+    if result.stdout.strip():
+        for f in result.stdout.strip().splitlines():
+            print(f"🧹 Removed ghost artifact: {f}")

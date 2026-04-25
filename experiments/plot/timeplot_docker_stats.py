@@ -97,8 +97,8 @@ def generate_plot(df, n_robots, mode, script_dir):
                   rc={"xtick.direction": "out", "ytick.direction": "out"},
                   font_scale=FONT_SCALE)
     plt.rcParams.update({"font.family": "serif"})
-    color_robot  = "#336699"   # steel blue
-    color_secaas = "#993333"   # dark red
+    color_robot  = "#2C7873"   # deep teal
+    color_secaas = "#E07B39"   # amber orange
 
     fig = plt.figure(figsize=(10, 8.5), constrained_layout=False)
     gs  = fig.add_gridspec(3, 1, height_ratios=[1.0, 1.0, 1.0], hspace=0.10)

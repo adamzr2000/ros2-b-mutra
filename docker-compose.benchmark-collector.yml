@@ -13,16 +13,17 @@ services:
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
       - N_ROBOTS=4
-      - COLLECTOR_PORT=7000
+      - COLLECTOR_PORT=7001
+      - TOPIC_NAME=${TOPIC_NAME:-/scan}
+      - MSG_TYPE=${MSG_TYPE:-sensor_msgs.msg/LaserScan}
     command: >
       bash -c "
-        pip install flask -q &&
         source /opt/ros/humble/setup.bash &&
         source /home/agent/ros2_ws/install/setup.bash &&
         python3 /home/agent/scripts/collect_topic_stats.py
       "
     ports:
-      - "7000:7000"
+      - "7001:7001"
     volumes:
       - ./experiments/data/:/experiments/data:rw
       - ./dockerfiles/turtlebot3/scripts/collect_topic_stats.py:/home/agent/scripts/collect_topic_stats.py:ro

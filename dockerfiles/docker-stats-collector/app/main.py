@@ -6,6 +6,7 @@ import os
 import re
 import glob
 import docker
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -196,18 +197,25 @@ def monitor_stop(container: Optional[str] = Query(default=None, description="Con
             logger.error(f"monitor_stop failed for '{container}': {e}")
             raise HTTPException(status_code=500, detail={"success": False, "message": str(e)})
     else:
-        any_running = False
-        for ref, mon in list(mons.items()):
-            try:
-                if mon.is_running():
-                    mon.stop()
-                    any_running = True
-            except Exception as e:
-                logger.error(f"monitor_stop (all) failed stopping '{ref}': {e}")
+        running_mons = [(ref, mon) for ref, mon in list(mons.items()) if mon.is_running()]
         app.state.monitors.clear()
-        if not any_running:
+        if not running_mons:
             raise HTTPException(status_code=400, detail={"success": False, "message": "No active monitoring to stop."})
-        return {"success": True, "message": "All monitoring stopped."}
+
+        def _stop_one(ref_mon):
+            ref, mon = ref_mon
+            try:
+                mon.stop()
+                return ref, None
+            except Exception as e:
+                return ref, e
+
+        with ThreadPoolExecutor(max_workers=len(running_mons)) as pool:
+            for ref, err in pool.map(_stop_one, running_mons):
+                if err:
+                    logger.error(f"monitor_stop (all) failed stopping '{ref}': {err}")
+
+        return {"success": True, "message": f"All {len(running_mons)} monitor(s) stopped."}
 
 @app.get(
     "/monitor/status",

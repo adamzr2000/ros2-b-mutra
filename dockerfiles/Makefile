@@ -1,8 +1,9 @@
-.PHONY: all clean attestation-sidecar docker-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
+.PHONY: all clean attestation-sidecar docker-stats-collector eth-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
 
 # --- Variables ---
 IMG_ATTESTATION_SIDECAR    := attestation-sidecar:latest
 IMG_DOCKER_STATS_COLLECTOR := docker-stats-collector:latest
+IMG_ETH_STATS_COLLECTOR    := eth-stats-collector:latest
 IMG_GAZEBO                 := gazebo-vnc:latest
 IMG_TURTLEBOT              := turtlebot3-gazebo:latest
 IMG_HARDHAT                := hardhat:latest
@@ -12,9 +13,9 @@ IMG_SECAAS_WRAPPER         := secaas-wrapper:latest
 # --- Main Command ---
 
 # Default target: Builds all in parallel and prints summary on success
-all: 
+all:
 	@echo ">> 🚀 Starting parallel build for all images..."
-	@$(MAKE) -j attestation-sidecar docker-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
+	@$(MAKE) -j attestation-sidecar docker-stats-collector eth-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
 	@echo ""
 	@echo "========================================================"
 	@echo "   ✅  ALL IMAGES BUILT SUCCESSFULLY"
@@ -23,7 +24,7 @@ all:
 # Remove the specific images built by this file
 clean:
 	@echo ">> 🧹 Removing project images..."
-	-docker rmi $(IMG_ATTESTATION_SIDECAR) $(IMG_DOCKER_STATS_COLLECTOR) $(IMG_GAZEBO) $(IMG_TURTLEBOT) $(IMG_HARDHAT) $(IMG_SECAAS) $(IMG_SECAAS_WRAPPER)
+	-docker rmi $(IMG_ATTESTATION_SIDECAR) $(IMG_DOCKER_STATS_COLLECTOR) $(IMG_ETH_STATS_COLLECTOR) $(IMG_GAZEBO) $(IMG_TURTLEBOT) $(IMG_HARDHAT) $(IMG_SECAAS) $(IMG_SECAAS_WRAPPER)
 
 # --- Individual Build Rules ---
 
@@ -34,6 +35,10 @@ attestation-sidecar:
 docker-stats-collector:
 	@echo ">> 📦 Building [$(IMG_DOCKER_STATS_COLLECTOR)]..."
 	@docker build -t $(IMG_DOCKER_STATS_COLLECTOR) ./docker-stats-collector
+
+eth-stats-collector:
+	@echo ">> 📦 Building [$(IMG_ETH_STATS_COLLECTOR)]..."
+	@docker build -t $(IMG_ETH_STATS_COLLECTOR) ./eth-stats-collector
 
 gazebo-vnc:
 	@echo ">> 📦 Building [$(IMG_GAZEBO)]..."

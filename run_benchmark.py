@@ -26,15 +26,15 @@ from pathlib import Path
 
 import requests
 
-COLLECTOR_URL    = "http://localhost:7000"
+COLLECTOR_URL    = "http://localhost:7001"
 SECAAS_URL       = "http://localhost:8000"
 SECAAS_PORT      = 8000
 ROBOTS_BASE_PORT = 8001
 N_ROBOTS         = 4
 DURATION_S       = 120
 
-BASE_RESULTS_DIR        = Path(__file__).parent / "experiments/data/performance-benchmark/results"
-COLLECTOR_RESULTS_DIR   = "/experiments/data/performance-benchmark/results"   # container-side path
+BASE_RESULTS_DIR      = Path(__file__).parent / "experiments/data/performance-benchmark/results"
+COLLECTOR_RESULTS_DIR = "/experiments/data/performance-benchmark/results"   # container-side path
 
 
 # ── Sidecar helpers (mirrors run_experiments_and_collect_results.py) ───────────
@@ -161,46 +161,49 @@ def wait_for_topics_active(min_msgs=N_ROBOTS, timeout=60):
 
 # ── Run loop ───────────────────────────────────────────────────────────────────
 
-def run_benchmark_loop(run_id, condition, mode, sidecars, robot_sidecars):
-    print(f"\n{'='*55}\n🏁 Run {run_id}  [{condition} / {mode}]\n{'='*55}")
+def run_benchmark_loop(run_id, condition, mode, topic_slug, sidecars, robot_sidecars):
+    print(f"\n{'='*55}\n🏁 Run {run_id}  [{condition} / {mode} / {topic_slug}]\n{'='*55}")
 
-    host_output      = BASE_RESULTS_DIR / condition / mode / f"run{run_id}.csv"
-    container_output = f"{COLLECTOR_RESULTS_DIR}/{condition}/{mode}/run{run_id}.csv"
+    host_output      = BASE_RESULTS_DIR / topic_slug / condition / mode / f"run{run_id}.csv"
+    container_output = f"{COLLECTOR_RESULTS_DIR}/{topic_slug}/{condition}/{mode}/run{run_id}.csv"
     host_output.parent.mkdir(parents=True, exist_ok=True)
 
     # Reset collector state from previous run
     requests.post(f"{COLLECTOR_URL}/reset", timeout=5)
 
-    if condition == "with_sidecar":
-        set_config_all(robot_sidecars, {
-            "one_shot":       mode == "startup",
-            "export_enabled": False,        # no JSON output during benchmark
-        })
-        set_config("secaas", SECAAS_PORT, {"export_enabled": False})
-
     # Wait until robots are publishing before starting the measurement window
     wait_for_topics_active(min_msgs=N_ROBOTS, timeout=60)
 
-    # Start collector
-    print(f"   [Collector] Recording → {host_output}")
-    requests.post(f"{COLLECTOR_URL}/start", json={
-        "output_file": container_output,
-        "duration_s":  DURATION_S + 10,    # buffer; we stop explicitly below
-    }, timeout=5)
-
-    t_start = time.time()
-
     if condition == "with_sidecar":
+        set_config_all(robot_sidecars, {
+            "one_shot":       mode == "startup",
+            "export_enabled": False,
+        })
+        set_config("secaas", SECAAS_PORT, {"export_enabled": False})
+
         print("   [Agents] Starting...")
         with ThreadPoolExecutor(max_workers=len(sidecars)) as ex:
             for f in as_completed([ex.submit(trigger_action, n, p, "start") for n, p in sidecars.items()]):
                 print(f"      {f.result()}")
         wait_for_all_running(robot_sidecars)
 
+    # Start collector only after sidecars are up (or immediately for baseline)
+    print(f"   [Collector] Recording → {host_output}")
+    requests.post(f"{COLLECTOR_URL}/start", json={
+        "output_file": container_output,
+        "duration_s":  DURATION_S + 10,    # buffer; we stop explicitly below
+    }, timeout=5)
+    t_collect_start = time.time()
+
+    if condition == "with_sidecar":
         if mode == "startup":
             wait_for_all_finished(robot_sidecars, timeout=120)
             stop_all(sidecars)
-            time.sleep(3)
+            # Pad so the collection window always covers DURATION_S
+            remaining = DURATION_S - (time.time() - t_collect_start)
+            if remaining > 0:
+                print(f"   ⏳ Collector padding {remaining:.1f}s...")
+                time.sleep(remaining)
             reset_chain()
         else:
             print(f"   ⏳ Running for {DURATION_S}s...")
@@ -209,13 +212,6 @@ def run_benchmark_loop(run_id, condition, mode, sidecars, robot_sidecars):
     else:
         print(f"   ⏳ Baseline for {DURATION_S}s...")
         time.sleep(DURATION_S)
-
-    # Ensure collector runs for the full DURATION_S regardless of mode
-    elapsed = time.time() - t_start
-    remaining = DURATION_S - elapsed
-    if remaining > 0:
-        print(f"   ⏳ Collector padding {remaining:.1f}s...")
-        time.sleep(remaining)
 
     # Stop collector
     resp = requests.post(f"{COLLECTOR_URL}/stop", timeout=10)
@@ -226,13 +222,17 @@ def run_benchmark_loop(run_id, condition, mode, sidecars, robot_sidecars):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ROS2 /scan jitter benchmark — with vs without attestation sidecar",
+        description="ROS2 topic jitter benchmark — with vs without attestation sidecar",
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument("--condition", choices=["no_sidecar", "with_sidecar"], required=True)
     parser.add_argument("--mode",      choices=["startup", "continuous"],
                         help="Required for with_sidecar; ignored for no_sidecar (always 'baseline').")
     parser.add_argument("--runs",      type=int, default=5)
+    parser.add_argument("--topic",     default="scan",
+                        help="Topic suffix used for this run, e.g. 'scan' or 'odom'. "
+                             "Must match TOPIC_NAME set when starting the collector. "
+                             "Used only to organise output paths. (default: scan)")
     args = parser.parse_args()
 
     # no_sidecar has no attestation cycle — startup vs continuous is meaningless
@@ -243,11 +243,13 @@ def main():
             parser.error("--mode is required for --condition with_sidecar")
         mode = args.mode
 
+    topic_slug = args.topic.lstrip("/").replace("/", "_") or "scan"
+
     sidecars       = build_sidecars()
     robot_sidecars = {k: v for k, v in sidecars.items() if k != "secaas"}
 
-    print(f"📋 condition={args.condition}  mode={mode}  runs={args.runs}")
-    print(f"📁 Output: {BASE_RESULTS_DIR / args.condition / mode}/")
+    print(f"📋 condition={args.condition}  mode={mode}  topic={topic_slug}  runs={args.runs}")
+    print(f"📁 Output: {BASE_RESULTS_DIR / topic_slug / args.condition / mode}/")
 
     # Pre-flight: collector
     print("\n🔍 Checking topic collector...")
@@ -273,12 +275,12 @@ def main():
             time.sleep(5)
 
     for i in range(1, args.runs + 1):
-        run_benchmark_loop(i, args.condition, mode, sidecars, robot_sidecars)
+        run_benchmark_loop(i, args.condition, mode, topic_slug, sidecars, robot_sidecars)
         if i < args.runs:
             print("   [System] Cooldown 5s...")
             time.sleep(5)
 
-    print(f"\n🎉 Done. Results in {BASE_RESULTS_DIR / args.condition / mode}/")
+    print(f"\n🎉 Done. Results in {BASE_RESULTS_DIR / topic_slug / args.condition / mode}/")
 
 
 if __name__ == "__main__":

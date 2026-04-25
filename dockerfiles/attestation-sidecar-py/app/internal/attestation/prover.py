@@ -43,7 +43,7 @@ def process_prover_attestation(app: FastAPI, attestation_id: str, measurements, 
     
     # Wait until this agent is recognized as the prover (or stop/timeout)
     start_wait = time.time()
-    TIMEOUT_S = 60
+    TIMEOUT_S = 120
     while not blockchain_client.is_prover_agent(attestation_id):
         if _should_stop(stop_event):
             info(f"{log_prefix} Stopping while waiting to become prover.")

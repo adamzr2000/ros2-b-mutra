@@ -20,13 +20,24 @@ def generate_launch_description():
             default_value=world,
             description='Path to the world file'
         ),
+        DeclareLaunchArgument(
+            'verbose',
+            default_value='true',
+            description='Enable verbose Gazebo logging'
+        ),
+        DeclareLaunchArgument(
+            'extra_gazebo_args',
+            default_value='-s libgazebo_ros_factory.so',
+            description='Extra args passed to gzserver'
+        ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(pkg_gazebo_ros, 'launch', 'gzserver.launch.py')
             ),
             launch_arguments={
                 'world': LaunchConfiguration('world'),
-                'verbose': LaunchConfiguration('verbose')
+                'verbose': LaunchConfiguration('verbose'),
+                'extra_gazebo_args': LaunchConfiguration('extra_gazebo_args')
             }.items()
         ),
     ])

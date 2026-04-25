@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ROS2 /scan topic arrival timestamp collector.
+ROS2 topic arrival timestamp collector.
 
 HTTP API (port 7000):
   POST /start  {"output_file": "/path/run1.csv", "duration_s": 120}
@@ -8,13 +8,18 @@ HTTP API (port 7000):
   POST /reset
   GET  /status  → {"status": "idle|running|finished", "messages_received": N}
 
-Records wall-clock arrival time of every /robot{i}/scan message while running.
+Subscribes to /robot{i}<TOPIC_NAME> for i in 1..N_ROBOTS.
+  TOPIC_NAME  e.g. /scan  →  /robot1/scan, /robot2/scan, …   (default: /scan)
+  MSG_TYPE    e.g. sensor_msgs.msg/LaserScan                  (default: sensor_msgs.msg/LaserScan)
+
+ros_stamp_ns is extracted from msg.header.stamp when available; 0 otherwise.
 Auto-stops after duration_s and writes CSV. Can also be stopped early via /stop.
 
-Output CSV columns: robot, ros_stamp_ns, wall_stamp_ns
+Output CSV columns: robot, topic, ros_stamp_ns, wall_stamp_ns
 """
 
 import csv
+import importlib
 import os
 import threading
 import time
@@ -22,11 +27,16 @@ from pathlib import Path
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import LaserScan
 from flask import Flask, request, jsonify
 
-N_ROBOTS = int(os.environ.get("N_ROBOTS", "4"))
-PORT     = int(os.environ.get("COLLECTOR_PORT", "7000"))
+N_ROBOTS   = int(os.environ.get("N_ROBOTS", "4"))
+PORT       = int(os.environ.get("COLLECTOR_PORT", "7000"))
+TOPIC_NAME = os.environ.get("TOPIC_NAME", "/scan")          # suffix, e.g. /scan or /odom
+_MSG_TYPE  = os.environ.get("MSG_TYPE", "sensor_msgs.msg/LaserScan")
+
+# Dynamic message-type import: "pkg.subpkg/ClassName"
+_pkg, _cls = _MSG_TYPE.rsplit("/", 1)
+MsgType = getattr(importlib.import_module(_pkg), _cls)
 
 app = Flask(__name__)
 
@@ -42,29 +52,36 @@ _node        = None         # set after rclpy init
 
 # ── ROS2 node ──────────────────────────────────────────────────────────────────
 
-class ScanCollector(Node):
+class TopicCollector(Node):
     def __init__(self):
-        super().__init__("scan_collector")
+        super().__init__("topic_collector")
         self._total_msgs = 0
         for i in range(1, N_ROBOTS + 1):
+            full_topic = f"/robot{i}{TOPIC_NAME}"
             self.create_subscription(
-                LaserScan,
-                f"/robot{i}/scan",
-                lambda msg, r=f"robot{i}": self._cb(r, msg),
+                MsgType,
+                full_topic,
+                lambda msg, r=f"robot{i}", t=full_topic: self._cb(r, t, msg),
                 10,
             )
-        self.get_logger().info(f"Subscribed to {N_ROBOTS} /robotX/scan topics")
+        self.get_logger().info(
+            f"Subscribed to {N_ROBOTS} topics: /robotX{TOPIC_NAME}  [{_MSG_TYPE}]"
+        )
 
-    def _cb(self, robot, msg):
+    def _cb(self, robot, topic, msg):
         self._total_msgs += 1
         if not _recording:
             return
         wall_ns = time.time_ns()
-        ros_ns  = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+        try:
+            ros_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+        except AttributeError:
+            ros_ns = 0
         with _lock:
             _records.append({
-                "robot":        robot,
-                "ros_stamp_ns": ros_ns,
+                "robot":         robot,
+                "topic":         topic,
+                "ros_stamp_ns":  ros_ns,
                 "wall_stamp_ns": wall_ns,
             })
 
@@ -76,7 +93,7 @@ class ScanCollector(Node):
 def _rclpy_spin():
     global _node
     rclpy.init()
-    _node = ScanCollector()
+    _node = TopicCollector()
     rclpy.spin(_node)
     _node.destroy_node()
     rclpy.shutdown()
@@ -89,7 +106,7 @@ def _save(records, output_file):
         return 0
     Path(output_file).parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["robot", "ros_stamp_ns", "wall_stamp_ns"])
+        writer = csv.DictWriter(f, fieldnames=["robot", "topic", "ros_stamp_ns", "wall_stamp_ns"])
         writer.writeheader()
         writer.writerows(records)
     print(f"[OK] {len(records)} records → {output_file}")

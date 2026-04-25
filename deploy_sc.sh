@@ -49,8 +49,14 @@ echo "Private Key: [HIDDEN]"
 echo "RPC URL    : $rpc_url"
 echo "Chain ID   : $chain_id"
 
+# Rewrite localhost → host.docker.internal so the Hardhat container can reach
+# the Besu validators exposed on the host's ports.
+rpc_url="${rpc_url/localhost/host.docker.internal}"
+rpc_url="${rpc_url/127.0.0.1/host.docker.internal}"
+
 # Run in Docker
 docker run -it --rm --name hardhat \
+  --add-host=host.docker.internal:host-gateway \
   -v "$(pwd)/smart-contracts/scripts":/smart-contracts/scripts \
   -v "$(pwd)/smart-contracts/deployments":/smart-contracts/deployments \
   -v "$(pwd)/smart-contracts/contracts":/smart-contracts/contracts \

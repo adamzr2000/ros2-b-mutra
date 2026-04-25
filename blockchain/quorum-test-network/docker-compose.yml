@@ -81,7 +81,7 @@ services:
     volumes:
       - ./config/besu/:/config
       - ./config/nodes/validator1:/opt/besu/keys
-      - ./logs/besu:/tmp/besu
+      #- ./logs/besu:/tmp/besu
     networks:
       quorum-dev-quickstart:
         ipv4_address: 172.16.239.11
@@ -99,7 +99,7 @@ services:
     volumes:
       - ./config/besu/:/config
       - ./config/nodes/validator2:/opt/besu/keys
-      - ./logs/besu:/tmp/besu
+      #- ./logs/besu:/tmp/besu
     depends_on:
       - validator1
     networks:
@@ -119,7 +119,7 @@ services:
     volumes:
       - ./config/besu/:/config
       - ./config/nodes/validator3:/opt/besu/keys
-      - ./logs/besu:/tmp/besu
+      #- ./logs/besu:/tmp/besu
     depends_on:
       - validator1
     networks:
@@ -139,7 +139,7 @@ services:
     volumes:
       - ./config/besu/:/config
       - ./config/nodes/validator4:/opt/besu/keys
-      - ./logs/besu:/tmp/besu
+      #- ./logs/besu:/tmp/besu
     depends_on:
       - validator1
     networks:
@@ -154,7 +154,7 @@ services:
   #   volumes:
   #     - ./config/besu/:/config
   #     - ./config/nodes/rpcnode:/opt/besu/keys
-  #     - ./logs/besu:/tmp/besu
+  #     #- ./logs/besu:/tmp/besu
   #   depends_on:
   #     - validator1
   #   ports:
@@ -211,7 +211,7 @@ services:
   #   volumes:
   #     - ./config/besu/:/config
   #     - ./config/nodes/member1:/opt/besu/keys
-  #     - ./logs/besu:/tmp/besu
+  #     #- ./logs/besu:/tmp/besu
   #   depends_on:
   #     - validator1
   #     - member1tessera
@@ -254,7 +254,7 @@ services:
   #   volumes:
   #     - ./config/besu/:/config
   #     - ./config/nodes/member2:/opt/besu/keys
-  #     - ./logs/besu:/tmp/besu
+  #     #- ./logs/besu:/tmp/besu
   #   depends_on:
   #     - validator1
   #     - member2tessera
@@ -297,7 +297,7 @@ services:
   #   volumes:
   #     - ./config/besu/:/config
   #     - ./config/nodes/member3:/opt/besu/keys
-  #     - ./logs/besu:/tmp/besu
+  #     #- ./logs/besu:/tmp/besu
   #   depends_on:
   #     - validator1
   #     - member3tessera

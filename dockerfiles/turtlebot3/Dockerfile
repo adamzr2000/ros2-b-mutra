@@ -14,12 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     iputils-ping \
     build-essential \
-    lsb-release \
+    ros-${ROS_DISTRO}-rmw-fastrtps-cpp \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     ros-${ROS_DISTRO}-rosidl-generator-dds-idl \
     ros-${ROS_DISTRO}-turtlebot3-msgs \
     ros-${ROS_DISTRO}-gazebo-ros-pkgs && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    pip3 install --no-cache-dir flask
 
 # Remove pre-installed packages to avoid conflicts
 RUN apt-get remove -y ros-${ROS_DISTRO}-robot-state-publisher || true
@@ -44,13 +45,11 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd /home/agent/ros2_ws && \
     colcon build --symlink-install
 
-# Switch to user for runtime
-RUN chown -R agent:agent /home/agent
-USER agent
-
 # Source overlays in bash sessions
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /home/agent/.bashrc && \
     echo "source /home/agent/ros2_ws/install/setup.bash" >> /home/agent/.bashrc
+
+ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
 WORKDIR /home/agent/scripts/
 

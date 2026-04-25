@@ -20,6 +20,7 @@ import seaborn as sns
 INPUT_FILE            = "../data/attestation-times/_summary/durations_raw.csv"
 EXPERIMENT_DURATION_S = 120
 ATTESTATION_INTERVAL_S = 10
+N_VALUES              = [4, 8, 16, 32, 64]
 
 FONT_SCALE  = 1.6
 MARKER_SIZE = 8
@@ -33,6 +34,7 @@ def main():
         raise SystemExit(f"CSV not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
+    df = df[df["n_robots"].isin(N_VALUES)]
 
     required = {"n_robots", "mode", "role", "metric", "run"}
     missing  = required - set(df.columns)

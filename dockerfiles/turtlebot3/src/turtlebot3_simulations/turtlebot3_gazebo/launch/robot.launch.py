@@ -13,6 +13,7 @@ def generate_launch_description():
     x_pose = LaunchConfiguration('x_pose', default='0.0')
     y_pose = LaunchConfiguration('y_pose', default='0.0')
     namespace = LaunchConfiguration('namespace', default='')
+    spawn_timeout = LaunchConfiguration('spawn_timeout', default='180')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -35,6 +36,11 @@ def generate_launch_description():
             default_value='true',
             description='Use simulation time'
         ),
+        DeclareLaunchArgument(
+            'spawn_timeout',
+            default_value='180',
+            description='Timeout in seconds for spawn_entity service'
+        ),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -53,7 +59,8 @@ def generate_launch_description():
             launch_arguments={
                 'x_pose': x_pose,
                 'y_pose': y_pose,
-                'namespace': namespace
+                'namespace': namespace,
+                'spawn_timeout': spawn_timeout
             }.items()
         ),
     ])

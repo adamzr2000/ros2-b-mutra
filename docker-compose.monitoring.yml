@@ -15,6 +15,20 @@ services:
     networks:
       - mon-net
 
+  eth-stats-collector:
+    image: eth-stats-collector:latest
+    container_name: eth-stats-collector
+    ports:
+      - "7000:8000"
+    volumes:
+      - ./dockerfiles/eth-stats-collector/app:/src/app
+      - ./experiments:/experiments
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - mon-net
+
 networks:
   mon-net:
     driver: bridge

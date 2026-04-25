@@ -45,9 +45,10 @@ services:
       - "./ref-measurements/:/ref-measurements:rw"
       - "./experiments/:/experiments:rw"
       - ./dockerfiles/secaas/app:/src/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - secaas-net
-      - quorum-dev-quickstart
 
   # attestation-chain-display:
   #   container_name: attestation-chain-display
@@ -91,6 +92,3 @@ networks:
   secaas-net:
     driver: bridge
     name: secaas-net
-
-  quorum-dev-quickstart:
-    external: true

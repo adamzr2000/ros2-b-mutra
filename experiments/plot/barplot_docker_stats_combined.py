@@ -13,14 +13,15 @@ import seaborn as sns
 
 INPUT_FILE = "../data/docker-stats/_summary/overall_resource_usage_per_container.csv"
 MODE = "continuous"
+N_VALUES = [4, 8, 16, 32, 64]
 
 FONT_SCALE    = 1.6
 BAR_WIDTH     = 0.32
 GROUP_SPACING = 1.0
 HEADROOM      = 1.15
 
-COLOR_ROBOT  = "#336699"   # steel blue
-COLOR_SECAAS = "#993333"   # dark red
+COLOR_ROBOT  = "#2C7873"   # deep teal
+COLOR_SECAAS = "#E07B39"   # amber orange
 
 
 def _clean_label(raw: str) -> str:
@@ -67,6 +68,7 @@ def main():
         raise SystemExit(f"CSV not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
+    df = df[df["n_robots"].isin(N_VALUES)]
     mode_df = df[df["mode"] == MODE].copy()
     if mode_df.empty:
         raise SystemExit(f"No data for mode={MODE}")
