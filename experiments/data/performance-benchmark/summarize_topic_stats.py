@@ -71,6 +71,9 @@ def main():
                     "hz_std":     vals.std(),
                     "hz_min":     vals.min(),
                     "hz_max":     vals.max(),
+                    "hz_median":  np.median(vals),
+                    "hz_p25":     np.percentile(vals, 25),
+                    "hz_p75":     np.percentile(vals, 75),
                 }
                 for i, v in enumerate(vals, start=1):
                     row[f"hz_run{i}"] = v

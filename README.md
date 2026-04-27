@@ -58,12 +58,15 @@ This will start all required containers and start processing attestations (`AUTO
 
 ```bash
 ./start.sh -h
-Usage: start.sh [--auto] [--export] [--startup]
+Usage: start.sh [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
 
 Options:
+  --robots N  Number of robots (default: 4, max: 128)
+  --remote    Remote mode: d-mutra hosts Besu+SECaaS+monitoring only;
+              robots+sidecars run on remote host(s)
   --auto      Set AUTO_START=TRUE
   --export    Set EXPORT_RESULTS=TRUE
-  --startup   Set ONE_SHOT=TRUE (only for startup attestation process)
+  --startup   Set ONE_SHOT=TRUE
   --wait-tx   Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
   -h|--help   Show this help
 ```
@@ -103,24 +106,32 @@ cd blockchain/quorum-test-network
 
 ---
 
-## Data collection (attestation times + docker stats)
+## Data collection (attestation times + docker stats + blockchain stats)
 
-1. Start the experimental setup (default: 4 robots):
+1. Start the experimental setup:
 
 ```bash
+# Local mode — everything runs on d-mutra (default)
 ./start.sh --robots 4 --export
+
+# Remote mode — d-mutra hosts Besu+SECaaS+monitoring only; robots+sidecars on remote1
+./start.sh --robots 32 --export --remote
 ```
 
-Use `--startup` for one-shot mode, `--robots N` for scale scenarios (1–100).
+Use `--startup` for one-shot attestation mode, `--robots N` to scale (1–128).
 
 2. Run attestation workflow in loop:
 
 ```bash
-# Continuous mode
+# Local — continuous mode
 python3 run_experiments_and_collect_results.py --robots 4 --runs 5 --duration 120
 
-# Startup (one-shot) mode
+# Local — startup (one-shot) mode
 python3 run_experiments_and_collect_results.py --robots 4 --runs 10 --startup
+
+# Remote — add --remote (must match --remote used in start.sh)
+python3 run_experiments_and_collect_results.py --robots 32 --runs 5 --duration 120 --remote
+python3 run_experiments_and_collect_results.py --robots 32 --runs 10 --startup --remote
 ```
 
 `--robots N` must match the value used in `start.sh`.

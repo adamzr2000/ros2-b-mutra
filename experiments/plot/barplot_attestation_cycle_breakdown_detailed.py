@@ -20,7 +20,7 @@ import seaborn as sns
 from pathlib import Path
 import sys
 
-INPUT_FILE    = "../data/attestation-times/_summary/durations_summary.csv"
+INPUT_FILE    = "../data/attestation-times/_summary/durations_per_run.csv"
 MODES         = ["startup", "continuous"]
 N_VALUES      = [4, 8, 16, 32, 64]
 
@@ -110,11 +110,9 @@ def _get_agg(df, n, group, role, metric):
     sub = df[mask]
     if sub.empty:
         return 0.0, 0.0
-    mean_v = float(sub["mean_s"].mean())
-    std_v  = (float(sub["std_s"].dropna().mean())
-              if "std_s" in sub.columns and not sub["std_s"].dropna().empty
-              else 0.0)
-    return mean_v, std_v
+    # One system-level mean per run, then mean ± std across the 5 independent runs.
+    run_means = sub.groupby("run")["run_mean_s"].mean()
+    return float(run_means.mean()), float(run_means.std(ddof=1))
 
 
 def _mean(df, n, group, role, metric):
@@ -124,15 +122,23 @@ def _mean(df, n, group, role, metric):
 # ── segment builders ───────────────────────────────────────────────────────────
 
 def _prover_segs(df, n):
-    """Robot Prover: 3 segments (compute / tx submission / blockchain wait)."""
+    """Robot Prover: 3 non-overlapping segments.
+
+    dur_prover_e2e starts at p_send_evidence_START (same as evidence_call),
+    so evidence_call ⊂ e2e. Correct partition:
+      compute  = total - e2e          (local overhead: SHA-256 + scheduling)
+      tx_sub   = evidence_call        (TX submission call)
+      bc_wait  = e2e - evidence_call  (pure blockchain polling after TX sent)
+    """
     total, std = _get_agg(df, n, "Robot", "prover", "total_lifecycle")
     e2e = _mean(df, n, "Robot", "prover", "e2e_blockchain")
     tx  = _mean(df, n, "Robot", "prover", "evidence_call")
-    compute = max(0.0, total - e2e - tx)
+    compute = max(0.0, total - e2e)
+    bc_wait = max(0.0, e2e - tx)
     return [
         ("compute", compute, C_COMPUTE),
         ("tx_sub",  tx,      C_TX_SUB),
-        ("bc_wait", e2e,     C_BC_WAIT),
+        ("bc_wait", bc_wait, C_BC_WAIT),
     ], std
 
 
@@ -321,7 +327,7 @@ def main():
     df = pd.read_csv(csv_path)
     df = df[df["n_robots"].isin(N_VALUES)]
 
-    required = {"mode", "n_robots", "participant_group", "role", "metric", "mean_s"}
+    required = {"mode", "n_robots", "participant_group", "role", "metric", "run_mean_s"}
     missing  = required - set(df.columns)
     if missing:
         print(f"[ERR] Missing columns: {missing}")

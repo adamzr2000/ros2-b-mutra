@@ -5,11 +5,11 @@ Final attestation cycle figure + CSV export.
 Figure (barplot_attestation_cycle_breakdown_final.pdf):
   Left panel  — Robot Prover, startup mode
   Right panel — Robot Prover, continuous mode
-  Shared y-axis. 3 segments: local computation / submit evidence (tx) / blockchain wait.
+  Shared y-axis. 2 segments: local computation / blockchain operations.
 
 CSV (attestation_cycle_breakdown_final.csv):
   Flat long-format table — all roles, all N, both modes, per-operation mean ± std (ms).
-  std_ms is provided only for the "total" operation row of each role; NaN otherwise.
+  std_ms is provided only for operation="total"; NaN otherwise.
   Designed for direct import by LaTeX pgfplotstable.
 """
 
@@ -21,7 +21,7 @@ from pathlib import Path
 import sys
 import math
 
-INPUT_FILE = "../data/attestation-times/_summary/durations_summary.csv"
+INPUT_FILE = "../data/attestation-times/_summary/durations_per_run.csv"
 N_VALUES   = [4, 8, 16, 32, 64]
 
 FONT_SCALE    = 1.8
@@ -57,11 +57,10 @@ def _get_agg(df, n, group, role, metric):
     sub = df[mask]
     if sub.empty:
         return 0.0, 0.0
-    mean_v = float(sub["mean_s"].mean())
-    std_v  = (float(sub["std_s"].dropna().mean())
-              if "std_s" in sub.columns and not sub["std_s"].dropna().empty
-              else 0.0)
-    return mean_v, std_v
+    # One system-level mean per run (averaged across all robots in that run),
+    # then mean ± std across the 5 independent runs.
+    run_means = sub.groupby("run")["run_mean_s"].mean()
+    return float(run_means.mean()), float(run_means.std(ddof=1))
 
 
 def _mean(df, n, group, role, metric):
@@ -69,14 +68,14 @@ def _mean(df, n, group, role, metric):
 
 
 def _prover_segs(df, n):
-    """Return (segments, total_s, std_s) for Robot Prover."""
+    # dur_prover_e2e starts at p_send_evidence_START (same point as evidence_call),
+    # so evidence_call ⊂ e2e. Correct non-overlapping partition: local = total - e2e.
     total, std = _get_agg(df, n, "Robot", "prover", "total_lifecycle")
-    e2e     = _mean(df, n, "Robot", "prover", "e2e_blockchain")
-    tx      = _mean(df, n, "Robot", "prover", "evidence_call")
-    compute = max(0.0, total - e2e - tx)
+    e2e   = _mean(df, n, "Robot", "prover", "e2e_blockchain")
+    local = max(0.0, total - e2e)
     segs = [
-        ("local_computation",    compute,    C_COMPUTE),
-        ("blockchain_operations", e2e + tx,  C_BC_OPS),
+        ("local_computation",     local, C_COMPUTE),
+        ("blockchain_operations", e2e,   C_BC_OPS),
     ]
     return segs, total, std
 
@@ -196,13 +195,11 @@ def generate_csv(df, n_values, script_dir):
 
             # ── Robot Prover (both modes) ──────────────────────────────────
             total, std = _get_agg(sub, n, "Robot", "prover", "total_lifecycle")
-            e2e     = _mean(sub, n, "Robot", "prover", "e2e_blockchain")
-            tx      = _mean(sub, n, "Robot", "prover", "evidence_call")
-            compute = max(0.0, total - e2e - tx)
-            add(mode, n, "Robot", "prover", "local_computation",  compute)
-            add(mode, n, "Robot", "prover", "submit_evidence_tx", tx)
-            add(mode, n, "Robot", "prover", "blockchain_wait",    e2e)
-            add(mode, n, "Robot", "prover", "total",              total,   std)
+            e2e   = _mean(sub, n, "Robot", "prover", "e2e_blockchain")
+            local = max(0.0, total - e2e)
+            add(mode, n, "Robot", "prover", "local_computation",    local)
+            add(mode, n, "Robot", "prover", "blockchain_operations", e2e)
+            add(mode, n, "Robot", "prover", "total",                 total, std)
 
             if mode == "startup":
 
@@ -268,7 +265,7 @@ def main():
     df = pd.read_csv(csv_path)
     df = df[df["n_robots"].isin(N_VALUES)]
 
-    required = {"mode", "n_robots", "participant_group", "role", "metric", "mean_s"}
+    required = {"mode", "n_robots", "participant_group", "role", "metric", "run_mean_s"}
     missing  = required - set(df.columns)
     if missing:
         print(f"[ERR] Missing columns: {missing}")

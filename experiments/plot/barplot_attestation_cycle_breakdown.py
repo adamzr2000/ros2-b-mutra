@@ -9,7 +9,7 @@ Right panel (zoomed):     Non-zero secondary roles for each mode:
 
 X-axis: N values (4, 10, 15, 20, 25). Bars stacked:
   bottom = Off-chain (orange) | top = Blockchain (blue).
-Error bars = mean of per-participant run-to-run std.
+Error bars = std across 5 independent run-level means.
 One PDF per mode.
 """
 
@@ -20,7 +20,7 @@ import seaborn as sns
 from pathlib import Path
 import sys
 
-INPUT_FILE = "../data/attestation-times/_summary/durations_summary.csv"
+INPUT_FILE = "../data/attestation-times/_summary/durations_per_run.csv"
 MODES      = ["startup", "continuous"]
 N_VALUES   = [4, 8, 16, 32, 64]
 
@@ -60,11 +60,8 @@ def _get_agg(df, n, group, role, metric):
     sub = df[mask]
     if sub.empty:
         return 0.0, 0.0
-    mean_v = float(sub["mean_s"].mean())
-    std_v  = (float(sub["std_s"].dropna().mean())
-              if "std_s" in sub.columns and not sub["std_s"].dropna().empty
-              else 0.0)
-    return mean_v, std_v
+    run_means = sub.groupby("run")["run_mean_s"].mean()
+    return float(run_means.mean()), float(run_means.std(ddof=1))
 
 
 def _bc_off(df, n, group, role):
@@ -73,7 +70,7 @@ def _bc_off(df, n, group, role):
     gm = lambda m: _get_agg(df, n, group, role, m)[0]
 
     if role == "prover":
-        bc  = gm("e2e_blockchain") + gm("evidence_call")
+        bc  = gm("e2e_blockchain")
         off = max(0.0, total - bc)
     elif role == "verifier":
         off = gm("verify_compute")
@@ -270,7 +267,7 @@ def main():
     df = pd.read_csv(csv_path)
     df = df[df["n_robots"].isin(N_VALUES)]
 
-    required = {"mode", "n_robots", "participant_group", "role", "metric", "mean_s"}
+    required = {"mode", "n_robots", "participant_group", "role", "metric", "run_mean_s"}
     missing  = required - set(df.columns)
     if missing:
         print(f"[ERR] Missing columns: {missing}")

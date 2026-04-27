@@ -1,37 +1,40 @@
 #!/usr/bin/env python3
 """
-Generates docker-compose files for a given number of robots (1–100).
+Generates docker-compose files for a given number of robots (1–128).
 
-Gazebo mode (N ≤ GAZEBO_LIMIT = 4):
-    Real simulation — gazebo-server + N turtlebots on a shared ros-net bridge.
-    Outputs docker-compose.robots.yml and docker-compose.attestation.yml.
+LOCAL MODE (default):
+  Everything runs on d-mutra.
+  N ≤ GAZEBO_LIMIT = 4: Gazebo mode (gazebo-server + turtlebots on ros-net).
+  N > GAZEBO_LIMIT:     dummy mode (namespaced ROS2 dummy_publisher, no Gazebo).
+  Always outputs docker-compose.robots.yml and docker-compose.attestation.yml.
 
-Dummy mode, single-host (GAZEBO_LIMIT < N ≤ LOCAL_LIMIT = 8):
-    Robots run `sleep infinity` — no Gazebo or DDS needed.
-    Outputs docker-compose.robots.yml and docker-compose.attestation.yml.
-
-Dummy mode, multi-host (N > LOCAL_LIMIT = 8):
-    Robots 1..LOCAL_LIMIT on local machine, LOCAL_LIMIT+1..N on remote host.
-    Outputs four files under generated/:
-        docker-compose.robots-N{N}-local.yml
-        docker-compose.robots-N{N}-remote.yml
-        docker-compose.attestation-N{N}-local.yml
-        docker-compose.attestation-N{N}-remote.yml
+REMOTE MODE (--mode remote):
+  d-mutra hosts Besu + SECaaS + monitoring only.
+  All robots + sidecars run on remote host(s).
+  N ≤ GAZEBO_LIMIT: Gazebo mode on remote1.
+  N > GAZEBO_LIMIT: dummy mode on remote1 (and remote2 if N > REMOTE1_LIMIT).
+  Outputs under generated/:
+      docker-compose.robots-N{N}-remote1.yml
+      docker-compose.attestation-N{N}-remote1.yml
+      docker-compose.robots-N{N}-remote2.yml        (only when N > REMOTE1_LIMIT)
+      docker-compose.attestation-N{N}-remote2.yml   (only when N > REMOTE1_LIMIT)
 
 Usage:
-    python3 generate_compose.py --robots 4    # Gazebo mode
-    python3 generate_compose.py --robots 15   # dummy, single-host
-    python3 generate_compose.py --robots 50   # dummy, multi-host
+    python3 generate_compose.py --robots 4             # local, Gazebo
+    python3 generate_compose.py --robots 32            # local, dummy
+    python3 generate_compose.py --robots 4  --mode remote  # remote, Gazebo on remote1
+    python3 generate_compose.py --robots 64 --mode remote  # remote, dummy on remote1
 
-Called automatically by start.sh via --robots N.
+Called automatically by start.sh via --robots N --mode MODE.
 """
 import argparse
 import os
 import sys
 
-MAX_ROBOTS   = 100
-GAZEBO_LIMIT = 4    # N ≤ 4: real Gazebo simulation
-LOCAL_LIMIT  = 8    # N ≤ 8: single host; N > 8: multi-host split
+MAX_ROBOTS    = 128
+GAZEBO_LIMIT  = 4    # N ≤ 4: real Gazebo simulation; N > 4: dummy mode
+REMOTE1_LIMIT = 64   # remote mode: robots 1..64 on remote1
+REMOTE2_LIMIT = 128  # remote mode: robots 65..128 on remote2
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -292,15 +295,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--robots", type=int, required=True,
         help=f"Number of robots (1–{MAX_ROBOTS}). "
-             f"N≤{GAZEBO_LIMIT}: Gazebo mode. "
-             f"N≤{LOCAL_LIMIT}: dummy single-host. "
-             f"N>{LOCAL_LIMIT}: dummy multi-host.",
+             f"N≤{GAZEBO_LIMIT}: Gazebo mode (local). "
+             f"N>{GAZEBO_LIMIT}: dummy mode (local).",
     )
     parser.add_argument(
         "--blockchain-host", default="",
-        help="local machine IP reachable from the remote host (only used for multi-host remote "
-             "attestation compose). Injected as host.docker.internal so the same config "
-             "JSON works on both local and remote sidecars.",
+        help="Local machine IP reachable from remote hosts (injected as host.docker.internal "
+             "so remote sidecars can reach the Besu validators on d-mutra).",
+    )
+    parser.add_argument(
+        "--mode", choices=["local", "remote"], default="local",
+        help="Deployment mode. "
+             "local (default): robots on d-mutra, split to remote1 when N > LOCAL_LIMIT. "
+             "remote: d-mutra hosts Besu+SECaaS only; all robots+sidecars on remote host(s).",
     )
     args = parser.parse_args()
 
@@ -310,37 +317,52 @@ if __name__ == "__main__":
 
     n = args.robots
 
-    if n > LOCAL_LIMIT:
-        # ── Multi-host: four files in generated/ ──────────────────────────────
+    if args.mode == "remote":
+        # ── REMOTE MODE: all robots on remote host(s) ─────────────────────────
         gen_dir = os.path.join(SCRIPT_DIR, "generated")
         os.makedirs(gen_dir, exist_ok=True)
 
-        paths = {
-            "robots-local":       os.path.join(gen_dir, f"docker-compose.robots-N{n}-local.yml"),
-            "robots-remote":      os.path.join(gen_dir, f"docker-compose.robots-N{n}-remote.yml"),
-            "attestation-local":  os.path.join(gen_dir, f"docker-compose.attestation-N{n}-local.yml"),
-            "attestation-remote": os.path.join(gen_dir, f"docker-compose.attestation-N{n}-remote.yml"),
-        }
+        # Config dir depends on Gazebo vs dummy
+        cfg_dir = "./config" if n <= GAZEBO_LIMIT else "./config-dummy"
 
-        with open(paths["robots-local"], "w") as f:
-            f.write(generate_robots_yml_dummy(LOCAL_LIMIT))
-        print(f"✅ {paths['robots-local']}  (robots 1–{LOCAL_LIMIT}, dummy)")
+        # Remote1: robots 1..min(n, REMOTE1_LIMIT)
+        r1_end = min(n, REMOTE1_LIMIT)
 
-        with open(paths["robots-remote"], "w") as f:
-            f.write(generate_robots_remote_yml(LOCAL_LIMIT + 1, n))
-        print(f"✅ {paths['robots-remote']}  (robots {LOCAL_LIMIT + 1}–{n}, dummy)")
+        robots_r1_path = os.path.join(gen_dir, f"docker-compose.robots-N{n}-remote1.yml")
+        if n <= GAZEBO_LIMIT:
+            # Gazebo mode: use full Gazebo compose (includes ros-net bridge)
+            with open(robots_r1_path, "w") as f:
+                f.write(generate_robots_yml_gazebo(n))
+            print(f"✅ {robots_r1_path}  (robots 1–{n}, Gazebo mode)")
+        else:
+            with open(robots_r1_path, "w") as f:
+                f.write(generate_robots_remote_yml(1, r1_end))
+            print(f"✅ {robots_r1_path}  (robots 1–{r1_end}, dummy mode)")
 
-        with open(paths["attestation-local"], "w") as f:
-            f.write(generate_attestation_yml(LOCAL_LIMIT, config_dir="./config-dummy"))
-        print(f"✅ {paths['attestation-local']}  (sidecars 1–{LOCAL_LIMIT})")
-
-        with open(paths["attestation-remote"], "w") as f:
-            f.write(generate_attestation_remote_yml(LOCAL_LIMIT + 1, n, config_dir="./config-dummy",
+        attest_r1_path = os.path.join(gen_dir, f"docker-compose.attestation-N{n}-remote1.yml")
+        with open(attest_r1_path, "w") as f:
+            f.write(generate_attestation_remote_yml(1, r1_end, config_dir=cfg_dir,
                                                     blockchain_host=args.blockchain_host))
-        print(f"✅ {paths['attestation-remote']}  (sidecars {LOCAL_LIMIT + 1}–{n})")
+        print(f"✅ {attest_r1_path}  (sidecars 1–{r1_end})")
+
+        # Remote2: robots REMOTE1_LIMIT+1..min(n, REMOTE2_LIMIT) (only when N > REMOTE1_LIMIT)
+        if n > REMOTE1_LIMIT:
+            r2_end = min(n, REMOTE2_LIMIT)
+
+            robots_r2_path = os.path.join(gen_dir, f"docker-compose.robots-N{n}-remote2.yml")
+            with open(robots_r2_path, "w") as f:
+                f.write(generate_robots_remote_yml(REMOTE1_LIMIT + 1, r2_end))
+            print(f"✅ {robots_r2_path}  (robots {REMOTE1_LIMIT + 1}–{r2_end}, dummy mode)")
+
+            attest_r2_path = os.path.join(gen_dir, f"docker-compose.attestation-N{n}-remote2.yml")
+            with open(attest_r2_path, "w") as f:
+                f.write(generate_attestation_remote_yml(REMOTE1_LIMIT + 1, r2_end,
+                                                        config_dir="./config-dummy",
+                                                        blockchain_host=args.blockchain_host))
+            print(f"✅ {attest_r2_path}  (sidecars {REMOTE1_LIMIT + 1}–{r2_end})")
 
     else:
-        # ── Single-host: two files in root ────────────────────────────────────
+        # ── LOCAL MODE: everything on d-mutra ─────────────────────────────────
         mode = "Gazebo" if n <= GAZEBO_LIMIT else "dummy"
         robots_path      = os.path.join(SCRIPT_DIR, "docker-compose.robots.yml")
         attestation_path = os.path.join(SCRIPT_DIR, "docker-compose.attestation.yml")

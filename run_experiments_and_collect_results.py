@@ -5,6 +5,7 @@ import requests
 import subprocess
 import sys
 import os
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Configuration ---
@@ -17,10 +18,11 @@ ROBOTS_BASE_PORT = 8001   # robot1=8001, robot2=8002, ...
 ETH_RPC_URL      = "http://host.docker.internal:21001"
 
 # Multi-host defaults (overridable via CLI)
-_DEFAULT_REMOTE_HOST  = "10.5.1.21"   # remote host
-_DEFAULT_LOCAL_LIMIT  = 8              # robots 1-LOCAL_LIMIT are on local machine
-REMOTE_USER           = "desire6g"
-REMOTE_DIR            = "~/ros2-b-mutra"
+_DEFAULT_REMOTE1_HOST  = "10.5.1.21"   # remote host 1 (up to REMOTE1_LIMIT robots)
+_DEFAULT_REMOTE2_HOST  = ""            # remote host 2 (placeholder)
+_DEFAULT_REMOTE1_LIMIT = 64            # remote mode: robots 1-N are on remote1
+REMOTE_USER            = "desire6g"
+REMOTE_DIR             = "~/ros2-b-mutra"
 
 # Absolute path so the script works regardless of the working directory
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,18 +31,39 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _SECAAS_HOST_PORT = ("localhost", SECAAS_PORT)
 
 
-def build_sidecars(num_robots, remote_host=None, local_limit=_DEFAULT_LOCAL_LIMIT):
+def build_sidecars(num_robots, remote1_host=None, remote2_host=None,
+                   remote1_limit=_DEFAULT_REMOTE1_LIMIT):
     """Return {name: (host, port)} for SECaaS and all robot sidecars.
 
-    Robots 1..local_limit are on localhost (local machine).
-    Robots local_limit+1..num_robots are on remote_host (remote host), if provided.
+    Local mode (remote1_host=None): all robots on localhost.
+
+    Remote mode (remote1_host set):
+        - robots 1..min(num_robots, remote1_limit)  → remote1_host
+        - robots remote1_limit+1..num_robots        → remote2_host (if provided)
     """
     sidecars = {"secaas": ("localhost", SECAAS_PORT)}
     for i in range(1, num_robots + 1):
         port = ROBOTS_BASE_PORT + i - 1
-        host = remote_host if (remote_host and i > local_limit) else "localhost"
+        if remote1_host:
+            host = remote2_host if (i > remote1_limit and remote2_host) else remote1_host
+        else:
+            host = "localhost"
         sidecars[f"robot{i}"] = (host, port)
     return sidecars
+
+
+def _get_monitor_groups(robot_sidecars):
+    """Return {monitor_url: [container_names]} grouping sidecars by host.
+
+    SECaaS always goes to the local monitor. Each unique remote host gets its
+    own monitor entry derived from MONITOR_PORT.
+    """
+    groups = defaultdict(list)
+    groups[MONITOR_URL].append("secaas")
+    for name, (host, _) in robot_sidecars.items():
+        mon = MONITOR_URL if host == "localhost" else f"http://{host}:{MONITOR_PORT}"
+        groups[mon].append(f"{name}-sidecar")
+    return dict(groups)
 
 
 # --- Helper Functions ---
@@ -60,12 +83,22 @@ def wait_for_http(url, timeout=30):
     print("\n❌ Timeout waiting for service.")
     return False
 
-def check_all_services(sidecars):
+def check_all_services(sidecars, robot_sidecars):
     """Verifies that ALL defined services are up and listening (parallel)."""
     print("\n🔍 Pre-flight check: Verifying all services...")
 
     checks = {"monitor": f"{MONITOR_URL}/monitor/status",
               "eth-monitor": f"{ETH_MONITOR_URL}/monitor/status"}
+
+    # Add remote monitors derived from robot sidecar hosts
+    remote_mon_urls = {
+        f"http://{host}:{MONITOR_PORT}"
+        for _, (host, _) in robot_sidecars.items()
+        if host != "localhost"
+    }
+    for i, url in enumerate(sorted(remote_mon_urls), 1):
+        checks[f"remote-monitor-{i}"] = f"{url}/monitor/status"
+
     for name, (host, port) in sidecars.items():
         checks[name] = f"http://{host}:{port}/"
 
@@ -181,45 +214,35 @@ def reset_chain():
 
 
 def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
-                        startup_mode=False, remote_monitor_url=None, blockchain_dir=None):
+                        startup_mode=False, blockchain_dir=None):
     print(f"\n==============================\n🏁 Run {run_id}\n==============================")
 
     set_config_all(robot_sidecars, {"one_shot": startup_mode, "results_dir": attestation_dir})
     set_config("secaas", _SECAAS_HOST_PORT, {"results_dir": attestation_dir})
 
-    # 2. Start Docker Monitor(s)
+    # 2. Start Docker Monitor(s) — one per unique host (local + any remote hosts)
+    monitor_groups = _get_monitor_groups(robot_sidecars)
     print(f"   [Monitor] Starting stats -> {stats_dir}")
-    local_containers  = ["secaas"] + [f"{r}-sidecar" for r, hp in robot_sidecars.items() if hp[0] == "localhost"]
-    remote_containers = [f"{r}-sidecar" for r, hp in robot_sidecars.items() if hp[0] != "localhost"]
-    try:
-        requests.post(f"{MONITOR_URL}/monitor/start", json={
-            "containers": local_containers,
-            "interval": 1.0,
-            "csv_dir": stats_dir,
-            "run_id": run_id
-        }, timeout=5)
-    except Exception as e:
-        print(f"   ⚠️ Local monitor start failed: {e}")
-    if remote_monitor_url and remote_containers:
+    for mon_url, containers in monitor_groups.items():
         try:
-            requests.post(f"{remote_monitor_url}/monitor/start", json={
-                "containers": remote_containers,
-                "interval": 1.0,
-                "csv_dir": stats_dir,
-                "run_id": run_id
+            requests.post(f"{mon_url}/monitor/start", json={
+                "containers": containers,
+                "interval":   1.0,
+                "csv_dir":    stats_dir,
+                "run_id":     run_id,
             }, timeout=5)
         except Exception as e:
-            print(f"   ⚠️ Remote monitor start failed: {e}")
+            print(f"   ⚠️ Monitor {mon_url} start failed: {e}")
 
     # Start blockchain monitor (continuous mode only)
     if not startup_mode and blockchain_dir:
         print(f"   [Eth Monitor] Starting blockchain stats -> {blockchain_dir}")
         try:
             requests.post(f"{ETH_MONITOR_URL}/monitor/start", json={
-                "rpc_url": ETH_RPC_URL,
+                "rpc_url":       ETH_RPC_URL,
                 "poll_interval": 1.0,
-                "csv_dir": blockchain_dir,
-                "csv_name": f"blockchain-run{run_id}",
+                "csv_dir":       blockchain_dir,
+                "csv_name":      f"blockchain-run{run_id}",
             }, timeout=5)
         except Exception as e:
             print(f"   ⚠️ Eth monitor start failed: {e}")
@@ -248,14 +271,10 @@ def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, 
         stop_all_agents(sidecars)
         time.sleep(2)
 
-    # Stop Monitor(s) — allow up to 60s for parallel container shutdown
-    try:
-        requests.post(f"{MONITOR_URL}/monitor/stop", timeout=60)
-    except Exception:
-        pass
-    if remote_monitor_url:
+    # Stop Monitor(s)
+    for mon_url in monitor_groups:
         try:
-            requests.post(f"{remote_monitor_url}/monitor/stop", timeout=60)
+            requests.post(f"{mon_url}/monitor/stop", timeout=60)
         except Exception:
             pass
     if not startup_mode and blockchain_dir:
@@ -285,8 +304,9 @@ def run_continuous_warmup(sidecars, robot_sidecars):
     print("   ✅ Warmup complete. lastSuccess seeded for all robots.\n")
 
 
-def reset_checkpoints(remote_host=None, local_limit=_DEFAULT_LOCAL_LIMIT, num_robots=0):
-    """Clears all event watcher checkpoint JSON files (local + remote if multi-host)."""
+def reset_checkpoints(remote1_host=None, remote2_host=None,
+                      remote1_limit=_DEFAULT_REMOTE1_LIMIT, num_robots=0):
+    """Clears all event watcher checkpoint JSON files (local + remote hosts as applicable)."""
     base = os.path.join(_SCRIPT_DIR, "checkpoints")
     print("   [Checkpoints] Clearing local event watcher state...")
     for entry in os.scandir(base):
@@ -295,34 +315,46 @@ def reset_checkpoints(remote_host=None, local_limit=_DEFAULT_LOCAL_LIMIT, num_ro
                 ["find", entry.path, "-type", "f", "-name", "*.json", "-delete"],
                 check=True,
             )
-    if remote_host and num_robots > local_limit:
-        print(f"   [Checkpoints] Clearing remote event watcher state on {remote_host}...")
+
+    if remote1_host:
+        print(f"   [Checkpoints] Clearing remote1 ({remote1_host}) event watcher state...")
         subprocess.run(
-            ["ssh", f"{REMOTE_USER}@{remote_host}",
+            ["ssh", f"{REMOTE_USER}@{remote1_host}",
              f"find {REMOTE_DIR}/checkpoints -type f -name '*.json' -delete 2>/dev/null || true"],
             check=True,
         )
+
+    if remote2_host and num_robots > remote1_limit:
+        print(f"   [Checkpoints] Clearing remote2 ({remote2_host}) event watcher state...")
+        subprocess.run(
+            ["ssh", f"{REMOTE_USER}@{remote2_host}",
+             f"find {REMOTE_DIR}/checkpoints -type f -name '*.json' -delete 2>/dev/null || true"],
+            check=True,
+        )
+
     print("   [Checkpoints] Done.")
 
 
-def sync_remote_results(remote_host):
-    """Rsync only results/ subdirs from remote host, never overwriting existing files."""
-    for subdir in ["attestation-times/results", "docker-stats/results"]:
-        local_dst  = os.path.join(_SCRIPT_DIR, "experiments", "data", subdir) + "/"
-        remote_src = f"{REMOTE_USER}@{remote_host}:{REMOTE_DIR}/experiments/data/{subdir}/"
-        print(f"\n📥 Syncing {remote_src} → {local_dst}")
-        os.makedirs(local_dst, exist_ok=True)
-        subprocess.run(
-            ["rsync", "-av", "--ignore-existing", remote_src, local_dst],
-            check=True,
-        )
+def sync_remote_results(remote_hosts: list):
+    """Rsync results/ subdirs from each remote host, never overwriting existing files."""
+    for remote_host in remote_hosts:
+        for subdir in ["attestation-times/results", "docker-stats/results"]:
+            local_dst  = os.path.join(_SCRIPT_DIR, "experiments", "data", subdir) + "/"
+            remote_src = f"{REMOTE_USER}@{remote_host}:{REMOTE_DIR}/experiments/data/{subdir}/"
+            print(f"\n📥 Syncing {remote_src} → {local_dst}")
+            os.makedirs(local_dst, exist_ok=True)
+            subprocess.run(
+                ["rsync", "-av", "--ignore-existing", remote_src, local_dst],
+                check=True,
+            )
     print("✅ Remote results synced.")
 
 
 def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
-                    startup_mode, remote_host=None, local_limit=_DEFAULT_LOCAL_LIMIT,
-                    num_robots=0, remote_monitor_url=None, blockchain_dir=None):
-    reset_checkpoints(remote_host=remote_host, local_limit=local_limit, num_robots=num_robots)
+                    startup_mode, remote1_host=None, remote2_host=None,
+                    remote1_limit=_DEFAULT_REMOTE1_LIMIT, num_robots=0, blockchain_dir=None):
+    reset_checkpoints(remote1_host=remote1_host, remote2_host=remote2_host,
+                      remote1_limit=remote1_limit, num_robots=num_robots)
 
     # Pre-set SECaaS results_dir immediately so any stale blockchain events from a
     # previous session land in the correct directory, not the old one.
@@ -337,8 +369,7 @@ def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_
 
     for i in range(1, runs + 1):
         run_experiment_loop(i, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
-                            startup_mode=startup_mode, remote_monitor_url=remote_monitor_url,
-                            blockchain_dir=blockchain_dir)
+                            startup_mode=startup_mode, blockchain_dir=blockchain_dir)
         if i < runs:
             print("   [System] Cooling down for 5s...")
             time.sleep(5)
@@ -350,16 +381,21 @@ if __name__ == "__main__":
         description="Data collection — two modes: startup (one-shot) or continuous (fixed duration)",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--robots",      type=int, default=4,
+    parser.add_argument("--robots",       type=int, default=4,
                         help="Number of robot sidecars (default: 4, ports 8001..800N)")
-    parser.add_argument("--runs",        type=int, default=1,
+    parser.add_argument("--runs",         type=int, default=1,
                         help="Number of runs (default: 1)")
-    parser.add_argument("--remote-host", default=None,
-                        help=f"IP of remote host for robots beyond --local-limit "
-                             f"(default: {_DEFAULT_REMOTE_HOST} when N > local-limit)")
-    parser.add_argument("--local-limit", type=int, default=_DEFAULT_LOCAL_LIMIT,
-                        help=f"Robots 1-N are on localhost; rest are on --remote-host "
-                             f"(default: {_DEFAULT_LOCAL_LIMIT})")
+    parser.add_argument("--remote",        action="store_true",
+                        help="Remote mode: all robots run on remote1 (and remote2 if N > remote1-limit). "
+                             "Default (local): everything on localhost.")
+    parser.add_argument("--remote1-host",  default=None,
+                        help=f"IP of remote host 1 (default: {_DEFAULT_REMOTE1_HOST})")
+    parser.add_argument("--remote2-host",  default=None,
+                        help="IP of remote host 2 for robots beyond --remote1-limit "
+                             f"(default: '{_DEFAULT_REMOTE2_HOST or 'not set'}')")
+    parser.add_argument("--remote1-limit", type=int, default=_DEFAULT_REMOTE1_LIMIT,
+                        help=f"Remote mode: robots 1-N on remote1; rest on remote2 "
+                             f"(default: {_DEFAULT_REMOTE1_LIMIT})")
 
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--startup",  action="store_true",
@@ -369,22 +405,33 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Auto-enable remote host for multi-host deployments
-    remote_host = args.remote_host
-    if remote_host is None and args.robots > args.local_limit:
-        remote_host = _DEFAULT_REMOTE_HOST
-        print(f"ℹ️  N={args.robots} > local-limit={args.local_limit}: "
-              f"using remote host {remote_host} for robots {args.local_limit + 1}–{args.robots}")
+    # Resolve deployment topology
+    remote1_limit = args.remote1_limit
 
-    remote_monitor_url = f"http://{remote_host}:{MONITOR_PORT}" if remote_host else None
+    # Resolve remote1_host (only used in remote mode)
+    remote1_host = None
+    if args.remote:
+        remote1_host = args.remote1_host or _DEFAULT_REMOTE1_HOST
+        print(f"ℹ️  Remote mode: using remote1={remote1_host} for all {args.robots} robot(s)")
+
+    # Resolve remote2_host
+    remote2_host = args.remote2_host or (_DEFAULT_REMOTE2_HOST if _DEFAULT_REMOTE2_HOST else None)
+    if args.remote and args.robots > remote1_limit:
+        if not remote2_host:
+            print(f"❌ N={args.robots} > remote1-limit={remote1_limit} but no remote2-host configured.")
+            sys.exit(1)
+        print(f"ℹ️  N={args.robots} > remote1-limit={remote1_limit}: "
+              f"using remote2={remote2_host} for robots {remote1_limit + 1}–{args.robots}")
 
     mode_label  = "startup" if args.startup else "continuous"
     robot_label = f"N{args.robots}"
     stats_dir       = f"/experiments/data/docker-stats/results/{robot_label}/{mode_label}"
     attestation_dir = f"/experiments/data/attestation-times/results/{robot_label}/{mode_label}"
-    blockchain_dir  = f"/experiments/data/blockchain-stats/results/{robot_label}/continuous" if not args.startup else None
+    blockchain_dir  = (f"/experiments/data/blockchain-stats/results/{robot_label}/continuous"
+                       if not args.startup else None)
 
-    sidecars = build_sidecars(args.robots, remote_host=remote_host, local_limit=args.local_limit)
+    sidecars = build_sidecars(args.robots, remote1_host=remote1_host, remote2_host=remote2_host,
+                              remote1_limit=remote1_limit)
     robot_sidecars = {k: v for k, v in sidecars.items() if k != "secaas"}
 
     print(f"📋 Configured sidecars:")
@@ -399,32 +446,26 @@ if __name__ == "__main__":
     if blockchain_dir:
         print(f"📁 Blockchain dir:  {blockchain_dir}")
 
-    if remote_monitor_url:
-        print(f"   monitor (remote): {remote_monitor_url}")
-
-    if not check_all_services(sidecars):
+    if not check_all_services(sidecars, robot_sidecars):
         print("🛑 Aborting: Not all services are ready.")
         sys.exit(1)
-
-    if remote_monitor_url and not wait_for_http(f"{remote_monitor_url}/monitor/status"):
-        print("⚠️  Remote monitor not responding — remote sidecar stats won't be collected.")
-        remote_monitor_url = None
 
     try:
         run_experiments(args.runs, args.duration or 0, stats_dir, attestation_dir,
                         sidecars, robot_sidecars, startup_mode=args.startup,
-                        remote_host=remote_host, local_limit=args.local_limit,
-                        num_robots=args.robots, remote_monitor_url=remote_monitor_url,
+                        remote1_host=remote1_host, remote2_host=remote2_host,
+                        remote1_limit=remote1_limit, num_robots=args.robots,
                         blockchain_dir=blockchain_dir)
     except KeyboardInterrupt:
         print("\n🛑 Interrupted by user.")
 
     print(f"\n🎉 All runs completed. Results saved to {stats_dir}")
 
-    if remote_host:
-        sync_remote_results(remote_host)
+    # Sync results from any remote hosts used
+    remote_hosts_used = [h for h in [remote1_host, remote2_host] if h]
+    if remote_hosts_used:
+        sync_remote_results(remote_hosts_used)
 
-    # --- Cleanup Ghost Artifacts ---
     # Remove all secaas.json files anywhere under the attestation results tree.
     # SECaaS exports its own JSON on every run; it's not useful for analysis.
     results_root = os.path.join(_SCRIPT_DIR, "experiments", "data", "attestation-times", "results")

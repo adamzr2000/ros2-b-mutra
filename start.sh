@@ -12,29 +12,38 @@ PROJECT_NAME="ros2-b-mutra"
 
 PASSWORD="netcom;"
 
-# Multi-host constants
-LOCAL_LIMIT=8
-REMOTE_HOST="10.5.1.21"
-REMOTE_USER="desire6g"
+# Remote host constants
+REMOTE1_HOST="10.5.1.21"
+REMOTE1_USER="desire6g"
+REMOTE1_LIMIT=64
+REMOTE2_HOST=""          # placeholder — set when a second remote host is available
+REMOTE2_USER="desire6g"
+REMOTE2_LIMIT=128
 REMOTE_DIR="~/ros2-b-mutra"
 
-# local machine's own IP reachable from the remote host (used so remote sidecars can
-# resolve host.docker.internal → local machine and reach the Besu validators).
+# Local machine's IP reachable from remote hosts (injected as host.docker.internal
+# so remote sidecars can reach the Besu validators on d-mutra).
 LOCAL_IP="10.5.99.99"
 
 # Ignore orphan warnings when using multiple compose files for the same project
 export COMPOSE_IGNORE_ORPHANS=1
 
 run_remote() {
-  ssh -o BatchMode=yes -o ConnectTimeout=10 "$REMOTE_USER@$REMOTE_HOST" "$@"
+  local host="$1"
+  local user="$2"
+  shift 2
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$user@$host" "$@"
 }
 
 remote_compose_up() {
-  local compose_file="$1"
+  local host="$1"
+  local user="$2"
+  local compose_file="$3"
   local retries=3
   local attempt
   for ((attempt = 1; attempt <= retries; attempt++)); do
-    if run_remote "cd $REMOTE_DIR && COMPOSE_IGNORE_ORPHANS=1 docker compose -p $PROJECT_NAME --project-directory $REMOTE_DIR -f $compose_file up -d"; then
+    if run_remote "$host" "$user" \
+        "cd $REMOTE_DIR && COMPOSE_IGNORE_ORPHANS=1 docker compose -p $PROJECT_NAME --project-directory $REMOTE_DIR -f $compose_file up -d"; then
       return 0
     fi
     if (( attempt < retries )); then
@@ -47,12 +56,14 @@ remote_compose_up() {
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--robots N] [--auto] [--export] [--startup] [--wait-tx]
+Usage: $(basename "$0") [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
 
 Options:
-  --robots N  Number of robots to deploy (default: 4, max: 100).
-              Regenerates docker-compose files before starting.
-              N > $LOCAL_LIMIT activates multi-host mode (local machine + remote host).
+  --robots N  Number of robots to deploy (default: 4, max: $REMOTE2_LIMIT).
+  --remote    Remote deployment mode: d-mutra hosts only Besu+SECaaS+monitoring;
+              all robots+sidecars run on remote host(s) (remote1 up to $REMOTE1_LIMIT robots,
+              remote2 for $((REMOTE1_LIMIT+1))–$REMOTE2_LIMIT robots).
+              Default (local mode): everything runs on d-mutra.
   --auto      Set AUTO_START=TRUE
   --export    Set EXPORT_RESULTS=TRUE
   --wait-tx   Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
@@ -62,35 +73,42 @@ Options:
 EOF
 }
 
-
 # Default values
 N_ROBOTS_VAL="4"
 AUTO_START_VAL="FALSE"
 EXPORT_RESULTS_VAL="FALSE"
 WAIT_TX_VAL="FALSE"
 ONE_SHOT_VAL="FALSE"
+DEPLOY_MODE="local"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --robots)
       N_ROBOTS_VAL="$2"
-      if ! [[ "$N_ROBOTS_VAL" =~ ^[1-9][0-9]*$ ]] || (( N_ROBOTS_VAL < 1 || N_ROBOTS_VAL > 100 )); then
-        echo "❌ --robots must be an integer between 1 and 100 (got '$N_ROBOTS_VAL')"
+      if ! [[ "$N_ROBOTS_VAL" =~ ^[1-9][0-9]*$ ]] || (( N_ROBOTS_VAL < 1 || N_ROBOTS_VAL > REMOTE2_LIMIT )); then
+        echo "❌ --robots must be an integer between 1 and $REMOTE2_LIMIT (got '$N_ROBOTS_VAL')"
         exit 1
       fi
       shift 2 ;;
-    --auto)    AUTO_START_VAL="TRUE"; shift ;;
-    --export)  EXPORT_RESULTS_VAL="TRUE"; shift ;;
-    --wait-tx) WAIT_TX_VAL="TRUE"; shift ;;
-    --startup) ONE_SHOT_VAL="TRUE"; shift ;;
-    -h|--help) usage; exit 0 ;;
+    --remote)   DEPLOY_MODE="remote"; shift ;;
+    --auto)     AUTO_START_VAL="TRUE"; shift ;;
+    --export)   EXPORT_RESULTS_VAL="TRUE"; shift ;;
+    --wait-tx)  WAIT_TX_VAL="TRUE"; shift ;;
+    --startup)  ONE_SHOT_VAL="TRUE"; shift ;;
+    -h|--help)  usage; exit 0 ;;
     *) echo "❌ Unknown arg: $1"; echo; usage; exit 1 ;;
   esac
 done
 
+# Validate remote2 requirements before proceeding
+if [[ "$DEPLOY_MODE" == "remote" ]] && (( N_ROBOTS_VAL > REMOTE1_LIMIT )) && [[ -z "$REMOTE2_HOST" ]]; then
+  echo "❌ N=$N_ROBOTS_VAL > REMOTE1_LIMIT=$REMOTE1_LIMIT but REMOTE2_HOST is not configured in start.sh."
+  exit 1
+fi
+
 # --- Ensure .env has desired values ---
-upsert_env () {
+upsert_env() {
   local key="$1"
   local val="$2"
   if grep -qE "^[[:space:]]*$key=" "$ENV_FILE"; then
@@ -105,125 +123,172 @@ if [[ ! -f "$ENV_FILE" ]]; then
   touch "$ENV_FILE"
 fi
 
-upsert_env "EXPORT_RESULTS"           "$EXPORT_RESULTS_VAL"
-upsert_env "AUTO_START"               "$AUTO_START_VAL"
+upsert_env "EXPORT_RESULTS"            "$EXPORT_RESULTS_VAL"
+upsert_env "AUTO_START"                "$AUTO_START_VAL"
 upsert_env "WAIT_FOR_TX_CONFIRMATIONS" "$WAIT_TX_VAL"
-upsert_env "ONE_SHOT"                 "$ONE_SHOT_VAL"
-upsert_env "N_ROBOTS"                 "$N_ROBOTS_VAL"
-upsert_env "COMPOSE_PROJECT_NAME"     "$PROJECT_NAME"
+upsert_env "ONE_SHOT"                  "$ONE_SHOT_VAL"
+upsert_env "N_ROBOTS"                  "$N_ROBOTS_VAL"
+upsert_env "COMPOSE_PROJECT_NAME"      "$PROJECT_NAME"
+upsert_env "DEPLOY_MODE"               "$DEPLOY_MODE"
 
-echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Wait Tx: $WAIT_TX_VAL, Startup: $ONE_SHOT_VAL)"
+echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL)"
 echo
 
-# Regenerate compose files
-echo "🔧 Generating compose files for $N_ROBOTS_VAL robot(s)..."
-python3 "$SCRIPT_DIR/generate_compose.py" --robots "$N_ROBOTS_VAL" --blockchain-host "$LOCAL_IP"
+# Regenerate compose files for the selected mode
+echo "🔧 Generating compose files for $N_ROBOTS_VAL robot(s) [mode: $DEPLOY_MODE]..."
+python3 "$SCRIPT_DIR/generate_compose.py" --robots "$N_ROBOTS_VAL" --blockchain-host "$LOCAL_IP" --mode "$DEPLOY_MODE"
 echo
 
-# Reset EventWatcher checkpoints
+# Reset local EventWatcher checkpoints (SECaaS always on d-mutra)
 CHECKPOINT_DIR="$SCRIPT_DIR/checkpoints"
 RESET_SCRIPT="$CHECKPOINT_DIR/reset_event_watcher.sh"
 
 if [[ -d "$CHECKPOINT_DIR" && -f "$RESET_SCRIPT" ]]; then
-  echo "🧹 Resetting EventWatcher checkpoints..."
+  echo "🧹 Resetting local EventWatcher checkpoints..."
   ( cd "$CHECKPOINT_DIR" && echo "$PASSWORD" | sudo -S bash "./$(basename "$RESET_SCRIPT")" )
   echo
 else
-  echo "⚠️  Skipping reset (missing $RESET_SCRIPT or directory $CHECKPOINT_DIR)"
+  echo "⚠️  Skipping local checkpoint reset (missing $RESET_SCRIPT or $CHECKPOINT_DIR)"
   echo
 fi
 
-# ── Multi-host pre-flight ─────────────────────────────────────────────────────
-if (( N_ROBOTS_VAL > LOCAL_LIMIT )); then
-  echo "🌐 Multi-host mode: local machine (robots 1–$LOCAL_LIMIT) + remote host ($REMOTE_HOST) (robots $((LOCAL_LIMIT+1))–$N_ROBOTS_VAL)"
-
-  # Sync .env, generated compose files, and dummy configs to remote host
-  echo "📤 Syncing .env, generated/, and config-dummy/ to remote host..."
-  scp "$ENV_FILE" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/.env"
-  rsync -av "$SCRIPT_DIR/generated/" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/generated/"
-  rsync -av "$SCRIPT_DIR/config-dummy/" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/config-dummy/"
-  echo
-fi
-
-# 1) Initialize the blockchain network
+# ── Initialize the blockchain network (always on d-mutra) ─────────────────────
 cd "$SCRIPT_DIR/blockchain/quorum-test-network"
 ./run.sh
 
-# 2) Sleep 10
 sleep 10
 
-# 3) Deploy the smart contract
+# ── Deploy the smart contract ──────────────────────────────────────────────────
 cd "$SCRIPT_DIR"
 ./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337
 
-# 4) Start robot containers
-if (( N_ROBOTS_VAL > LOCAL_LIMIT )); then
-  echo "🤖 Starting robots (local: 1–$LOCAL_LIMIT)..."
-  docker compose -p "$PROJECT_NAME" --project-directory "$SCRIPT_DIR" \
-    -f "$SCRIPT_DIR/generated/docker-compose.robots-N${N_ROBOTS_VAL}-local.yml" up -d
-
-  echo "🤖 Starting robots (remote: $((LOCAL_LIMIT + 1))–$N_ROBOTS_VAL on remote host)..."
-  if ! remote_compose_up "$REMOTE_DIR/generated/docker-compose.robots-N${N_ROBOTS_VAL}-remote.yml"; then
-    echo "❌ Failed to start remote robots."
-    exit 1
-  fi
-else
-  docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.robots.yml" up -d
-fi
-
-# 5) Start docker-compose.secaas.yml (always on local machine)
-docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.secaas.yml" up -d
-
-
-wait_for_secaas () {
+# ── SECaaS helper (shared by both deployment branches) ────────────────────────
+wait_for_secaas() {
   echo "⏳ Waiting for SECaaS API to be ready at $SECAAS_URL..."
   local max_attempts=30
   local attempt=1
-  while [ $attempt -le $max_attempts ]; do
+  while (( attempt <= max_attempts )); do
     if curl -s "$SECAAS_URL/" | grep -q "SECaaS running"; then
       echo "✅ SECaaS is UP and running!"
       return 0
     fi
     echo "   (Attempt $attempt/$max_attempts) Still waiting..."
     sleep 2
-    attempt=$((attempt + 1))
+    (( attempt++ ))
   done
   echo "❌ SECaaS failed to start in time."
   return 1
 }
 
-# 6) Wait and Sync
-if wait_for_secaas; then
-  echo "🔄 Synchronizing agent signatures to PostgreSQL..."
-  curl -X POST "$SECAAS_URL/sync-agents?n_robots=$N_ROBOTS_VAL" -H "Content-Type: application/json" | jq
-  echo "✅ Sync complete."
-else
-  echo "⚠️  Skipping agent sync because SECaaS is not responding."
-  exit 1
-fi
+# ══════════════════════════════════════════════════════════════════════════════
+if [[ "$DEPLOY_MODE" == "remote" ]]; then
+# ── REMOTE MODE ───────────────────────────────────────────────────────────────
+# d-mutra: Besu + SECaaS + monitoring only.
+# All robots + sidecars run on remote host(s).
+  echo "🌐 Remote mode: d-mutra hosts Besu+SECaaS+monitoring; robots+sidecars on remote host(s)"
+  echo
 
-# 7) Start docker-compose.monitoring.yml (local machine always; remote host for multi-host stats coverage)
-docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.monitoring.yml" up -d
+  # Sync .env, generated/, config/, and config-dummy/ to remote1
+  echo "📤 Syncing to remote1 ($REMOTE1_HOST)..."
+  scp "$ENV_FILE" "$REMOTE1_USER@$REMOTE1_HOST:$REMOTE_DIR/.env"
+  rsync -av "$SCRIPT_DIR/generated/"    "$REMOTE1_USER@$REMOTE1_HOST:$REMOTE_DIR/generated/"
+  rsync -av "$SCRIPT_DIR/config/"       "$REMOTE1_USER@$REMOTE1_HOST:$REMOTE_DIR/config/"
+  rsync -av "$SCRIPT_DIR/config-dummy/" "$REMOTE1_USER@$REMOTE1_HOST:$REMOTE_DIR/config-dummy/"
+  echo
 
-if (( N_ROBOTS_VAL > LOCAL_LIMIT )); then
-  echo "📊 Starting monitoring on remote host..."
-  run_remote "cd $REMOTE_DIR && COMPOSE_IGNORE_ORPHANS=1 docker compose -p $PROJECT_NAME \
-    -f $REMOTE_DIR/docker-compose.monitoring.yml up -d"
-fi
+  # Sync to remote2 if N > REMOTE1_LIMIT (REMOTE2_HOST validated above)
+  if (( N_ROBOTS_VAL > REMOTE1_LIMIT )); then
+    echo "📤 Syncing to remote2 ($REMOTE2_HOST)..."
+    scp "$ENV_FILE" "$REMOTE2_USER@$REMOTE2_HOST:$REMOTE_DIR/.env"
+    rsync -av "$SCRIPT_DIR/generated/"    "$REMOTE2_USER@$REMOTE2_HOST:$REMOTE_DIR/generated/"
+    rsync -av "$SCRIPT_DIR/config-dummy/" "$REMOTE2_USER@$REMOTE2_HOST:$REMOTE_DIR/config-dummy/"
+    echo
+  fi
 
-# 8) Start attestation sidecars
-if (( N_ROBOTS_VAL > LOCAL_LIMIT )); then
-  echo "🛡️  Starting sidecars (local: 1–$LOCAL_LIMIT)..."
-  docker compose -p "$PROJECT_NAME" --project-directory "$SCRIPT_DIR" \
-    -f "$SCRIPT_DIR/generated/docker-compose.attestation-N${N_ROBOTS_VAL}-local.yml" up -d
+  # Start SECaaS on d-mutra
+  docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.secaas.yml" up -d
 
-  echo "🛡️  Starting sidecars (remote: $((LOCAL_LIMIT + 1))–$N_ROBOTS_VAL on remote host)..."
-  if ! remote_compose_up "$REMOTE_DIR/generated/docker-compose.attestation-N${N_ROBOTS_VAL}-remote.yml"; then
-    echo "❌ Failed to start remote sidecars."
+  if wait_for_secaas; then
+    echo "🔄 Synchronizing agent signatures to PostgreSQL..."
+    curl -X POST "$SECAAS_URL/sync-agents?n_robots=$N_ROBOTS_VAL" -H "Content-Type: application/json" | jq
+    echo "✅ Sync complete."
+  else
     exit 1
   fi
+
+  # Start monitoring on d-mutra
+  docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.monitoring.yml" up -d
+
+  # Start robots on remote1
+  echo "🤖 Starting robots on remote1 ($REMOTE1_HOST, robots 1–$(( N_ROBOTS_VAL < REMOTE1_LIMIT ? N_ROBOTS_VAL : REMOTE1_LIMIT )))..."
+  if ! remote_compose_up "$REMOTE1_HOST" "$REMOTE1_USER" \
+      "$REMOTE_DIR/generated/docker-compose.robots-N${N_ROBOTS_VAL}-remote1.yml"; then
+    echo "❌ Failed to start robots on remote1."
+    exit 1
+  fi
+
+  # Start robots on remote2 if N > REMOTE1_LIMIT
+  if (( N_ROBOTS_VAL > REMOTE1_LIMIT )); then
+    echo "🤖 Starting robots on remote2 ($REMOTE2_HOST, robots $((REMOTE1_LIMIT+1))–$N_ROBOTS_VAL)..."
+    if ! remote_compose_up "$REMOTE2_HOST" "$REMOTE2_USER" \
+        "$REMOTE_DIR/generated/docker-compose.robots-N${N_ROBOTS_VAL}-remote2.yml"; then
+      echo "❌ Failed to start robots on remote2."
+      exit 1
+    fi
+  fi
+
+  # Start monitoring on remote1
+  echo "📊 Starting monitoring on remote1..."
+  run_remote "$REMOTE1_HOST" "$REMOTE1_USER" \
+    "cd $REMOTE_DIR && COMPOSE_IGNORE_ORPHANS=1 docker compose -p $PROJECT_NAME \
+     -f $REMOTE_DIR/docker-compose.monitoring.yml up -d"
+
+  # Start monitoring on remote2 if applicable
+  if (( N_ROBOTS_VAL > REMOTE1_LIMIT )); then
+    echo "📊 Starting monitoring on remote2..."
+    run_remote "$REMOTE2_HOST" "$REMOTE2_USER" \
+      "cd $REMOTE_DIR && COMPOSE_IGNORE_ORPHANS=1 docker compose -p $PROJECT_NAME \
+       -f $REMOTE_DIR/docker-compose.monitoring.yml up -d"
+  fi
+
+  # Start sidecars on remote1
+  echo "🛡️  Starting sidecars on remote1..."
+  if ! remote_compose_up "$REMOTE1_HOST" "$REMOTE1_USER" \
+      "$REMOTE_DIR/generated/docker-compose.attestation-N${N_ROBOTS_VAL}-remote1.yml"; then
+    echo "❌ Failed to start sidecars on remote1."
+    exit 1
+  fi
+
+  # Start sidecars on remote2 if applicable
+  if (( N_ROBOTS_VAL > REMOTE1_LIMIT )); then
+    echo "🛡️  Starting sidecars on remote2..."
+    if ! remote_compose_up "$REMOTE2_HOST" "$REMOTE2_USER" \
+        "$REMOTE_DIR/generated/docker-compose.attestation-N${N_ROBOTS_VAL}-remote2.yml"; then
+      echo "❌ Failed to start sidecars on remote2."
+      exit 1
+    fi
+  fi
+
 else
+# ── LOCAL MODE: everything runs on d-mutra ────────────────────────────────────
+
+  docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.robots.yml" up -d
+
+  docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.secaas.yml" up -d
+
+  if wait_for_secaas; then
+    echo "🔄 Synchronizing agent signatures to PostgreSQL..."
+    curl -X POST "$SECAAS_URL/sync-agents?n_robots=$N_ROBOTS_VAL" -H "Content-Type: application/json" | jq
+    echo "✅ Sync complete."
+  else
+    exit 1
+  fi
+
+  docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.monitoring.yml" up -d
+
   docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.attestation.yml" up -d
+
 fi
+# ══════════════════════════════════════════════════════════════════════════════
 
 echo "🎉 All done."

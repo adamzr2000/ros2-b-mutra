@@ -28,8 +28,10 @@ PER_RUN_FILE       = "durations_per_run.csv"
 EXPORT_EXTRA_FILES = True
 
 # Metric definitions — (metric_name, dur_prefix, start_key, end_key)
-# dur_prefix is used to look up {dur_prefix}_ns  or {dur_prefix}_ms first,
+# dur_prefix is used to look up {dur_prefix}_ns or {dur_prefix}_ms first,
 # then falls back to wall-clock subtraction (end_key - start_key).
+# NOTE: dur_prover_e2e starts at p_send_evidence_START (same as evidence_call),
+# so evidence_call ⊂ e2e_blockchain. Non-overlapping partition: local = total - e2e.
 METRICS_CONFIG = {
     "prover": [
         ("e2e_blockchain",      "dur_prover_e2e",             "t_evidence_sent",                          "t_result_received"),
@@ -217,7 +219,8 @@ def main():
         df.to_csv(raw_path, index=False)
         print(f"[OK] Raw data saved to:     {raw_path}")
 
-    # Per-run mean (equal weight per run in summary)
+    # Per-run mean: average across attestation cycles within each (robot, run) pair,
+    # giving equal weight to each run regardless of how many cycles it completed.
     per_run = (
         df.groupby(GROUP_KEYS, as_index=False)["duration_s"]
         .mean()

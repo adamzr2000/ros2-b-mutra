@@ -9,57 +9,82 @@ PROJECT_NAME="ros2-b-mutra"
 
 PASSWORD="netcom;"
 
-# Multi-host constants
-LOCAL_LIMIT=8
-REMOTE_HOST="10.5.1.21"
-REMOTE_USER="desire6g"
-REMOTE_PASSWORD="desire6g2024;"
+# Remote host constants
+REMOTE1_HOST="10.5.1.21"
+REMOTE1_USER="desire6g"
+REMOTE1_PASSWORD="desire6g2024;"
+REMOTE1_LIMIT=64
+REMOTE2_HOST=""          # placeholder — set when a second remote host is available
+REMOTE2_USER="desire6g"
+REMOTE2_PASSWORD="desire6g2024;"
 REMOTE_DIR="~/ros2-b-mutra"
 
-# Read N_ROBOTS from .env to decide single-host vs multi-host teardown
+# Read N_ROBOTS and DEPLOY_MODE from .env
 ENV_FILE="$SCRIPT_DIR/.env"
 N_ROBOTS_VAL=4
+DEPLOY_MODE="local"
+
 if [[ -f "$ENV_FILE" ]]; then
   _n=$(grep -oP '(?<=^N_ROBOTS=)\d+' "$ENV_FILE" || true)
   [[ -n "$_n" ]] && N_ROBOTS_VAL="$_n"
+  _m=$(grep -oP '(?<=^DEPLOY_MODE=)\w+' "$ENV_FILE" || true)
+  [[ -n "$_m" ]] && DEPLOY_MODE="$_m"
 fi
 
-# Stop monitoring (d-mutra always; remote host in multi-host mode)
+# ── Stop monitoring (d-mutra always) ──────────────────────────────────────────
 echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.monitoring.yml" down
 
-if (( N_ROBOTS_VAL > LOCAL_LIMIT )); then
-  ssh "$REMOTE_USER@$REMOTE_HOST" \
-    "cd $REMOTE_DIR && echo '$REMOTE_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME \
+# ══════════════════════════════════════════════════════════════════════════════
+if [[ "$DEPLOY_MODE" == "remote" ]]; then
+# ── REMOTE MODE teardown ──────────────────────────────────────────────────────
+
+  echo "🌐 Remote mode teardown (N=$N_ROBOTS_VAL)..."
+
+  # Stop monitoring on remote1
+  ssh "$REMOTE1_USER@$REMOTE1_HOST" \
+    "cd $REMOTE_DIR && echo '$REMOTE1_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME \
      -f $REMOTE_DIR/docker-compose.monitoring.yml down" || true
-fi
 
-if (( N_ROBOTS_VAL > LOCAL_LIMIT )); then
-  echo "🌐 Multi-host teardown (N=$N_ROBOTS_VAL)..."
+  # Stop monitoring on remote2 if used
+  if (( N_ROBOTS_VAL > REMOTE1_LIMIT )) && [[ -n "$REMOTE2_HOST" ]]; then
+    ssh "$REMOTE2_USER@$REMOTE2_HOST" \
+      "cd $REMOTE_DIR && echo '$REMOTE2_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME \
+       -f $REMOTE_DIR/docker-compose.monitoring.yml down" || true
+  fi
 
-  # Stop remote sidecars and robots on remote host
-  ssh "$REMOTE_USER@$REMOTE_HOST" \
+  # Stop sidecars and robots on remote1
+  ssh "$REMOTE1_USER@$REMOTE1_HOST" \
     "cd $REMOTE_DIR && \
-     echo '$REMOTE_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME --project-directory $REMOTE_DIR \
-       -f $REMOTE_DIR/generated/docker-compose.attestation-N${N_ROBOTS_VAL}-remote.yml down && \
-     echo '$REMOTE_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME --project-directory $REMOTE_DIR \
-       -f $REMOTE_DIR/generated/docker-compose.robots-N${N_ROBOTS_VAL}-remote.yml down"
+     echo '$REMOTE1_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME --project-directory $REMOTE_DIR \
+       -f $REMOTE_DIR/generated/docker-compose.attestation-N${N_ROBOTS_VAL}-remote1.yml down && \
+     echo '$REMOTE1_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME --project-directory $REMOTE_DIR \
+       -f $REMOTE_DIR/generated/docker-compose.robots-N${N_ROBOTS_VAL}-remote1.yml down"
 
-  # Stop local sidecars and robots on d-mutra
-  echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" --project-directory "$SCRIPT_DIR" \
-    -f "$SCRIPT_DIR/generated/docker-compose.attestation-N${N_ROBOTS_VAL}-local.yml" down
-  echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" --project-directory "$SCRIPT_DIR" \
-    -f "$SCRIPT_DIR/generated/docker-compose.robots-N${N_ROBOTS_VAL}-local.yml" down
+  # Stop sidecars and robots on remote2 if used
+  if (( N_ROBOTS_VAL > REMOTE1_LIMIT )) && [[ -n "$REMOTE2_HOST" ]]; then
+    ssh "$REMOTE2_USER@$REMOTE2_HOST" \
+      "cd $REMOTE_DIR && \
+       echo '$REMOTE2_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME --project-directory $REMOTE_DIR \
+         -f $REMOTE_DIR/generated/docker-compose.attestation-N${N_ROBOTS_VAL}-remote2.yml down && \
+       echo '$REMOTE2_PASSWORD' | sudo -S docker compose -p $PROJECT_NAME --project-directory $REMOTE_DIR \
+         -f $REMOTE_DIR/generated/docker-compose.robots-N${N_ROBOTS_VAL}-remote2.yml down"
+  fi
+
 else
+# ── LOCAL MODE teardown: everything on d-mutra ────────────────────────────────
+
   echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.attestation.yml" down
   echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.robots.yml" down
-fi
 
+fi
+# ══════════════════════════════════════════════════════════════════════════════
+
+# SECaaS and blockchain always on d-mutra
 echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.secaas.yml" down
 
 # Remove blockchain network
 cd "$SCRIPT_DIR/blockchain/quorum-test-network"
 ./remove.sh
-
 
 # Reset EventWatcher checkpoints (seen_keys/from_block)
 CHECKPOINT_DIR="$SCRIPT_DIR/checkpoints"

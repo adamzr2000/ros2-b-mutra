@@ -21,7 +21,7 @@ INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
 IDLE_CSV   = "../data/blockchain-stats/results/idle/blockchain-idle-120s.csv"
 
 FONT_SCALE  = 1.6
-COLOR       = "#336699"
+COLOR       = "#2E7D52"   # forest green
 COLOR_IDLE  = "gray"
 BAR_WIDTH   = 0.55
 SHOW_ERRORS = False
