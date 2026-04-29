@@ -22,6 +22,10 @@ import sys
 import math
 
 INPUT_FILE = "../data/attestation-times/_summary/durations_per_run.csv"
+VARIANT    = "standard"   # ← continuous-mode variant to plot
+SSP_S      = 20           # sidecar sleep period (s)
+ITERQU     = 1            # rolling-hash queue depth
+CPU_LIMIT  = 0.4          # sidecar CPU limit
 N_VALUES   = [4, 8, 16, 32, 64]
 
 FONT_SCALE    = 1.8
@@ -110,10 +114,21 @@ def generate_figure(df, n_values, script_dir):
         sharey=True,
     )
 
+    def _mode_sub(df, mode):
+        if mode == "continuous":
+            return df[
+                (df["mode"]      == mode) &
+                (df["variant"]   == VARIANT) &
+                (df["ssp_s"]     == SSP_S) &
+                (df["iterqu"]    == ITERQU) &
+                (df["cpu_limit"] == CPU_LIMIT)
+            ]
+        return df[df["mode"] == mode]
+
     # Shared y-limit across both modes
     max_top = 0.0
     for mode in ["startup", "continuous"]:
-        sub = df[df["mode"] == mode]
+        sub = _mode_sub(df, mode)
         for n in n_values:
             _, total, std = _prover_segs(sub, n)
             max_top = max(max_top, total + std)
@@ -123,7 +138,7 @@ def generate_figure(df, n_values, script_dir):
         (ax_l, "startup",    "Startup Attestation"),
         (ax_r, "continuous", "Continuous Attestation"),
     ]:
-        sub = df[df["mode"] == mode]
+        sub = _mode_sub(df, mode)
         print(f"\n=== Robot Prover — {mode} ===")
         print(f"  {'N':>4}  {'local_comp (s)':>16}  {'bc_ops (s)':>12}  {'total (s)':>10}  {'std (s)':>9}")
         for i, n in enumerate(n_values):
@@ -189,7 +204,16 @@ def generate_csv(df, n_values, script_dir):
         })
 
     for mode in ["startup", "continuous"]:
-        sub = df[df["mode"] == mode]
+        if mode == "continuous":
+            sub = df[
+                (df["mode"]      == mode) &
+                (df["variant"]   == VARIANT) &
+                (df["ssp_s"]     == SSP_S) &
+                (df["iterqu"]    == ITERQU) &
+                (df["cpu_limit"] == CPU_LIMIT)
+            ]
+        else:
+            sub = df[df["mode"] == mode]
 
         for n in n_values:
 

@@ -1,0 +1,8 @@
+{
+    "name": "robot71",
+    "eth_address": "0x901955811302567c4c76d16c3ebd20a995df4b82",
+    "private_key": "0xb6a1b57eaaf12dee2788db31a6aff83912e3274e628974f5e711e7ccfd9e03a5",
+    "robot_hash": "a2ff07ce897d2cd512ce206c85f11b4bd5c702352c2f9f6c72817f4784c4829d",
+    "attestation_sidecar_hash": "a2ff07ce897d2cd512ce206c85f11b4bd5c702352c2f9f6c72817f4784c4829d",
+    "combined_hash": "a2ff07ce897d2cd512ce206c85f11b4bd5c702352c2f9f6c72817f4784c4829d"
+}

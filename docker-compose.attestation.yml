@@ -4,7 +4,7 @@
 services:
   robot1-sidecar:
     container_name: robot1-sidecar
-    image: attestation-sidecar:latest
+    image: attestation-sidecar-optimized:latest
     environment:
       - CONFIG_PATH=/config/robot1.json
       - EXPORT_RESULTS=${EXPORT_RESULTS}
@@ -35,13 +35,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.4'
+          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   robot2-sidecar:
     container_name: robot2-sidecar
-    image: attestation-sidecar:latest
+    image: attestation-sidecar-optimized:latest
     environment:
       - CONFIG_PATH=/config/robot2.json
       - EXPORT_RESULTS=${EXPORT_RESULTS}
@@ -72,13 +72,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.4'
+          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   robot3-sidecar:
     container_name: robot3-sidecar
-    image: attestation-sidecar:latest
+    image: attestation-sidecar-optimized:latest
     environment:
       - CONFIG_PATH=/config/robot3.json
       - EXPORT_RESULTS=${EXPORT_RESULTS}
@@ -109,13 +109,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.4'
+          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   robot4-sidecar:
     container_name: robot4-sidecar
-    image: attestation-sidecar:latest
+    image: attestation-sidecar-optimized:latest
     environment:
       - CONFIG_PATH=/config/robot4.json
       - EXPORT_RESULTS=${EXPORT_RESULTS}
@@ -146,7 +146,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.4'
+          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

@@ -21,7 +21,10 @@ class StartRequest(BaseModel):
     rpc_url: str = Field(..., description="Besu RPC endpoint, e.g. http://host.docker.internal:21001")
     poll_interval: float = Field(1.0, description="Seconds between block polls")
     csv_dir: Optional[str] = Field(None, description="Directory to write the CSV file into")
-    csv_name: Optional[str] = Field(None, description="CSV filename (without .csv). Auto-named runN if omitted.")
+    csv_name: Optional[str] = Field(None, description="CSV filename (without .csv). Auto-named if omitted.")
+    ssp_s:     Optional[int]   = Field(None, description="SSP value — embeds -SSP{X}s-ITERQu{X}-cpu{X}p{X}- tag in auto-generated filename")
+    iterqu:    Optional[int]   = Field(None, description="ITERQu value for param tag")
+    cpu_limit: Optional[float] = Field(None, description="CPU limit value for param tag (e.g. 0.4 → cpu0p4)")
 
 class MessageResponse(BaseModel):
     success: bool = True
@@ -36,25 +39,32 @@ class StatusResponse(BaseModel):
 
 # ---------- Helpers ----------
 
-def _next_run_csv(csv_dir: str) -> str:
+def _param_tag(ssp_s, iterqu, cpu_limit) -> str:
+    """Build the experiment-param suffix, e.g. '-SSP20s-ITERQu1-cpu0p4'. Empty string if any param is None."""
+    if ssp_s is None or iterqu is None or cpu_limit is None:
+        return ""
+    cpu_str = f"{cpu_limit:.1f}".replace(".", "p")
+    return f"-SSP{ssp_s}s-ITERQu{iterqu}-cpu{cpu_str}"
+
+def _next_run_csv(csv_dir: str, tag: str = "") -> str:
     os.makedirs(csv_dir, exist_ok=True)
-    pattern = os.path.join(csv_dir, "blockchain-run*.csv")
+    pattern = os.path.join(csv_dir, f"blockchain{tag}-run*.csv")
     existing = glob.glob(pattern)
     max_idx = 0
-    rx = re.compile(r"blockchain-run(\d+)\.csv$")
+    rx = re.compile(rf"blockchain{re.escape(tag)}-run(\d+)\.csv$")
     for path in existing:
         m = rx.search(os.path.basename(path))
         if m:
             max_idx = max(max_idx, int(m.group(1)))
-    return os.path.join(csv_dir, f"blockchain-run{max_idx + 1}.csv")
+    return os.path.join(csv_dir, f"blockchain{tag}-run{max_idx + 1}.csv")
 
-def _resolve_csv_path(csv_dir: Optional[str], csv_name: Optional[str]) -> Optional[str]:
+def _resolve_csv_path(csv_dir: Optional[str], csv_name: Optional[str], tag: str = "") -> Optional[str]:
     if not csv_dir:
         return None
     if csv_name:
         name = csv_name if csv_name.endswith(".csv") else csv_name + ".csv"
         return os.path.join(csv_dir, name)
-    return _next_run_csv(csv_dir)
+    return _next_run_csv(csv_dir, tag)
 
 
 # ---------- Lifespan ----------
@@ -83,7 +93,8 @@ def monitor_start(req: StartRequest):
     if mon and mon.is_running():
         raise HTTPException(status_code=409, detail="Monitor already running. Stop it first.")
 
-    csv_path = _resolve_csv_path(req.csv_dir, req.csv_name)
+    tag      = _param_tag(req.ssp_s, req.iterqu, req.cpu_limit)
+    csv_path = _resolve_csv_path(req.csv_dir, req.csv_name, tag)
     monitor = BlockchainMonitor(
         rpc_url=req.rpc_url,
         poll_interval=req.poll_interval,

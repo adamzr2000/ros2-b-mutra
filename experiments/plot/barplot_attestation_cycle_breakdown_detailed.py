@@ -22,6 +22,10 @@ import sys
 
 INPUT_FILE    = "../data/attestation-times/_summary/durations_per_run.csv"
 MODES         = ["startup", "continuous"]
+VARIANT       = "standard"   # ← continuous-mode variant to plot
+SSP_S         = 20           # sidecar sleep period (s)
+ITERQU        = 1            # rolling-hash queue depth
+CPU_LIMIT     = 0.4          # sidecar CPU limit
 N_VALUES      = [4, 8, 16, 32, 64]
 
 FONT_SCALE    = 1.6
@@ -334,9 +338,18 @@ def main():
         sys.exit(1)
 
     for mode in MODES:
-        sub = df[df["mode"] == mode].copy()
+        if mode == "continuous":
+            sub = df[
+                (df["mode"]      == mode) &
+                (df["variant"]   == VARIANT) &
+                (df["ssp_s"]     == SSP_S) &
+                (df["iterqu"]    == ITERQU) &
+                (df["cpu_limit"] == CPU_LIMIT)
+            ].copy()
+        else:
+            sub = df[df["mode"] == mode].copy()
         if sub.empty:
-            print(f"[WARN] No data for mode '{mode}'")
+            print(f"[WARN] No data for mode '{mode}' variant '{VARIANT}' SSP={SSP_S}s ITERQu={ITERQU} cpu={CPU_LIMIT}")
             continue
         generate_plot(sub, mode, script_dir)
 

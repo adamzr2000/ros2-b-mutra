@@ -12,8 +12,12 @@ import matplotlib.patches as mpatches
 import seaborn as sns
 
 INPUT_FILE = "../data/docker-stats/_summary/overall_resource_usage_per_container.csv"
-MODE = "continuous"
-N_VALUES = [4, 8, 16, 32, 64]
+MODE      = "continuous"
+VARIANT   = "standard"   # ← continuous-mode variant to plot
+SSP_S     = 20           # sidecar sleep period (s)
+ITERQU    = 1            # rolling-hash queue depth
+CPU_LIMIT = 0.4          # sidecar CPU limit
+N_VALUES  = [4, 8, 16, 32, 64]
 
 FONT_SCALE    = 1.6
 BAR_WIDTH     = 0.32
@@ -69,9 +73,15 @@ def main():
 
     df = pd.read_csv(csv_path)
     df = df[df["n_robots"].isin(N_VALUES)]
-    mode_df = df[df["mode"] == MODE].copy()
+    mode_df = df[
+        (df["mode"]      == MODE) &
+        (df["variant"]   == VARIANT) &
+        (df["ssp_s"]     == SSP_S) &
+        (df["iterqu"]    == ITERQU) &
+        (df["cpu_limit"] == CPU_LIMIT)
+    ].copy()
     if mode_df.empty:
-        raise SystemExit(f"No data for mode={MODE}")
+        raise SystemExit(f"No data for mode={MODE} variant={VARIANT} SSP={SSP_S}s ITERQu={ITERQU} cpu={CPU_LIMIT}")
 
     sns.set_theme(context="paper", style="ticks",
                   rc={"xtick.direction": "out", "ytick.direction": "out"},

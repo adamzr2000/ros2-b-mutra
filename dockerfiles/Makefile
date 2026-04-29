@@ -1,8 +1,9 @@
-.PHONY: all clean attestation-sidecar docker-stats-collector eth-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
+.PHONY: all clean attestation-sidecar attestation-sidecar-optimized docker-stats-collector eth-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
 
 # --- Variables ---
-IMG_ATTESTATION_SIDECAR    := attestation-sidecar:latest
-IMG_DOCKER_STATS_COLLECTOR := docker-stats-collector:latest
+IMG_ATTESTATION_SIDECAR           := attestation-sidecar:latest
+IMG_ATTESTATION_SIDECAR_OPTIMIZED := attestation-sidecar-optimized:latest
+IMG_DOCKER_STATS_COLLECTOR        := docker-stats-collector:latest
 IMG_ETH_STATS_COLLECTOR    := eth-stats-collector:latest
 IMG_GAZEBO                 := gazebo-vnc:latest
 IMG_TURTLEBOT              := turtlebot3-gazebo:latest
@@ -15,7 +16,7 @@ IMG_SECAAS_WRAPPER         := secaas-wrapper:latest
 # Default target: Builds all in parallel and prints summary on success
 all:
 	@echo ">> 🚀 Starting parallel build for all images..."
-	@$(MAKE) -j attestation-sidecar docker-stats-collector eth-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
+	@$(MAKE) -j attestation-sidecar attestation-sidecar-optimized docker-stats-collector eth-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
 	@echo ""
 	@echo "========================================================"
 	@echo "   ✅  ALL IMAGES BUILT SUCCESSFULLY"
@@ -24,13 +25,17 @@ all:
 # Remove the specific images built by this file
 clean:
 	@echo ">> 🧹 Removing project images..."
-	-docker rmi $(IMG_ATTESTATION_SIDECAR) $(IMG_DOCKER_STATS_COLLECTOR) $(IMG_ETH_STATS_COLLECTOR) $(IMG_GAZEBO) $(IMG_TURTLEBOT) $(IMG_HARDHAT) $(IMG_SECAAS) $(IMG_SECAAS_WRAPPER)
+	-docker rmi $(IMG_ATTESTATION_SIDECAR) $(IMG_ATTESTATION_SIDECAR_OPTIMIZED) $(IMG_DOCKER_STATS_COLLECTOR) $(IMG_ETH_STATS_COLLECTOR) $(IMG_GAZEBO) $(IMG_TURTLEBOT) $(IMG_HARDHAT) $(IMG_SECAAS) $(IMG_SECAAS_WRAPPER)
 
 # --- Individual Build Rules ---
 
 attestation-sidecar:
 	@echo ">> 📦 Building [$(IMG_ATTESTATION_SIDECAR)]..."
 	@docker build -t $(IMG_ATTESTATION_SIDECAR) ./attestation-sidecar
+
+attestation-sidecar-optimized:
+	@echo ">> 📦 Building [$(IMG_ATTESTATION_SIDECAR_OPTIMIZED)]..."
+	@docker build -t $(IMG_ATTESTATION_SIDECAR_OPTIMIZED) ./attestation-sidecar-optimized
 
 docker-stats-collector:
 	@echo ">> 📦 Building [$(IMG_DOCKER_STATS_COLLECTOR)]..."

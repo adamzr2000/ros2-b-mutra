@@ -12,7 +12,7 @@ from web3._utils.events import event_abi_to_log_topic
 from web3.exceptions import ContractLogicError
 from app.internal.blockchain.types import (
     AttestationState,
-    MasMutualAttestationContractEvents,
+    AttestationManagerContractEvents,
     as_bytes32_triplet,
     text_to_bytes32
 )
@@ -129,19 +129,19 @@ class BlockchainClient:
 
         return tx_hash
 
-    def get_event_class(self, event_enum: MasMutualAttestationContractEvents):
+    def get_event_class(self, event_enum: AttestationManagerContractEvents):
         """
         Returns the web3 ContractEvent class for the given enum (e.g., contract.events.AttestationStarted)
         """
         return getattr(self.contract.events, event_enum.value)
 
-    def get_event_abi(self, event_enum: MasMutualAttestationContractEvents) -> dict:
+    def get_event_abi(self, event_enum: AttestationManagerContractEvents) -> dict:
         """
         Returns the ABI dict for the event (used by the watcher to decode logs).
         """
         return self.get_event_class(event_enum)._get_event_abi()
 
-    def get_event_topic(self, event_enum: MasMutualAttestationContractEvents) -> str:
+    def get_event_topic(self, event_enum: AttestationManagerContractEvents) -> str:
         """
         Returns keccak(signature) topic for the event (topic0) from its ABI.
         """
@@ -206,7 +206,7 @@ class BlockchainClient:
             raise Exception(f"An exception occurred: {str(e)}")
 
 
-    def create_event_filter(self, event_name: MasMutualAttestationContractEvents, last_n_blocks: int = None):
+    def create_event_filter(self, event_name: AttestationManagerContractEvents, last_n_blocks: int = None):
         """
         Creates a filter for the given contract event. Robust against empty chains
         and node warm-up by avoiding getBlock('latest').

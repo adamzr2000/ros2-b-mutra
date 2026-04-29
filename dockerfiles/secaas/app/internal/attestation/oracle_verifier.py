@@ -10,7 +10,7 @@ from web3 import Web3
 from app.internal.logger import info, warn, error, debug, green_text
 from app.internal.blockchain.types import (
     AttestationState,
-    MasMutualAttestationContractEvents
+    AttestationManagerContractEvents
 )
 from app.internal.blockchain.event_watcher import EventWatcher
 from app.internal.utils import helpers
@@ -165,7 +165,7 @@ def process_secaas_attestation(
         
 def run_secaas_logic(app: FastAPI, stop_event: Optional[threading.Event] = None):
     # Build blockchain_event_watcher for AttestationStarted
-    evt_enum = MasMutualAttestationContractEvents.ATTESTATION_STARTED
+    evt_enum = AttestationManagerContractEvents.ATTESTATION_STARTED
     blockchain_client = app.state.blockchain_client
     evt_abi  = blockchain_client.get_event_abi(evt_enum)
     topic0   = blockchain_client.get_event_topic(evt_enum)

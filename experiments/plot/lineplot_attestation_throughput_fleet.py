@@ -18,6 +18,10 @@ import matplotlib.lines as mlines
 import seaborn as sns
 
 INPUT_FILE            = "../data/attestation-times/_summary/durations_raw.csv"
+VARIANT               = "standard"   # ← continuous-mode variant to plot
+SSP_S                 = 20           # sidecar sleep period (s)
+ITERQU                = 1            # rolling-hash queue depth
+CPU_LIMIT             = 0.4          # sidecar CPU limit
 EXPERIMENT_DURATION_S = 120
 ATTESTATION_INTERVAL_S = 10
 N_VALUES              = [4, 8, 16, 32, 64]
@@ -43,9 +47,13 @@ def main():
 
     # Total attestations per (n_robots, run) in continuous mode
     sub = df[
-        (df["mode"]   == "continuous") &
-        (df["role"]   == "prover") &
-        (df["metric"] == "total_lifecycle")
+        (df["mode"]      == "continuous") &
+        (df["variant"]   == VARIANT) &
+        (df["ssp_s"]     == SSP_S) &
+        (df["iterqu"]    == ITERQU) &
+        (df["cpu_limit"] == CPU_LIMIT) &
+        (df["role"]      == "prover") &
+        (df["metric"]    == "total_lifecycle")
     ]
     counts = (
         sub.groupby(["n_robots", "run"])

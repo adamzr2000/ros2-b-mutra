@@ -2,17 +2,48 @@
 """
 Per-N summary of blockchain stats for continuous-mode experiments.
 
+Expected file layout:
+    results/N{n}/continuous/{variant}/blockchain-SSP{ssp}s-ITERQu{iterqu}-cpu{cpu}-run{k}.csv
+e.g.
+    results/N4/continuous/standard/blockchain-SSP20s-ITERQu1-cpu0p4-run1.csv
+
 Aggregation pipeline:
-  blocks (per run CSV) → per-run stats → mean ± std across runs → one row per N
+  blocks (per run CSV) → per-run stats → mean ± std across (N, ssp_s, iterqu, cpu_limit) groups
 """
+import argparse
 import glob
 import os
+import re
 
-import numpy as np
 import pandas as pd
 
-RESULTS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
-N_VALUES     = [4, 8, 16, 24, 32, 40, 50, 64, 100]
+RESULTS_ROOT    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+N_VALUES        = [4, 8, 16, 24, 32, 40, 50, 64, 100]
+_KNOWN_VARIANTS = {"standard", "exception", "batched"}
+
+SUMMARY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_summary")
+
+_FILE_RE   = re.compile(r"^(?P<base>.+)-run(?P<run>\d+)\.csv$", re.IGNORECASE)
+_PARAMS_RE = re.compile(
+    r"-SSP(?P<ssp>\d+)s-ITERQu(?P<iterqu>\d+)-cpu(?P<cpu>[\dp]+)$",
+    re.IGNORECASE,
+)
+
+
+def _extract_params(base: str):
+    """Return (ssp_s, iterqu, cpu_limit) parsed from the base stem, or (None, None, None)."""
+    m = _PARAMS_RE.search(base)
+    if m:
+        return int(m.group("ssp")), int(m.group("iterqu")), float(m.group("cpu").replace("p", "."))
+    return None, None, None
+
+
+def parse_args():
+    p = argparse.ArgumentParser(description="Summarize blockchain stats per N.")
+    p.add_argument("--variant", default="standard",
+                   choices=sorted(_KNOWN_VARIANTS),
+                   help="Contract variant to summarize (default: standard).")
+    return p.parse_args()
 
 
 def per_run_stats(df: pd.DataFrame) -> dict:
@@ -36,30 +67,52 @@ def per_run_stats(df: pd.DataFrame) -> dict:
     }
 
 
-def summarize_n(n: int) -> dict | None:
-    pattern = os.path.join(RESULTS_ROOT, f"N{n}", "continuous", "blockchain-run*.csv")
-    files   = sorted(glob.glob(pattern))
-    if not files:
-        return None
+def summarize_variant(variant: str) -> list[dict]:
+    """Scan all blockchain CSVs under variant dir; return one row per (N, ssp_s, iterqu, cpu_limit)."""
+    rows = []
+    for n in N_VALUES:
+        dir_path = os.path.join(RESULTS_ROOT, f"N{n}", "continuous", variant)
+        files    = sorted(glob.glob(os.path.join(dir_path, "blockchain-*.csv")))
+        if not files:
+            continue
 
-    runs = pd.DataFrame([per_run_stats(pd.read_csv(f)) for f in files])
-    row  = {"N": n, "runs": len(files)}
-    for col in runs.columns:
-        row[f"{col}_mean"] = runs[col].mean()
-        row[f"{col}_std"]  = runs[col].std()
-    return row
+        # Group files by (ssp_s, iterqu, cpu_limit)
+        groups: dict[tuple, list] = {}
+        for f in files:
+            m = _FILE_RE.match(os.path.basename(f))
+            if not m:
+                continue
+            ssp_s, iterqu, cpu_limit = _extract_params(m.group("base"))
+            groups.setdefault((ssp_s, iterqu, cpu_limit), []).append(f)
 
-
-SUMMARY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_summary")
+        for (ssp_s, iterqu, cpu_limit), group_files in sorted(groups.items()):
+            run_stats = []
+            for f in group_files:
+                try:
+                    run_stats.append(per_run_stats(pd.read_csv(f)))
+                except Exception as e:
+                    print(f"[WARN] Skipping {f}: {e}")
+            if not run_stats:
+                continue
+            runs_df = pd.DataFrame(run_stats)
+            row = {"N": n, "ssp_s": ssp_s, "iterqu": iterqu, "cpu_limit": cpu_limit, "runs": len(run_stats)}
+            for col in runs_df.columns:
+                row[f"{col}_mean"] = runs_df[col].mean()
+                row[f"{col}_std"]  = runs_df[col].std()
+            rows.append(row)
+    return rows
 
 
 def main():
-    rows = [r for n in N_VALUES if (r := summarize_n(n)) is not None]
+    args    = parse_args()
+    variant = args.variant
+
+    rows = summarize_variant(variant)
     if not rows:
-        print("No data found.")
+        print(f"No data found for variant '{variant}'.")
         return
 
-    df = pd.DataFrame(rows).set_index("N")
+    df = pd.DataFrame(rows)
 
     # ---- console table ----
     COL_W = 22
@@ -71,15 +124,18 @@ def main():
         ("block_time_s",   "block_time (s)"),
         ("block_time_std", "blk_time_std (s)"),
         ("total_bytes",    "total_bytes"),
-        ("bytes_per_s",    "bytes/s"),
+        ("bytes_per_s",    "growth (B/s)"),
     ]
 
-    header = f"{'N':>5}  {'runs':>4}" + "".join(f"  {lbl:>{COL_W}}" for _, lbl in metrics)
-    print("\n" + header)
+    print(f"\nVariant: {variant}")
+    header = (f"{'N':>5}  {'ssp_s':>5}  {'iterqu':>6}  {'cpu':>5}  {'runs':>4}"
+              + "".join(f"  {lbl:>{COL_W}}" for _, lbl in metrics))
+    print(header)
     print("-" * len(header))
 
-    for n, row in df.iterrows():
-        line = f"{n:>5}  {int(row['runs']):>4}"
+    for _, row in df.iterrows():
+        line = (f"{int(row['N']):>5}  {str(row['ssp_s']):>5}  "
+                f"{str(row['iterqu']):>6}  {str(row['cpu_limit']):>5}  {int(row['runs']):>4}")
         for key, _ in metrics:
             mean = row[f"{key}_mean"]
             std  = row[f"{key}_std"]
@@ -91,8 +147,8 @@ def main():
 
     # ---- save CSV ----
     os.makedirs(SUMMARY_DIR, exist_ok=True)
-    out = os.path.join(SUMMARY_DIR, "blockchain_stats_summary.csv")
-    df.to_csv(out)
+    out = os.path.join(SUMMARY_DIR, f"blockchain_stats_summary_{variant}.csv")
+    df.to_csv(out, index=False)
     print(f"Summary saved to {out}")
 
 

@@ -6,7 +6,13 @@
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {
-            "inputs": [],
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "_vrp",
+                    "type": "uint256"
+                }
+            ],
             "stateMutability": "nonpayable",
             "type": "constructor"
         },
@@ -40,10 +46,16 @@
             "anonymous": false,
             "inputs": [
                 {
-                    "indexed": false,
+                    "indexed": true,
                     "internalType": "bytes32",
                     "name": "id",
                     "type": "bytes32"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "bool",
+                    "name": "verified",
+                    "type": "bool"
                 }
             ],
             "name": "AttestationCompleted",
@@ -79,6 +91,19 @@
                 }
             ],
             "name": "ReadyForEvaluation",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "newVerifier",
+                    "type": "address"
+                }
+            ],
+            "name": "VerifierRotated",
             "type": "event"
         },
         {
@@ -129,24 +154,6 @@
                     "internalType": "bool",
                     "name": "",
                     "type": "bool"
-                },
-                {
-                    "internalType": "bytes32[]",
-                    "name": "",
-                    "type": "bytes32[]"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "GetAttestationChain",
-            "outputs": [
-                {
-                    "internalType": "bytes32[]",
-                    "name": "",
-                    "type": "bytes32[]"
                 }
             ],
             "stateMutability": "view",
@@ -173,7 +180,7 @@
                     "type": "address"
                 },
                 {
-                    "internalType": "enum MasMutualAttestation.AttestationResult",
+                    "internalType": "enum AttestationManagerOptimized.AttestationResult",
                     "name": "",
                     "type": "uint8"
                 },
@@ -226,9 +233,22 @@
             "name": "GetAttestationState",
             "outputs": [
                 {
-                    "internalType": "enum MasMutualAttestation.AttestationState",
+                    "internalType": "enum AttestationManagerOptimized.AttestationState",
                     "name": "",
                     "type": "uint8"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "GetCurrentVerifier",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
                 }
             ],
             "stateMutability": "view",
@@ -253,6 +273,19 @@
                     "internalType": "address",
                     "name": "",
                     "type": "address"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "GetVRP",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
                 }
             ],
             "stateMutability": "view",
@@ -410,32 +443,6 @@
                 }
             ],
             "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "freshnessWindow",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "rrIndex",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
             "type": "function"
         }
     ]

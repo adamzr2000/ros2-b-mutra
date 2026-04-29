@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Blockchain stats vs fleet size — bar chart (1×3).
+Blockchain stats vs fleet size — bar chart (1×4).
 
-Three subplots:
+Four subplots:
   1. Block gas utilization (%)
   2. Blockchain footprint (KB)
-  3. Total transactions per run
+  3. Blockchain growth rate (KB/s)
+  4. Total transactions per run
 
-Bars show mean ± std across runs. Footprint panel includes a dashed
-idle reference line.
+Bars show mean ± std across runs. Footprint and growth-rate panels
+include a dashed idle reference line.
 """
 
 from pathlib import Path
@@ -17,7 +18,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
+VARIANT    = "standard"   # ← continuous-mode variant to plot
+SSP_S      = 20           # sidecar sleep period (s)
+ITERQU     = 1            # rolling-hash queue depth
+CPU_LIMIT  = 0.4          # sidecar CPU limit
+INPUT_FILE = f"../data/blockchain-stats/_summary/blockchain_stats_summary_{VARIANT}.csv"
 IDLE_CSV   = "../data/blockchain-stats/results/idle/blockchain-idle-120s.csv"
 
 FONT_SCALE  = 1.6
@@ -33,20 +38,28 @@ def main():
     if not csv_path.exists():
         raise SystemExit(f"Summary CSV not found: {csv_path}")
 
-    df = pd.read_csv(csv_path, index_col="N")
+    df = pd.read_csv(csv_path)
+    df = df[(df["ssp_s"] == SSP_S) & (df["iterqu"] == ITERQU) & (df["cpu_limit"] == CPU_LIMIT)]
+    df = df.set_index("N").sort_index()
 
     idle_path = (script_dir / IDLE_CSV).resolve()
     if not idle_path.exists():
         raise SystemExit(f"Idle CSV not found: {idle_path}")
-    idle_total_bytes = pd.read_csv(idle_path)["size_bytes"].sum()
+    idle_df          = pd.read_csv(idle_path)
+    idle_total_bytes = idle_df["size_bytes"].sum()
+    idle_duration_s  = idle_df["block_timestamp"].max() - idle_df["block_timestamp"].min()
+    if idle_duration_s <= 0:
+        idle_duration_s = 120.0
+    idle_bytes_per_s = idle_total_bytes / idle_duration_s
 
     n_vals = df.index.to_numpy()
     x      = np.arange(len(n_vals))
 
     metrics = [
-        ("gas_used_pct", "Block gas utilization (%)", 1.0),
-        ("total_bytes",  "Blockchain footprint (KB)",  1e-3),
-        ("total_tx",     "Total transactions",          1.0),
+        ("gas_used_pct", "Block gas utilization (%)",    1.0),
+        ("total_bytes",  "Blockchain footprint (KB)",     1e-3),
+        ("bytes_per_s",  "Blockchain growth rate (KB/s)", 1e-3),
+        ("total_tx",     "Total transactions",             1.0),
     ]
 
     sns.set_theme(context="paper", style="ticks",
@@ -54,7 +67,7 @@ def main():
                   font_scale=FONT_SCALE)
     plt.rcParams.update({"font.family": "serif"})
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    fig, axes = plt.subplots(1, 4, figsize=(18, 5))
 
     for ax, (key, ylabel, scale) in zip(axes, metrics):
         means = df[f"{key}_mean"].to_numpy() * scale
@@ -68,6 +81,11 @@ def main():
 
         if key == "total_bytes":
             ax.axhline(idle_total_bytes * scale, color=COLOR_IDLE,
+                       linewidth=1.5, linestyle="--", zorder=4, label="Idle")
+            ax.legend(loc="upper left", frameon=True, framealpha=0.9,
+                      fancybox=True)
+        if key == "bytes_per_s":
+            ax.axhline(idle_bytes_per_s * scale, color=COLOR_IDLE,
                        linewidth=1.5, linestyle="--", zorder=4, label="Idle")
             ax.legend(loc="upper left", frameon=True, framealpha=0.9,
                       fancybox=True)
@@ -85,7 +103,7 @@ def main():
         fontsize=plt.rcParams.get("axes.titlesize", 11),
         y=1.02,
     )
-    plt.tight_layout(w_pad=3.0)
+    plt.tight_layout(w_pad=2.0)
 
     out_path = script_dir / "barplot_blockchain_stats.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")

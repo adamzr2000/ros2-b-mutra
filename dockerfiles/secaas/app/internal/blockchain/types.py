@@ -45,7 +45,7 @@ class AttestationState(IntEnum):
     Closed = 2
 
 
-class MasMutualAttestationContractEvents(str, Enum):
+class AttestationManagerContractEvents(str, Enum):
     AGENT_REGISTERED = "AgentRegistered"
     AGENT_REMOVED = "AgentRemoved"
     ATTESTATION_STARTED = "AttestationStarted"

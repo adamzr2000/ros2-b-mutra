@@ -7,7 +7,7 @@ from queue import Queue, Empty
 from typing import Optional, Dict, Set
 from fastapi import FastAPI
 from web3 import Web3
-from app.internal.blockchain.types import MasMutualAttestationContractEvents, AttestationState
+from app.internal.blockchain.types import AttestationManagerContractEvents, AttestationState
 from app.internal.blockchain.event_watcher import EventWatcher
 from app.internal.utils import helpers
 from app.internal.logger import info, warn, error, debug, green_text
@@ -89,7 +89,7 @@ def process_verifier_attestation(
         error(f"Error in process_verifier_attestation for {attestation_id}: {e}")
 
 def run_verifier_logic_sequential(app: FastAPI, stop_event: Optional[threading.Event] = None):
-    evt_enum = MasMutualAttestationContractEvents.READY_FOR_EVALUATION
+    evt_enum = AttestationManagerContractEvents.READY_FOR_EVALUATION
 
     blockchain_client = app.state.blockchain_client
     evt_abi  = blockchain_client.get_event_abi(evt_enum)

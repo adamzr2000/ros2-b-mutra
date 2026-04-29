@@ -64,11 +64,7 @@ func startAttestation(state *AppState) {
 
 	if state.Config.ExportEnabled {
 		if state.Config.ResultsFile == "" {
-			prefix := "continuous-"
-			if state.Config.OneShot {
-				prefix = "startup-"
-			}
-			state.Config.ResultsFile = config.GetNextRunJSONWithPrefix(state.Config.ResultsDir, prefix, state.Config.Agent.Name)
+			state.Config.ResultsFile = config.GetNextRunJSON(state.Config.ResultsDir, state.Config.Agent.Name)
 			logger.Info("Results file selected (new run): %s", state.Config.ResultsFile)
 		}
 		if err := utils.EnsureResultsInitialized(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile); err != nil {
@@ -411,6 +407,7 @@ func main() {
 	r.POST("/config", func(c *gin.Context) {
 		var body struct {
 			ResultsDir    *string `json:"results_dir"`
+			ResultsFile   *string `json:"results_file"`
 			OneShot       *bool   `json:"one_shot"`
 			ExportEnabled *bool   `json:"export_enabled"`
 		}
@@ -418,8 +415,8 @@ func main() {
 			c.JSON(400, gin.H{"error": "invalid body"})
 			return
 		}
-		if body.ResultsDir == nil && body.OneShot == nil && body.ExportEnabled == nil {
-			c.JSON(400, gin.H{"error": "no recognized fields: use results_dir, one_shot, export_enabled"})
+		if body.ResultsDir == nil && body.ResultsFile == nil && body.OneShot == nil && body.ExportEnabled == nil {
+			c.JSON(400, gin.H{"error": "no recognized fields: use results_dir, results_file, one_shot, export_enabled"})
 			return
 		}
 
@@ -442,6 +439,12 @@ func main() {
 			appState.Config.ResultsFile = "" // force fresh run-number selection on next /start
 			applied["results_dir"] = *body.ResultsDir
 			logger.Info("Results dir set to: %s", *body.ResultsDir)
+		}
+
+		if body.ResultsFile != nil {
+			appState.Config.ResultsFile = *body.ResultsFile
+			applied["results_file"] = *body.ResultsFile
+			logger.Info("Results file set to: %s", *body.ResultsFile)
 		}
 
 		if body.OneShot != nil {

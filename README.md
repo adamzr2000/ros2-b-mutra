@@ -1,4 +1,4 @@
-# Blockchain-based Mutual Remote Attestation (B-MUTRA) for ROS2 Executables
+# Blockchain-based Mutual Remote Attestation for ROS2 Executables
 
 **Author(s):** Adam Zahir Rodriguez and Mark Angoustures
 
@@ -30,48 +30,41 @@ The following modules will be built and tagged locally:
 
 ## Quick Setup
 
-1. Create agent configurations:
+1. Start the full experiment:
 
 ```bash
-# Gazebo mode (config/)
-python3 create_agent_config.py --num-agents 100 --config-output ./config \
-    --cmd-name robot_state_publisher --text-section-size 42223 --offset 0
-
-# Dummy mode (config-dummy/)
-python3 create_agent_config.py --num-agents 100 --config-output ./config-dummy \
-    --cmd-name dummy_publisher --text-section-size 175521 --offset 5744
-```
-
-> Note: To create blockchain agent credentials see [blockchain/quorum-test-network/extra](./blockchain/quorum-test-network/extra)
-
-2. Start the full experiment:
-
-```bash
-./start.sh --auto
+./start.sh --auto --contract standard
 ```
 
 This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
 - **4-node Private Ethereum-based blockchain** with [Hyperledger Besu](https://besu.hyperledger.org/private-networks) platform running [QBFT](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft) consensus algorithm
 - **Gazebo** robot simulator
-- **Robot(s)** with `turtlebot3-gazebo` and `attestation-sidecar`
+- **4 Robot(s)** with `turtlebot3-gazebo` and `attestation-sidecar`
 - **Security-as-a-Service (SECaaS)**
 
 ```bash
-./start.sh -h
+netcom@d-mutra:~/ros2-b-mutra$ ./start.sh -h
 Usage: start.sh [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
+                        [--ssp N] [--cpu-limit X] [--contract standard|optimized] [--vrp N]
 
 Options:
-  --robots N  Number of robots (default: 4, max: 128)
-  --remote    Remote mode: d-mutra hosts Besu+SECaaS+monitoring only;
-              robots+sidecars run on remote host(s)
-  --auto      Set AUTO_START=TRUE
-  --export    Set EXPORT_RESULTS=TRUE
-  --startup   Set ONE_SHOT=TRUE
-  --wait-tx   Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
-  -h|--help   Show this help
+  --robots N     Number of robots to deploy (default: 4, max: 128).
+  --remote       Remote deployment mode: d-mutra VM hosts only Besu+SECaaS+monitoring;
+                 all robots+sidecars run on remote host(s) (remote1 up to 64 robots,
+                 remote2 for 65–128 robots).
+                 Default (local mode): everything runs on d-mutra.
+  --auto         Set AUTO_START=TRUE
+  --export       Set EXPORT_RESULTS=TRUE
+  --wait-tx      Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
+  --startup      Set ONE_SHOT=TRUE
+  --ssp N        Attestation interval in seconds — sets ATTESTATION_INTERVAL_MS=N*1000 (default: 20)
+  --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
+  --contract standard|optimized  Smart contract variant (default: standard)
+  --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
+  -h|--help      Show this help
 ```
 
-3. Stop the experiment:
+2. Stop the experiment:
 
 ```bash
 ./stop.sh
@@ -91,11 +84,17 @@ Services exposed:
 - [Block Explorer](http://localhost:25000/explorer/nodes)
 - [Grafana](http://localhost:3000)
 
-2. Deploy the [MasMutualAttestation.sol](./smart-contracts/contracts/MasMutualAttestation.sol) `smart contract`:
+2. Deploy a smart contract (`standard` or `optimized`):
 
 ```bash
+# Standard (AttestationManager)
 ./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337
+
+# Optimized (AttestationManagerOptimized) — requires --vrp N
+./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerOptimized --vrp 1
 ```
+
+> **Note:** `start.sh` handles blockchain init and contract deployment automatically.
 
 3. Remove the network:
 
@@ -111,10 +110,10 @@ cd blockchain/quorum-test-network
 1. Start the experimental setup:
 
 ```bash
-# Local mode — everything runs on d-mutra (default)
+# Local mode — everything runs on d-mutra VM (default)
 ./start.sh --robots 4 --export
 
-# Remote mode — d-mutra hosts Besu+SECaaS+monitoring only; robots+sidecars on remote1
+# Remote mode — d-mutra VM hosts Besu+SECaaS+monitoring; robots+sidecars on remote1 host
 ./start.sh --robots 32 --export --remote
 ```
 
@@ -144,7 +143,7 @@ python3 run_experiments_and_collect_results.py --robots 32 --runs 10 --startup -
 
 ---
 
-## Data collection (ros2 topic hz)
+## Data collection (robot application performance)
 
 Measures per-message arrival timestamps for `/robotX/<topic>` with and without
 attestation sidecars running. Results are stored under
@@ -197,47 +196,18 @@ python3 run_benchmark.py --condition with_sidecar --mode continuous --runs 5 --t
 ./stop.sh
 ```
 
+---
 
-<!-- ## Data collection (manual)
-1. Start containers:
+## Agent configuration files
+
 ```bash
-./start.sh
+# Gazebo mode (config/)
+python3 create_agent_config.py --num-agents 100 --config-output ./config \
+    --cmd-name robot_state_publisher --text-section-size 42223 --offset 0
+
+# Dummy mode (config-dummy/)
+python3 create_agent_config.py --num-agents 100 --config-output ./config-dummy \
+    --cmd-name dummy_publisher --text-section-size 175521 --offset 5744
 ```
 
-2. Start docker stats data collection
-```shell
-curl -X POST localhost:6000/monitor/start \
-  -H 'Content-Type: application/json' \
-  -d '{"containers": ["secaas","robot1-sidecar","robot2-sidecar","robot3-sidecar","robot4-sidecar"],
-  "interval":1.0,"csv_dir":"/experiments/data/docker-stats/results","stdout":true}' | jq
-```
-> Check status:
-```bash
-curl localhost:6000/monitor/status | jq
-```
-
-3. Start attestation:
-```bash
-for p in 8000 8001 8002 8003 8004; do
-  echo "Starting attestation on sidecar with port $p..."
-  curl -X POST "http://localhost:${p}/start" | jq
-done
-```
-
-4. Stop attestation:
-```bash
-for p in 8000 8001 8002 8003 8004; do
-  echo "Stopping attestation on sidecar with port $p..."
-  curl -X POST "http://localhost:${p}/stop" | jq
-done
-```
-
-5. Stop docker stats data collection
-```shell
-curl -X POST "http://localhost:6000/monitor/stop" | jq
-```
-
-6. Stop workflow
-```bash
-./stop.sh
-``` -->
+> Note: To create blockchain agent credentials see [blockchain/quorum-test-network/extra](./blockchain/quorum-test-network/extra)

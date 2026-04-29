@@ -238,15 +238,17 @@ def reset_attestation_chain():
 
 @app.post("/config")
 async def config_endpoint(body: dict):
-    """Partial runtime config update. Accepted fields: results_dir, export_enabled.
+    """Partial runtime config update. Accepted fields: results_dir, results_file, export_enabled.
     Rejected while an attestation is in progress.
     results_dir change also clears results_file so the next /start picks a fresh run number.
+    results_file, if set, pins the output path for the next run (cleared automatically after the run).
     """
     results_dir    = body.get("results_dir")
+    results_file   = body.get("results_file")
     export_enabled = body.get("export_enabled")
 
-    if results_dir is None and export_enabled is None:
-        return JSONResponse(status_code=400, content={"error": "no recognized fields: use results_dir, export_enabled"})
+    if results_dir is None and results_file is None and export_enabled is None:
+        return JSONResponse(status_code=400, content={"error": "no recognized fields: use results_dir, results_file, export_enabled"})
 
     with _config_lock:
         running = any(t.is_alive() for t in getattr(app.state, "threads", []))
@@ -262,6 +264,11 @@ async def config_endpoint(body: dict):
             app.state.results_file = None  # force fresh run-number selection on next /start
             applied["results_dir"] = results_dir
             info(f"Results dir set to: {results_dir}")
+
+        if results_file is not None:
+            app.state.results_file = results_file or None
+            applied["results_file"] = results_file
+            info(f"Results file set to: {results_file}")
 
         if export_enabled is not None:
             app.state.export_enabled = bool(export_enabled)

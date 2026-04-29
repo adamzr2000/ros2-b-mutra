@@ -3,13 +3,15 @@
 summarize_attestation_durations.py
 Adapted to the high-precision "Sync Pair" architecture (_ns and _ms floats).
 Results are expected under:
-    results/<N{n_robots}>/<mode>/<prefix>-<participant>-run<N>.json
-e.g.  results/N4/startup/startup-robot1-run3.json
-      results/N4/continuous/continuous-robot1-run2.json
-      results/N4/startup/secaas-run1.json
+    results/<N{n_robots}>/<mode>/<participant>-run<N>.json
+    results/<N{n_robots}>/continuous/<variant>/<participant>-SSP{ssp}s-ITERQu{q}-cpu{cpu}-run<N>.json
 
-Output CSVs all carry n_robots and mode columns so downstream plots can
-filter/facet without manual path parsing.
+e.g.  results/N4/startup/robot1-run3.json
+      results/N4/startup/secaas-run1.json
+      results/N4/continuous/standard/robot1-SSP20s-ITERQu1-cpu0p4-run2.json
+
+Output CSVs carry n_robots, mode, variant, ssp_s, iterqu, cpu_limit columns.
+variant is "" for startup; ssp_s/iterqu/cpu_limit are NaN for startup.
 """
 
 import json
@@ -57,35 +59,60 @@ METRICS_CONFIG = {
     ],
 }
 
-# Expected directory layout:  results / N{n} / {mode} / {files}
-# Files named:  {mode}-{participant}-run{N}.json   (robots)
-#               secaas-run{N}.json                 (oracle)
-# The mode prefix in the filename is stripped before participant extraction.
-_FILE_PATTERN = re.compile(r"^(?P<participant>.+)-run(?P<run>\d+)\.json$", re.IGNORECASE)
-_KNOWN_MODES  = {"startup", "continuous"}
+_FILE_PATTERN    = re.compile(r"^(?P<participant>.+)-run(?P<run>\d+)\.json$", re.IGNORECASE)
+_KNOWN_MODES     = {"startup", "continuous"}
+_KNOWN_VARIANTS  = {"standard", "exception", "batched"}
+
+# Optional param segment encoded in filename: -SSP{n}s-ITERQu{n}-cpu{n}p{n}
+_PARAMS_RE = re.compile(
+    r"-SSP(?P<ssp>\d+)s-ITERQu(?P<iterqu>\d+)-cpu(?P<cpu>[\dp]+)$",
+    re.IGNORECASE,
+)
+
+
+def _extract_params(base: str):
+    """Strip -SSP/ITERQu/cpu suffix from base; return (ssp_s, iterqu, cpu_limit, cleaned_base).
+    Returns (None, None, None, base) when the suffix is absent (e.g. startup files)."""
+    m = _PARAMS_RE.search(base)
+    if m:
+        ssp    = int(m.group("ssp"))
+        iterqu = int(m.group("iterqu"))
+        cpu    = float(m.group("cpu").replace("p", "."))
+        return ssp, iterqu, cpu, base[: m.start()]
+    return None, None, None, base
 
 
 def _parse_path(json_path: Path):
     """
-    Returns (n_robots, mode, participant, run_id) from a path like
-        results/N4/continuous/continuous-robot1-run2.json
-    or  results/N4/startup/secaas-run5.json
+    Returns (n_robots, mode, variant, participant, run_id).
+    variant is "" for startup, one of _KNOWN_VARIANTS for continuous.
     Returns None if the path doesn't match the expected layout.
     """
-    parts = json_path.parts  # (..., "results", "N4", "continuous", "filename.json")
+    parts = json_path.parts
     try:
         results_idx = next(i for i, p in enumerate(parts) if p == "results")
     except StopIteration:
         return None
 
-    rel = parts[results_idx + 1:]  # ("N4", "continuous", "filename.json")
-    if len(rel) != 3:
+    rel = parts[results_idx + 1:]
+
+    # startup:    (N{n}, "startup", filename)          → 3 parts
+    # continuous: (N{n}, "continuous", variant, filename) → 4 parts
+    if len(rel) == 3:
+        n_label, mode, filename = rel
+        variant = ""
+    elif len(rel) == 4:
+        n_label, mode, variant, filename = rel
+    else:
         return None
 
-    n_label, mode, filename = rel
     if not n_label.upper().startswith("N"):
         return None
     if mode not in _KNOWN_MODES:
+        return None
+    if mode == "startup" and variant != "":
+        return None
+    if mode == "continuous" and variant not in _KNOWN_VARIANTS:
         return None
 
     try:
@@ -100,16 +127,9 @@ def _parse_path(json_path: Path):
     raw_participant = m.group("participant")
     run_id          = int(m.group("run"))
 
-    # Strip the mode prefix from the participant name when present
-    # e.g. "startup-robot1" → "robot1",  "continuous-robot2" → "robot2"
-    # "secaas" stays as-is
-    for prefix in _KNOWN_MODES:
-        if raw_participant.lower().startswith(prefix + "-"):
-            raw_participant = raw_participant[len(prefix) + 1:]
-            break
-
+    ssp_s, iterqu, cpu_limit, raw_participant = _extract_params(raw_participant)
     participant = _clean_label(raw_participant)
-    return n_robots, mode, participant, run_id
+    return n_robots, mode, variant, participant, ssp_s, iterqu, cpu_limit, run_id
 
 
 def _clean_label(raw: str) -> str:
@@ -151,7 +171,7 @@ def main():
         if parsed is None:
             continue
 
-        n_robots, mode, participant, run_id = parsed
+        n_robots, mode, variant, participant, ssp_s, iterqu, cpu_limit, run_id = parsed
 
         try:
             with open(json_path, "r", encoding="utf-8") as f:
@@ -187,6 +207,10 @@ def main():
                         data_points.append({
                             "n_robots":    n_robots,
                             "mode":        mode,
+                            "variant":     variant,
+                            "ssp_s":       ssp_s,
+                            "iterqu":      iterqu,
+                            "cpu_limit":   cpu_limit,
                             "participant": participant,
                             "run":         run_id,
                             "role":        role,
@@ -200,8 +224,10 @@ def main():
 
     df = pd.DataFrame(data_points)
 
-    GROUP_KEYS   = ["n_robots", "mode", "participant", "run", "role", "metric"]
-    SUMMARY_KEYS = ["n_robots", "mode", "participant", "participant_group", "role", "metric"]
+    GROUP_KEYS   = ["n_robots", "mode", "variant", "ssp_s", "iterqu", "cpu_limit",
+                    "participant", "run", "role", "metric"]
+    SUMMARY_KEYS = ["n_robots", "mode", "variant", "ssp_s", "iterqu", "cpu_limit",
+                    "participant", "participant_group", "role", "metric"]
 
     AGG = dict(
         run_count="count",
@@ -222,7 +248,7 @@ def main():
     # Per-run mean: average across attestation cycles within each (robot, run) pair,
     # giving equal weight to each run regardless of how many cycles it completed.
     per_run = (
-        df.groupby(GROUP_KEYS, as_index=False)["duration_s"]
+        df.groupby(GROUP_KEYS, as_index=False, dropna=False)["duration_s"]
         .mean()
         .rename(columns={"duration_s": "run_mean_s"})
     )
@@ -237,7 +263,7 @@ def main():
     # can use either granularity (Robot1/Robot2/... or Robot/SECaaS) from
     # the same file without reloading.
     summary = (
-        per_run.groupby(SUMMARY_KEYS)["run_mean_s"]
+        per_run.groupby(SUMMARY_KEYS, dropna=False)["run_mean_s"]
         .agg(**AGG)
         .reset_index()
     )

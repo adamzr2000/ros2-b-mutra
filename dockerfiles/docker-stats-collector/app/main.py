@@ -29,6 +29,9 @@ class StartRequest(BaseModel):
         None,
         description="Optional map {container_ref: csv filename or absolute path} to override automatic naming"
     )
+    ssp_s:     Optional[int]   = Field(None, description="SSP value — embeds -SSP{X}s-ITERQu{X}-cpu{X}p{X}- tag in auto-generated filenames")
+    iterqu:    Optional[int]   = Field(None, description="ITERQu value for param tag")
+    cpu_limit: Optional[float] = Field(None, description="CPU limit value for param tag (e.g. 0.4 → cpu0p4)")
     stdout: bool = False
     write_header: bool = True
 
@@ -87,17 +90,23 @@ def _sanitize_ref(ref: str) -> str:
     """Make a filename-safe container ref."""
     return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in ref)
 
-def _next_run_csv(csv_dir: str, ref: str) -> str:
+def _param_tag(ssp_s, iterqu, cpu_limit) -> str:
+    """Build the experiment-param suffix, e.g. '-SSP20s-ITERQu1-cpu0p4'. Empty string if any param is None."""
+    if ssp_s is None or iterqu is None or cpu_limit is None:
+        return ""
+    cpu_str = f"{cpu_limit:.1f}".replace(".", "p")
+    return f"-SSP{ssp_s}s-ITERQu{iterqu}-cpu{cpu_str}"
+
+def _next_run_csv(csv_dir: str, ref: str, tag: str = "") -> str:
     safe = _sanitize_ref(ref)
     base = csv_dir.rstrip("/")
-    # Find existing <safe>-run*.csv and compute next index
-    pattern = os.path.join(base, f"{safe}-run*.csv")
+    os.makedirs(base, exist_ok=True)
+    pattern = os.path.join(base, f"{safe}{tag}-run*.csv")
     existing = glob.glob(pattern)
     max_idx = 0
-    rx = re.compile(rf"{re.escape(safe)}-run(\d+)\.csv$")
+    rx = re.compile(rf"{re.escape(safe)}{re.escape(tag)}-run(\d+)\.csv$")
     for path in existing:
-        fname = os.path.basename(path)
-        m = rx.search(fname)
+        m = rx.search(os.path.basename(path))
         if m:
             try:
                 idx = int(m.group(1))
@@ -105,15 +114,14 @@ def _next_run_csv(csv_dir: str, ref: str) -> str:
                     max_idx = idx
             except ValueError:
                 pass
-    next_idx = max_idx + 1
-    return os.path.join(base, f"{safe}-run{next_idx}.csv")
+    return os.path.join(base, f"{safe}{tag}-run{max_idx + 1}.csv")
 
-def _make_csv_path(csv_dir: Optional[str], ref: str, csv_names: Optional[Dict[str, str]]) -> Optional[str]:
+def _make_csv_path(csv_dir: Optional[str], ref: str, csv_names: Optional[Dict[str, str]], tag: str = "") -> Optional[str]:
     """
-    If csv_dir is set, choose CSV path for this container ref.
+    Choose CSV path for this container ref.
     Priority:
-      1) req.csv_names[ref] if provided (absolute path allowed; otherwise treated as filename under csv_dir)
-      2) fallback to automatic <sanitized_ref>-runN.csv
+      1) csv_names[ref] if provided (absolute path allowed; otherwise filename under csv_dir)
+      2) auto-increment: <sanitized_ref><tag>-runN.csv
     """
     if not csv_dir:
         return None
@@ -122,17 +130,13 @@ def _make_csv_path(csv_dir: Optional[str], ref: str, csv_names: Optional[Dict[st
 
     if csv_names and ref in csv_names and csv_names[ref]:
         name = csv_names[ref].strip()
-
-        # Absolute path: use as-is
         if os.path.isabs(name):
             return name
-
-        # Relative: treat as filename inside csv_dir
         if not name.lower().endswith(".csv"):
             name += ".csv"
         return os.path.join(base, name)
 
-    return _next_run_csv(base, ref)
+    return _next_run_csv(base, ref, tag)
 
 
 # ---------- Endpoints ----------
@@ -143,11 +147,12 @@ def _make_csv_path(csv_dir: Optional[str], ref: str, csv_names: Optional[Dict[st
     response_model=StartResponse,
 )
 def monitor_start(req: StartRequest):
+    tag = _param_tag(req.ssp_s, req.iterqu, req.cpu_limit)
     started, skipped = [], []
     for ref in req.containers:
         try:
             _ensure_no_conflict(app, ref)
-            csv_path = _make_csv_path(req.csv_dir, ref, req.csv_names)
+            csv_path = _make_csv_path(req.csv_dir, ref, req.csv_names, tag)
             if csv_path:
                 logger.info("CSV path for '%s': %s", ref, csv_path)
 

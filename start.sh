@@ -57,18 +57,23 @@ remote_compose_up() {
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
+                        [--ssp N] [--cpu-limit X] [--contract standard|optimized] [--vrp N]
 
 Options:
-  --robots N  Number of robots to deploy (default: 4, max: $REMOTE2_LIMIT).
-  --remote    Remote deployment mode: d-mutra hosts only Besu+SECaaS+monitoring;
-              all robots+sidecars run on remote host(s) (remote1 up to $REMOTE1_LIMIT robots,
-              remote2 for $((REMOTE1_LIMIT+1))–$REMOTE2_LIMIT robots).
-              Default (local mode): everything runs on d-mutra.
-  --auto      Set AUTO_START=TRUE
-  --export    Set EXPORT_RESULTS=TRUE
-  --wait-tx   Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
-  --startup   Set ONE_SHOT=TRUE
-  -h|--help   Show this help
+  --robots N     Number of robots to deploy (default: 4, max: $REMOTE2_LIMIT).
+  --remote       Remote deployment mode: d-mutra hosts only Besu+SECaaS+monitoring;
+                 all robots+sidecars run on remote host(s) (remote1 up to $REMOTE1_LIMIT robots,
+                 remote2 for $((REMOTE1_LIMIT+1))–$REMOTE2_LIMIT robots).
+                 Default (local mode): everything runs on d-mutra.
+  --auto         Set AUTO_START=TRUE
+  --export       Set EXPORT_RESULTS=TRUE
+  --wait-tx      Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
+  --startup      Set ONE_SHOT=TRUE
+  --ssp N        Attestation interval in seconds — sets ATTESTATION_INTERVAL_MS=N*1000 (default: 20)
+  --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
+  --contract standard|optimized  Smart contract variant (default: standard)
+  --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
+  -h|--help      Show this help
 
 EOF
 }
@@ -80,6 +85,11 @@ EXPORT_RESULTS_VAL="FALSE"
 WAIT_TX_VAL="FALSE"
 ONE_SHOT_VAL="FALSE"
 DEPLOY_MODE="local"
+SSP_VAL="20"
+CPU_LIMIT_VAL="0.4"
+VARIANT_VAL="standard"
+CONTRACT_VAL="AttestationManager"
+VRP_VAL="1"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -96,10 +106,45 @@ while [[ $# -gt 0 ]]; do
     --export)   EXPORT_RESULTS_VAL="TRUE"; shift ;;
     --wait-tx)  WAIT_TX_VAL="TRUE"; shift ;;
     --startup)  ONE_SHOT_VAL="TRUE"; shift ;;
+    --ssp)
+      SSP_VAL="$2"
+      if ! [[ "$SSP_VAL" =~ ^[1-9][0-9]*$ ]]; then
+        echo "❌ --ssp must be a positive integer in seconds (got '$SSP_VAL')"
+        exit 1
+      fi
+      shift 2 ;;
+    --cpu-limit)
+      CPU_LIMIT_VAL="$2"
+      if ! [[ "$CPU_LIMIT_VAL" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+        echo "❌ --cpu-limit must be a positive number (got '$CPU_LIMIT_VAL')"
+        exit 1
+      fi
+      shift 2 ;;
+    --contract)
+      VARIANT_VAL="$2"
+      if [[ "$VARIANT_VAL" != "standard" && "$VARIANT_VAL" != "optimized" ]]; then
+        echo "❌ --contract must be 'standard' or 'optimized' (got '$VARIANT_VAL')"
+        exit 1
+      fi
+      shift 2 ;;
+    --vrp)
+      VRP_VAL="$2"
+      if ! [[ "$VRP_VAL" =~ ^[1-9][0-9]*$ ]]; then
+        echo "❌ --vrp must be a positive integer (got '$VRP_VAL')"
+        exit 1
+      fi
+      shift 2 ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "❌ Unknown arg: $1"; echo; usage; exit 1 ;;
   esac
 done
+
+# Map user-facing variant to internal contract name
+if [[ "$VARIANT_VAL" == "optimized" ]]; then
+  CONTRACT_VAL="AttestationManagerOptimized"
+else
+  CONTRACT_VAL="AttestationManager"
+fi
 
 # Validate remote2 requirements before proceeding
 if [[ "$DEPLOY_MODE" == "remote" ]] && (( N_ROBOTS_VAL > REMOTE1_LIMIT )) && [[ -z "$REMOTE2_HOST" ]]; then
@@ -130,13 +175,15 @@ upsert_env "ONE_SHOT"                  "$ONE_SHOT_VAL"
 upsert_env "N_ROBOTS"                  "$N_ROBOTS_VAL"
 upsert_env "COMPOSE_PROJECT_NAME"      "$PROJECT_NAME"
 upsert_env "DEPLOY_MODE"               "$DEPLOY_MODE"
+upsert_env "ATTESTATION_INTERVAL_MS"  "$((SSP_VAL * 1000))"
+upsert_env "CPU_LIMIT"                 "$CPU_LIMIT_VAL"
 
-echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL)"
+echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Contract: $CONTRACT_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL, SSP: ${SSP_VAL}s, CPU: $CPU_LIMIT_VAL)"
 echo
 
 # Regenerate compose files for the selected mode
 echo "🔧 Generating compose files for $N_ROBOTS_VAL robot(s) [mode: $DEPLOY_MODE]..."
-python3 "$SCRIPT_DIR/generate_compose.py" --robots "$N_ROBOTS_VAL" --blockchain-host "$LOCAL_IP" --mode "$DEPLOY_MODE"
+python3 "$SCRIPT_DIR/generate_compose.py" --robots "$N_ROBOTS_VAL" --blockchain-host "$LOCAL_IP" --mode "$DEPLOY_MODE" --contract "$CONTRACT_VAL"
 echo
 
 # Reset local EventWatcher checkpoints (SECaaS always on d-mutra)
@@ -160,7 +207,41 @@ sleep 10
 
 # ── Deploy the smart contract ──────────────────────────────────────────────────
 cd "$SCRIPT_DIR"
-./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337
+deploy_flags=(--rpc_url http://localhost:21001 --chain_id 1337 --contract "$CONTRACT_VAL")
+[[ "$CONTRACT_VAL" == "AttestationManagerOptimized" ]] && deploy_flags+=(--vrp "$VRP_VAL")
+./deploy_sc.sh "${deploy_flags[@]}"
+
+# ── Generate agent config JSONs (config/ and config-dummy/) ───────────────────
+# Blockchain host seen by sidecar containers differs per deploy mode.
+if [[ "$DEPLOY_MODE" == "remote" ]]; then
+  CFG_BLOCKCHAIN_HOST="$LOCAL_IP"
+else
+  CFG_BLOCKCHAIN_HOST="host.docker.internal"
+fi
+
+echo "🔧 Generating agent configs (contract: $CONTRACT_VAL, blockchain-host: $CFG_BLOCKCHAIN_HOST)..."
+
+python3 "$SCRIPT_DIR/create_agent_config.py" \
+  --num-agents 100 \
+  --contract "$CONTRACT_VAL" \
+  --config-output "$SCRIPT_DIR/config" \
+  --ref-output "$SCRIPT_DIR/ref-measurements" \
+  --blockchain-host "$CFG_BLOCKCHAIN_HOST" \
+  --cmd-name robot_state_publisher \
+  --text-section-size 42223 \
+  --offset 0
+
+python3 "$SCRIPT_DIR/create_agent_config.py" \
+  --num-agents 100 \
+  --contract "$CONTRACT_VAL" \
+  --config-output "$SCRIPT_DIR/config-dummy" \
+  --ref-output "$SCRIPT_DIR/ref-measurements-dummy" \
+  --blockchain-host "$CFG_BLOCKCHAIN_HOST" \
+  --cmd-name dummy_publisher \
+  --text-section-size 175521 \
+  --offset 5744
+
+echo
 
 # ── SECaaS helper (shared by both deployment branches) ────────────────────────
 wait_for_secaas() {

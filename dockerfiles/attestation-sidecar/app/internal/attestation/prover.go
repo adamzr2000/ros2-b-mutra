@@ -280,7 +280,7 @@ func RunProverLogicContinuousMode(
 
 		if err != nil {
 			if compute.IsComputeHashError(err) {
-				logger.Error("Hash computation error: %v", err)
+				logger.Debug("Hash computation error: %v", err)
 			} else {
 				logger.Error("Error in attestation process: %v", err)
 			}
