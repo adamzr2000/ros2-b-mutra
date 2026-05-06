@@ -34,6 +34,7 @@ type ProverConfig struct {
 	Offset            int
 	TextSectionPrefix string // Hex string of first N bytes of .text section
 	Threshold         int    // Kept for config compatibility, but logic uses interval
+	IterQThreshold    uint32 // K = fresh measurements folded per on-chain attestation
 	AgentName         string
 	ExportEnabled     bool
 	ResultsDir        string
@@ -58,6 +59,7 @@ func ProcessProverAttestation(
 	bc *blockchain.BlockchainClient,
 	attestationID string,
 	measurement string,
+	iterCount uint32,
 	stopCh <-chan struct{},
 	exportEnabled bool,
 	participantName string,
@@ -79,11 +81,9 @@ func ProcessProverAttestation(
 	timestamps["evidence_sent"] = utils.NowMs()
 	timestamps["p_send_evidence_start"] = utils.PerfNs()
 
-	// Send evidence with wait=true and timeout=60s.
-	// IterQ K=1: single measurement per attestation (no rolling-hash chaining).
-	// Step 3 will replace this with the configured ITERQ_THRESHOLD and a real
-	// K-fold rolling hash computed in the per-cycle loop.
-	_, err := bc.SendEvidence(attestationID, measurement, 1, waitForTx, 60)
+	// Send evidence with wait=true and timeout=60s. iterCount carries K for
+	// the on-chain record so the verifier can re-derive the chained reference.
+	_, err := bc.SendEvidence(attestationID, measurement, iterCount, waitForTx, 60)
 
 	timestamps["p_send_evidence_finished"] = utils.PerfNs()
 
@@ -173,13 +173,76 @@ func RunProverAndCleanup(
 	}()
 
 	ProcessProverAttestation(
-		bc, attestationID, measurement, stopCh, 
+		bc, attestationID, measurement, config.IterQThreshold, stopCh,
 		config.ExportEnabled, config.AgentName, config.ResultsDir, config.ResultsFile,
 		startTs, startP, config.WaitForTxConfirmations,
 	)
 }
 
-// RunProverLogicContinuousMode runs the continuous prover loop
+// measureCombinedOnce performs a single integrity measurement cycle and
+// returns the combined digest as a hex string (the same "fresh measurement
+// m_i" that, in K=1 mode, would be sent as-is on-chain). The combined digest
+// is sha256( robotHash_hex || sidecarHash_hex [|| libsHash_hex] ) — kept as
+// hex-string concat for backward compat with the original combined formula.
+func measureCombinedOnce(config ProverConfig) (combinedDigest, robotHash, sidecarHash, libsHash string, err error) {
+	if config.TextSectionPrefix != "" {
+		robotHash, err = compute.ComputeProgramHashWithPrefix(
+			config.CmdName,
+			config.TextSectionSize,
+			config.TextSectionPrefix,
+		)
+	} else {
+		robotHash, err = compute.ComputeProgramHash(
+			config.CmdName,
+			config.TextSectionSize,
+			config.Offset,
+		)
+	}
+	if err != nil {
+		return "", "", "", "", err
+	}
+	combinedDigest = robotHash
+
+	if config.SelfIntegrity.Enabled {
+		sidecarHash, err = compute.ComputeProgramHash(
+			config.SelfIntegrity.CmdName,
+			config.SelfIntegrity.TextSectionSize,
+			config.SelfIntegrity.TextSectionOffset,
+		)
+		if err != nil {
+			return "", robotHash, "", "", err
+		}
+		if sidecarHash != config.SelfIntegrity.ExpectedSHA256 {
+			logger.Warn("[Prover] ⚠️ Self-integrity mismatch!")
+		}
+		sum := sha256.Sum256([]byte(robotHash + sidecarHash))
+		combinedDigest = hex.EncodeToString(sum[:])
+	}
+
+	if utils.GetEnvBool("ENABLE_LIBS_HASH", false) {
+		exePath, e := os.Readlink("/proc/self/exe")
+		if e == nil {
+			libs, e2 := compute.ComputeLoadedLibrariesHash(os.Getpid(), exePath)
+			if e2 == nil && libs.Aggregate != "" {
+				libsHash = libs.Aggregate
+				sum := sha256.Sum256([]byte(robotHash + sidecarHash + libsHash))
+				combinedDigest = hex.EncodeToString(sum[:])
+			}
+		}
+		expected := utils.GetEnvStr("EXPECTED_LIBS_HASH", "")
+		if expected != "" && libsHash != expected {
+			logger.Warn("[Prover] ⚠️ Loaded libs hash mismatch!")
+		}
+	}
+	return combinedDigest, robotHash, sidecarHash, libsHash, nil
+}
+
+// RunProverLogicContinuousMode runs the continuous prover loop.
+//
+// Per cycle: takes K = config.IterQThreshold fresh measurements spaced by
+// ATTESTATION_INTERVAL_MS, folds them into a single rolling hash H_K via
+// byte-level chained SHA-256 (compute.RollingHashStep), and submits one
+// SendEvidence(id, H_K, K) on-chain. K=1 reduces to single-shot.
 func RunProverLogicContinuousMode(
 	stopCh <-chan struct{},
 	bc *blockchain.BlockchainClient,
@@ -190,12 +253,15 @@ func RunProverLogicContinuousMode(
 ) {
 	defer wg.Done()
 
-	logger.Info("Starting attestation process in continuous mode (single-hash)...")
+	K := config.IterQThreshold
+	if K < 1 {
+		K = 1
+	}
+	logger.Info("Starting attestation process in continuous mode (IterQ K=%d)...", K)
 
-	// Create local state
 	state := &ProverState{
-		Digests:      make([]string, 0),
-		Measuring:    true,
+		Digests:   make([]string, 0),
+		Measuring: true,
 	}
 
 	for {
@@ -206,43 +272,62 @@ func RunProverLogicContinuousMode(
 		default:
 		}
 
-		// Simple measuring check
-		measuring := state.Measuring
-		if !measuring {
+		if !state.Measuring {
 			time.Sleep(25 * time.Millisecond)
 			continue
 		}
 
-		// Record the start time of *this specific attestation cycle*
-		// This will be passed down to become timestamps["prover_start"]
+		// Cycle start timestamps (taken at the FIRST measurement so that
+		// p_send_evidence_start - prover_start captures the full K-fold loop).
 		batchStartTs := utils.NowMs()
 		batchStartP := utils.PerfNs()
 
-		// 1. Measure / Compute Hash
-		var digest string
-		var err error
-
-		if config.TextSectionPrefix != "" {
-			logger.Debug("Using dynamic offset calculation with prefix: %s...", config.TextSectionPrefix[:min(16, len(config.TextSectionPrefix))])
-			digest, err = compute.ComputeProgramHashWithPrefix(
-				config.CmdName,
-				config.TextSectionSize,
-				config.TextSectionPrefix,
-			)
-		} else {
-			digest, err = compute.ComputeProgramHash(
-				config.CmdName,
-				config.TextSectionSize,
-				config.Offset,
-			)
-		}
-
-		if err != nil {
-			if compute.IsComputeHashError(err) {
-				logger.Debug("Hash computation error: %v", err)
-			} else {
-				logger.Error("Error in attestation process: %v", err)
+		// Fold K fresh measurements into a rolling-hash accumulator.
+		var H [32]byte
+		var lastCombined, lastRobotHash, lastSidecarHash, lastLibsHash string
+		failed := false
+		for i := uint32(1); i <= K; i++ {
+			// Sleep BEFORE each measurement except the first — the SSP between
+			// consecutive measurements is what defines the "vulnerability
+			// window granularity" the paper talks about.
+			if i > 1 {
+				select {
+				case <-stopCh:
+					logger.Info("Attestation process stopped")
+					return
+				case <-time.After(attestationInterval()):
+				}
 			}
+
+			combined, robotHash, sidecarHash, libsHash, err := measureCombinedOnce(config)
+			if err != nil {
+				if compute.IsComputeHashError(err) {
+					logger.Debug("Hash computation error at iter %d/%d: %v", i, K, err)
+				} else {
+					logger.Error("Error in attestation process at iter %d/%d: %v", i, K, err)
+				}
+				failed = true
+				break
+			}
+			lastCombined, lastRobotHash, lastSidecarHash, lastLibsHash = combined, robotHash, sidecarHash, libsHash
+
+			raw, err := hex.DecodeString(combined)
+			if err != nil || len(raw) != 32 {
+				logger.Error("Invalid combined digest at iter %d/%d (len=%d): %v", i, K, len(raw), err)
+				failed = true
+				break
+			}
+			var m [32]byte
+			copy(m[:], raw)
+
+			if i == 1 {
+				H = m
+			} else {
+				H = compute.RollingHashStep(H, m)
+			}
+			logger.Debug("[Prover] iter %d/%d: m=%s...%s", i, K, combined[:16], combined[len(combined)-16:])
+		}
+		if failed {
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -254,98 +339,43 @@ func RunProverLogicContinuousMode(
 		default:
 		}
 
-		finalDigest := digest
-		state.FinalDigest = finalDigest
-
-		logger.Info("[Prover] Final digest: %s...%s",
-			finalDigest[:16], finalDigest[len(finalDigest)-16:])
-
-		// 2. Compute Self-Integrity (if enabled)
-		combinedDigest := finalDigest
-		sidecarHash := ""
-		libsHash := ""
-
-		if config.SelfIntegrity.Enabled {
-			sidecarHash, err = compute.ComputeProgramHash(
-				config.SelfIntegrity.CmdName,
-				config.SelfIntegrity.TextSectionSize,
-				config.SelfIntegrity.TextSectionOffset,
-			)
-			if err == nil {
-				if sidecarHash != config.SelfIntegrity.ExpectedSHA256 {
-					logger.Warn("[Prover] ⚠️ Self-integrity mismatch!")
-				}
-				// Combine
-				combined := finalDigest + sidecarHash
-				combinedHashBytes := sha256.Sum256([]byte(combined))
-				combinedDigest = hex.EncodeToString(combinedHashBytes[:])
-			} else {
-				logger.Error("[Prover] Failed to compute self-integrity hash: %v", err)
-			}
+		freshSig := hex.EncodeToString(H[:])
+		state.FinalDigest = freshSig
+		if K == 1 {
+			logger.Info("[Prover] Final digest (K=1): %s...%s",
+				freshSig[:16], freshSig[len(freshSig)-16:])
+		} else {
+			logger.Info("[Prover] Rolling-hash digest (K=%d): %s...%s",
+				K, freshSig[:16], freshSig[len(freshSig)-16:])
 		}
 
-		// 3. Libs Hash Logic
-		libsEnabled := utils.GetEnvBool("ENABLE_LIBS_HASH", false)
-		if libsEnabled {
-			exePath, err := os.Readlink("/proc/self/exe")
-			if err == nil {
-				libsDigest, err := compute.ComputeLoadedLibrariesHash(os.Getpid(), exePath)
-				if err == nil && libsDigest.Aggregate != "" {
-					libsHash = libsDigest.Aggregate
-				}
-			}
-		}
-
-		if libsHash != "" {
-			combined := finalDigest + sidecarHash + libsHash
-			combinedHashBytes := sha256.Sum256([]byte(combined))
-			combinedDigest = hex.EncodeToString(combinedHashBytes[:])
-		}
-
-		// Expected Libs Hash
-		expectedLibsHash := utils.GetEnvStr("EXPECTED_LIBS_HASH", "")
-		if libsEnabled && expectedLibsHash != "" {
-			if libsHash != expectedLibsHash {
-				logger.Warn("[Prover] ⚠️ Loaded libs hash mismatch!")
-			}
-		}
-
-		// 4. Push to Storage
+		// Storage trace for debugging — record the LAST combined digest that
+		// fed the chain plus the chain output.
 		store.PushFinalDigest("final_digests:"+config.AgentName, map[string]interface{}{
-			"final_digest":    finalDigest,
-			"sidecar_hash":    sidecarHash,
-			"libs_hash":       libsHash,
-			"combined_digest": combinedDigest,
-			"threshold":       1,
+			"final_digest":    lastCombined, // last m_i, useful for debugging
+			"sidecar_hash":    lastSidecarHash,
+			"libs_hash":       lastLibsHash,
+			"robot_hash":      lastRobotHash,
+			"combined_digest": freshSig, // H_K — what actually goes on-chain
+			"iter_count":      K,
 			"timestamp":       float64(time.Now().Unix()),
 		})
 
-		// 5. Start Attestation Transaction
 		attestationID := utils.GenerateAttestationID()
 
 		wg.Add(1)
-		go func(attID string, evidence string, startTs int64, startP int64) {
+		go func(attID, evidence string, startTs, startP int64) {
 			defer wg.Done()
 			RunProverAndCleanup(
-				bc,
-				attID,
-				evidence,
-				startTs,
-				startP,
-				stopCh,
-				config,
-				activeAttestations,
+				bc, attID, evidence, startTs, startP, stopCh, config, activeAttestations,
 			)
-		}(attestationID, combinedDigest, batchStartTs, batchStartP)
+		}(attestationID, freshSig, batchStartTs, batchStartP)
 
 		activeAttestations.Store(attestationID, true)
 
-		// Short sleep to allow async start
+		// Short sleep to let the goroutine kick off before next cycle.
 		time.Sleep(500 * time.Millisecond)
 
-		logger.Debug("Final digest stored in key: final_digests:%s", config.AgentName)
-
-		// Export storage if memory backend
 		if memStor, ok := store.(*storage.MemoryStorageBackend); ok && config.MemoryStorageFile != "" {
 			memStor.ExportToFile(config.MemoryStorageFile)
 		}
@@ -355,6 +385,9 @@ func RunProverLogicContinuousMode(
 			return
 		}
 
+		// Inter-cycle sleep — preserves the SSP between m_K of this cycle
+		// and m_1 of the next cycle, so the cadence remains constant across
+		// cycle boundaries.
 		select {
 		case <-stopCh:
 			logger.Info("Attestation process stopped")

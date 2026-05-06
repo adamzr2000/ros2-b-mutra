@@ -1,5 +1,6 @@
 # app/internal/utils/helpers.py
 
+import hashlib
 import os
 import json
 import time
@@ -9,6 +10,32 @@ import random
 from typing import Optional, Dict, Any
 import re
 from app.internal.logger import info, warn, error, debug, green_text
+
+
+def rolling_hash(m_hex: str, k: int) -> str:
+    """Mirror of compute.RollingHash in Go — must stay bit-for-bit identical.
+
+    Returns the K-iterated chained SHA-256:
+        H_1 = m
+        H_i = SHA256( H_{i-1} || m )    for i = 2..K
+
+    Concatenation is byte-level (32 + 32 = 64 bytes per step). Accepts the
+    seed with or without "0x" prefix; returns bare hex (no prefix).
+    K must be >= 1; K=1 returns m unchanged.
+    """
+    s = m_hex.lower()
+    if s.startswith("0x"):
+        s = s[2:]
+    raw = bytes.fromhex(s)
+    if len(raw) != 32:
+        raise ValueError(f"rolling hash seed must be 32 bytes, got {len(raw)}")
+    if k <= 1:
+        return raw.hex()
+    h = raw
+    for _ in range(2, k + 1):
+        h = hashlib.sha256(h + raw).digest()
+    return h.hex()
+
 
 # One lock per agent file (process-local)
 _JSON_FILE_LOCKS = {}

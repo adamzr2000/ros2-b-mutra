@@ -58,6 +58,7 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
                         [--ssp N] [--cpu-limit X] [--contract standard|optimized] [--vrp N]
+                        [--iterq K]
 
 Options:
   --robots N     Number of robots to deploy (default: 4, max: $REMOTE2_LIMIT).
@@ -73,6 +74,8 @@ Options:
   --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
   --contract standard|optimized  Smart contract variant (default: optimized)
   --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
+  --iterq K      IterQ rolling-hash threshold: number of fresh measurements folded into
+                 one on-chain attestation. K=1 = single-shot. Range: 1..10000 (default: 1)
   -h|--help      Show this help
 
 EOF
@@ -90,6 +93,7 @@ CPU_LIMIT_VAL="0.4"
 VARIANT_VAL="optimized"
 CONTRACT_VAL="AttestationManagerOptimized"
 VRP_VAL="1"
+ITERQ_VAL="1"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -131,6 +135,13 @@ while [[ $# -gt 0 ]]; do
       VRP_VAL="$2"
       if ! [[ "$VRP_VAL" =~ ^[1-9][0-9]*$ ]]; then
         echo "❌ --vrp must be a positive integer (got '$VRP_VAL')"
+        exit 1
+      fi
+      shift 2 ;;
+    --iterq)
+      ITERQ_VAL="$2"
+      if ! [[ "$ITERQ_VAL" =~ ^[1-9][0-9]*$ ]] || (( ITERQ_VAL > 10000 )); then
+        echo "❌ --iterq must be an integer in 1..10000 (got '$ITERQ_VAL')"
         exit 1
       fi
       shift 2 ;;
@@ -177,8 +188,9 @@ upsert_env "COMPOSE_PROJECT_NAME"      "$PROJECT_NAME"
 upsert_env "DEPLOY_MODE"               "$DEPLOY_MODE"
 upsert_env "ATTESTATION_INTERVAL_MS"  "$((SSP_VAL * 1000))"
 upsert_env "CPU_LIMIT"                 "$CPU_LIMIT_VAL"
+upsert_env "ITERQ_THRESHOLD"           "$ITERQ_VAL"
 
-echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Contract: $CONTRACT_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL, SSP: ${SSP_VAL}s, CPU: $CPU_LIMIT_VAL)"
+echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Contract: $CONTRACT_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL, SSP: ${SSP_VAL}s, CPU: $CPU_LIMIT_VAL, IterQ: $ITERQ_VAL)"
 echo
 
 # Regenerate compose files for the selected mode

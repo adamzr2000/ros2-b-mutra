@@ -64,7 +64,8 @@ type AppConfig struct {
 	OneShot   bool
 
 	// Attestation Params (Env)
-	ProverThreshold      int
+	ProverThreshold      int    // legacy, unused
+	IterQThreshold       uint32 // K = number of fresh measurements folded into one on-chain attestation; 1 = single-shot
 	SelfIntegrityEnabled bool
 	
 	// ADDED: Storage for the auto-discovered integrity info
@@ -120,6 +121,7 @@ func Load() (*AppConfig, error) {
 		OneShot:           utils.GetEnvBool("ONE_SHOT", false),
 
 		ProverThreshold:      utils.GetEnvInt("PROVER_THRESHOLD", 300),
+		IterQThreshold:       uint32(utils.GetEnvInt("ITERQ_THRESHOLD", 1)),
 		SelfIntegrityEnabled: utils.GetEnvBool("SELF_INTEGRITY_ENABLED", false),
 
 		// Initialize Empty SelfIntegrity (Will be populated in main.go)
