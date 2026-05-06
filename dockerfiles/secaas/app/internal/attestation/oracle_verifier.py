@@ -77,7 +77,10 @@ def process_secaas_attestation(
             timestamps["get_signatures_start"] = helpers.now_ms()
             timestamps["p_get_signatures_start"] = helpers.perf_ns()
 
-            fresh_sig_hex, _ = blockchain_client.get_attestation_signatures(attestation_id)
+            # iter_count (K) is read but unused in step 2: prover sends K=1 so
+            # the rolling-hash re-derivation is a no-op. Step 3 will fold ref_hash
+            # K times before comparing to fresh.
+            fresh_sig_hex, _, _ = blockchain_client.get_attestation_signatures(attestation_id)
 
             timestamps["p_get_signatures_finished"] = helpers.perf_ns()
             timestamps["get_signatures_finished"] = helpers.now_ms()

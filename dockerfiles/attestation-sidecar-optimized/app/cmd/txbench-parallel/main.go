@@ -355,12 +355,12 @@ func runWarmup(accounts []string, agentNames map[string]string, signers map[stri
 		attID := makeAttID("warmup", index+1)
 
 		proverSigner.Mutex.Lock()
-		_, err := proverSigner.Client.SendEvidence(attID, makeBytes32Hex("warmup-evidence", index+1), true, timeoutSec)
+		_, err := proverSigner.Client.SendEvidence(attID, makeBytes32Hex("warmup-evidence", index+1), 1, true, timeoutSec)
 		proverSigner.Mutex.Unlock()
 		if err != nil {
 			if regErr := ensureRegistered(proverSigner.Client, agentNames[account], timeoutSec); regErr == nil {
 				proverSigner.Mutex.Lock()
-				_, err = proverSigner.Client.SendEvidence(attID, makeBytes32Hex("warmup-evidence-retry", index+1), true, timeoutSec)
+				_, err = proverSigner.Client.SendEvidence(attID, makeBytes32Hex("warmup-evidence-retry", index+1), 1, true, timeoutSec)
 				proverSigner.Mutex.Unlock()
 			}
 			if err != nil {
@@ -530,7 +530,7 @@ func buildRunners(account string, agentName string, accountSigner *SignerContext
 			return runTx(account, account, "SendEvidence", iter, func() (string, error) {
 				accountSigner.Mutex.Lock()
 				defer accountSigner.Mutex.Unlock()
-				return accountSigner.Client.SendEvidence(attID, sig, true, timeoutSec)
+				return accountSigner.Client.SendEvidence(attID, sig, 1, true, timeoutSec)
 			}, accountSigner.Client)
 		},
 		"SendRefSignature": func(iter int) TxSample {
@@ -539,7 +539,7 @@ func buildRunners(account string, agentName string, accountSigner *SignerContext
 			}
 			attID := makeAttID("ref", iter)
 			accountSigner.Mutex.Lock()
-			_, err := accountSigner.Client.SendEvidence(attID, makeBytes32Hex("seed-evidence", iter), true, timeoutSec)
+			_, err := accountSigner.Client.SendEvidence(attID, makeBytes32Hex("seed-evidence", iter), 1, true, timeoutSec)
 			accountSigner.Mutex.Unlock()
 			if err != nil {
 				return failedSample(account, "SendRefSignature", iter, fmt.Errorf("setup SendEvidence failed: %w", err))
@@ -556,7 +556,7 @@ func buildRunners(account string, agentName string, accountSigner *SignerContext
 			}
 			attID := makeAttID("close", iter)
 			accountSigner.Mutex.Lock()
-			_, err := accountSigner.Client.SendEvidence(attID, makeBytes32Hex("close-evidence", iter), true, timeoutSec)
+			_, err := accountSigner.Client.SendEvidence(attID, makeBytes32Hex("close-evidence", iter), 1, true, timeoutSec)
 			accountSigner.Mutex.Unlock()
 			if err != nil {
 				return failedSample(account, "CloseAttestationProcess", iter, fmt.Errorf("setup SendEvidence failed: %w", err))

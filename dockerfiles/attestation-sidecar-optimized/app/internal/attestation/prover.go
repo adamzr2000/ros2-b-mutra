@@ -79,8 +79,11 @@ func ProcessProverAttestation(
 	timestamps["evidence_sent"] = utils.NowMs()
 	timestamps["p_send_evidence_start"] = utils.PerfNs()
 
-	// Send evidence with wait=true and timeout=60s
-	_, err := bc.SendEvidence(attestationID, measurement, waitForTx, 60)
+	// Send evidence with wait=true and timeout=60s.
+	// IterQ K=1: single measurement per attestation (no rolling-hash chaining).
+	// Step 3 will replace this with the configured ITERQ_THRESHOLD and a real
+	// K-fold rolling hash computed in the per-cycle loop.
+	_, err := bc.SendEvidence(attestationID, measurement, 1, waitForTx, 60)
 
 	timestamps["p_send_evidence_finished"] = utils.PerfNs()
 

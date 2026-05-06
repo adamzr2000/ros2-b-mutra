@@ -259,14 +259,21 @@ class BlockchainClient:
         except Exception as e:
             raise Exception(f"An error occurred while calling the function: {str(e)}")
 
-    def send_evidence(self, attestation_id, fresh_signature, wait: bool = False, timeout: int = 60):
+    def send_evidence(self, attestation_id, fresh_signature, iter_count: int = 1, wait: bool = False, timeout: int = 60):
+        """Submit an attestation request with IterQ depth K (iter_count).
+        Contract enforces 1 <= K <= MAX_ITER_COUNT (10000).
+        K=1 means a single measurement (no rolling-hash chaining).
+        SECaaS does not call this in production; kept aligned with the Solidity
+        ABI for benchmarking and tooling consistency.
+        """
         try:
             att_id_bytes = text_to_bytes32(attestation_id)
             fresh_signature_bytes = as_bytes32(fresh_signature)
 
             tx_data = self.contract.functions.SendEvidence(
-                att_id_bytes, 
-                fresh_signature_bytes
+                att_id_bytes,
+                fresh_signature_bytes,
+                int(iter_count),
             ).build_transaction({'from': self.eth_address})
 
             return self._send_tx(tx_data, wait=wait, timeout=timeout)
@@ -337,10 +344,14 @@ class BlockchainClient:
             raise Exception(f"An error occurred while sending the reference signature: {str(e)}")
 
     def get_attestation_signatures(self, attestation_id):
+        """Returns (fresh_hex, ref_hex, iter_count) where iter_count (K) is the
+        rolling-hash depth the prover used. The verifier must apply the same
+        K-fold to ref before comparing to fresh.
+        """
         try:
             att_id = text_to_bytes32(attestation_id)
-            fresh, ref = self.contract.functions.GetAttestationSignatures(att_id, self.eth_address).call()            
-            return Web3.to_hex(fresh), Web3.to_hex(ref)
+            fresh, ref, iter_count = self.contract.functions.GetAttestationSignatures(att_id, self.eth_address).call()
+            return Web3.to_hex(fresh), Web3.to_hex(ref), int(iter_count)
         except Exception as e:
             raise Exception(f"An error occurred while getting the attestation signatures: {str(e)}")
         

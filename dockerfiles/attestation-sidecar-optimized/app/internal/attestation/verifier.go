@@ -203,7 +203,9 @@ func processVerifierAttestation(
 	timestamps["get_signatures_start"] = utils.NowMs()
 	timestamps["p_get_signatures_start"] = utils.PerfNs()
 
-	freshSig, refSig, err := client.GetAttestationSignatures(attestationID)
+	// iterCount (K) is read but unused in step 2: prover sends K=1 so
+	// rolling-hash re-derivation is a no-op. Step 3 will fold refSig K times.
+	freshSig, refSig, _, err := client.GetAttestationSignatures(attestationID)
 	if err != nil {
 		logger.Error("%s Failed to get signatures: %v", logPrefix, err)
 		return
