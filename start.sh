@@ -71,7 +71,7 @@ Options:
   --startup      Set ONE_SHOT=TRUE
   --ssp N        Attestation interval in seconds — sets ATTESTATION_INTERVAL_MS=N*1000 (default: 20)
   --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
-  --contract standard|optimized  Smart contract variant (default: standard)
+  --contract standard|optimized  Smart contract variant (default: optimized)
   --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
   -h|--help      Show this help
 
@@ -87,8 +87,8 @@ ONE_SHOT_VAL="FALSE"
 DEPLOY_MODE="local"
 SSP_VAL="20"
 CPU_LIMIT_VAL="0.4"
-VARIANT_VAL="standard"
-CONTRACT_VAL="AttestationManager"
+VARIANT_VAL="optimized"
+CONTRACT_VAL="AttestationManagerOptimized"
 VRP_VAL="1"
 
 # Parse args
