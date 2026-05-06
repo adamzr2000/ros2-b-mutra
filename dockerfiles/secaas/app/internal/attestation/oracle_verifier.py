@@ -87,7 +87,7 @@ def process_secaas_attestation(
             timestamps["p_verify_compute_start"] = helpers.perf_ns()
 
             is_success = (fresh_sig_hex.lower() == ref_hash.lower())
-            is_success = True
+            # is_success = True
 
             timestamps["p_verify_compute_finished"] = helpers.perf_ns()
             timestamps["verify_compute_finished"] = helpers.now_ms()

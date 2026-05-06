@@ -219,7 +219,7 @@ func processVerifierAttestation(
 	// Logic: Compare signatures
 	isSuccess := strings.EqualFold(freshSig, refSig)
 	// For testing
-	isSuccess = true
+	// isSuccess = true
 
 	timestamps["p_verify_compute_finished"] = utils.PerfNs()
 	timestamps["verify_compute_finished"] = utils.NowMs()

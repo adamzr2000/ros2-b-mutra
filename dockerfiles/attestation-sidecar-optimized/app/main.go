@@ -351,6 +351,27 @@ func main() {
 		c.JSON(200, resp)
 	})
 
+	r.GET("/digest", func(c *gin.Context) {
+		si := compute.SelfIntegrityParams{
+			Enabled:           cfg.SelfIntegrity.Enabled,
+			CmdName:           cfg.SelfIntegrity.CmdName,
+			TextSectionSize:   cfg.SelfIntegrity.TextSectionSize,
+			TextSectionOffset: cfg.SelfIntegrity.TextSectionOffset,
+		}
+		d, err := compute.ComputeAttestationDigest(
+			cfg.Agent.CmdName,
+			cfg.Agent.TextSectionSize,
+			cfg.Agent.Offset,
+			cfg.Agent.TextSectionPrefix,
+			si,
+		)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, d)
+	})
+
 	r.POST("/start", func(c *gin.Context) {
 		startAttestation(appState)
 		c.JSON(200, gin.H{"message": "Attestation started."})
