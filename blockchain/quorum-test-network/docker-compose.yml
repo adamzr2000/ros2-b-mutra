@@ -72,6 +72,7 @@ services:
     << : *besu-def
     ports:
       - 127.0.0.1:21001:8545/tcp
+      - 172.17.0.1:21001:8545/tcp  # docker bridge gateway, reachable from containers via host.docker.internal
       - 30303
       - 9545
     environment:
@@ -90,6 +91,7 @@ services:
     << : *besu-def
     ports:
       - 127.0.0.1:21002:8545/tcp
+      - 172.17.0.1:21002:8545/tcp
       - 30303
       - 9545
     environment:
@@ -110,6 +112,7 @@ services:
     << : *besu-def
     ports:
       - 127.0.0.1:21003:8545/tcp
+      - 172.17.0.1:21003:8545/tcp
       - 30303
       - 9545
     environment:
@@ -130,6 +133,7 @@ services:
     << : *besu-def
     ports:
       - 127.0.0.1:21004:8545/tcp
+      - 172.17.0.1:21004:8545/tcp
       - 30303
       - 9545
     environment:
