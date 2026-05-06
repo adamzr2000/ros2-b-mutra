@@ -6,7 +6,7 @@ services:
     container_name: attestation-db
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       # - ./postgresql_data:${PGDATA}
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -37,7 +37,7 @@ services:
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - DB_NAME=${POSTGRES_DB}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       - attestation-db
     volumes:

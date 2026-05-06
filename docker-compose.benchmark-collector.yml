@@ -23,7 +23,7 @@ services:
         python3 /home/agent/scripts/collect_topic_stats.py
       "
     ports:
-      - "7001:7001"
+      - "127.0.0.1:7001:7001"
     volumes:
       - ./experiments/data/:/experiments/data:rw
       - ./dockerfiles/turtlebot3/scripts/collect_topic_stats.py:/home/agent/scripts/collect_topic_stats.py:ro

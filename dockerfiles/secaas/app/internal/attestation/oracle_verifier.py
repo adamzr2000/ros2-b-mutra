@@ -89,7 +89,12 @@ def process_secaas_attestation(
             timestamps["verify_compute_start"] = helpers.now_ms()
             timestamps["p_verify_compute_start"] = helpers.perf_ns()
 
-            is_success = (fresh_sig_hex.lower() == ref_hash.lower())
+            # Web3.to_hex prepends "0x"; DB stores bare hex. Strip prefix on
+            # both sides before comparing so a real on-chain match isn't
+            # silently rejected as a string difference.
+            def _strip0x(s: str) -> str:
+                return s[2:] if s.lower().startswith("0x") else s
+            is_success = (_strip0x(fresh_sig_hex).lower() == _strip0x(ref_hash).lower())
             # is_success = True
 
             timestamps["p_verify_compute_finished"] = helpers.perf_ns()
