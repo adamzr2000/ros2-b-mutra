@@ -70,7 +70,9 @@ Options:
   --export       Set EXPORT_RESULTS=TRUE
   --wait-tx      Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
   --startup      Set ONE_SHOT=TRUE
-  --ssp N        Attestation interval in seconds — sets ATTESTATION_INTERVAL_MS=N*1000 (default: 20)
+  --ssp N        Sleep between consecutive measurements, in seconds (default: 0).
+                 SSP=0 means measurements run back-to-back, bounded only by CPU_LIMIT.
+                 Sets ATTESTATION_INTERVAL_MS=N*1000.
   --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
   --contract standard|optimized  Smart contract variant (default: optimized)
   --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
@@ -88,7 +90,7 @@ EXPORT_RESULTS_VAL="FALSE"
 WAIT_TX_VAL="FALSE"
 ONE_SHOT_VAL="FALSE"
 DEPLOY_MODE="local"
-SSP_VAL="20"
+SSP_VAL="0"
 CPU_LIMIT_VAL="0.4"
 VARIANT_VAL="optimized"
 CONTRACT_VAL="AttestationManagerOptimized"
@@ -112,8 +114,8 @@ while [[ $# -gt 0 ]]; do
     --startup)  ONE_SHOT_VAL="TRUE"; shift ;;
     --ssp)
       SSP_VAL="$2"
-      if ! [[ "$SSP_VAL" =~ ^[1-9][0-9]*$ ]]; then
-        echo "❌ --ssp must be a positive integer in seconds (got '$SSP_VAL')"
+      if ! [[ "$SSP_VAL" =~ ^[0-9]+$ ]]; then
+        echo "❌ --ssp must be a non-negative integer in seconds (got '$SSP_VAL')"
         exit 1
       fi
       shift 2 ;;

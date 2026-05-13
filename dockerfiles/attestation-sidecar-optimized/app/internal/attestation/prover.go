@@ -405,10 +405,14 @@ func min(a, b int) int {
 }
 
 // attestationInterval uses utils.GetEnvInt to respect environment configuration
+// attestationInterval is the sleep between consecutive measurements (SSP).
+// ATTESTATION_INTERVAL_MS=0 is explicitly allowed and means "no sleep" — the
+// prover loop runs back-to-back measurements, bounded only by the cgroup
+// CPU_LIMIT. Negative values are coerced to 0 for safety.
 func attestationInterval() time.Duration {
-	ms := utils.GetEnvInt("ATTESTATION_INTERVAL_MS", 15000)
-	if ms <= 0 {
-		ms = 15
+	ms := utils.GetEnvInt("ATTESTATION_INTERVAL_MS", 0)
+	if ms < 0 {
+		ms = 0
 	}
 	return time.Duration(ms) * time.Millisecond
 }
