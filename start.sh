@@ -58,7 +58,7 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
                         [--ssp N] [--cpu-limit X] [--contract standard|optimized] [--vrp N]
-                        [--iterq K]
+                        [--iterq K] [--no-bootstrap]
 
 Options:
   --robots N     Number of robots to deploy (default: 4, max: $REMOTE2_LIMIT).
@@ -78,6 +78,11 @@ Options:
   --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
   --iterq K      IterQ rolling-hash threshold: number of fresh measurements folded into
                  one on-chain attestation. K=1 = single-shot. Range: 1..10000 (default: 1)
+  --no-bootstrap Skip the automatic reference-measurements bootstrap step. By default,
+                 after the stack is up, start.sh captures real refs from robot1's sidecar
+                 via /digest, syncs them to the SECaaS DB, and resets the on-chain chain
+                 so attestations close as SUCCESS rather than FAILURE on placeholder refs.
+                 Pass this flag if you deliberately want the placeholder behaviour.
   -h|--help      Show this help
 
 EOF
@@ -96,6 +101,7 @@ VARIANT_VAL="optimized"
 CONTRACT_VAL="AttestationManagerOptimized"
 VRP_VAL="1"
 ITERQ_VAL="1"
+BOOTSTRAP_REFS="TRUE"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -147,6 +153,7 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       shift 2 ;;
+    --no-bootstrap)  BOOTSTRAP_REFS="FALSE"; shift ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "❌ Unknown arg: $1"; echo; usage; exit 1 ;;
   esac
@@ -181,8 +188,20 @@ if [[ ! -f "$ENV_FILE" ]]; then
   touch "$ENV_FILE"
 fi
 
+# If the user wants --auto AND we're going to bootstrap, we MUST boot the
+# containers with AUTO_START=FALSE so the prover doesn't fire SendEvidence
+# against the placeholder refs in the DB while we're capturing real ones.
+# We restore .env to the user's intent and trigger /start via HTTP after
+# the bootstrap step finishes. In --no-bootstrap mode (or remote mode),
+# AUTO_START is passed through as-is.
+WANT_AUTO_START="$AUTO_START_VAL"
+EFFECTIVE_AUTO_START="$AUTO_START_VAL"
+if [[ "$BOOTSTRAP_REFS" == "TRUE" && "$DEPLOY_MODE" == "local" && "$AUTO_START_VAL" == "TRUE" ]]; then
+  EFFECTIVE_AUTO_START="FALSE"   # hold the workers until bootstrap is done
+fi
+
 upsert_env "EXPORT_RESULTS"            "$EXPORT_RESULTS_VAL"
-upsert_env "AUTO_START"                "$AUTO_START_VAL"
+upsert_env "AUTO_START"                "$EFFECTIVE_AUTO_START"
 upsert_env "WAIT_FOR_TX_CONFIRMATIONS" "$WAIT_TX_VAL"
 upsert_env "ONE_SHOT"                  "$ONE_SHOT_VAL"
 upsert_env "N_ROBOTS"                  "$N_ROBOTS_VAL"
@@ -385,5 +404,62 @@ else
 
 fi
 # ══════════════════════════════════════════════════════════════════════════════
+
+# ── Reference measurements bootstrap (local mode only) ────────────────────────
+# Capture the *real* triplet (robot_hash, sidecar_hash, combined_hash) from
+# robot1's sidecar, patch every ref-measurements/robot{i}.json with it, and
+# push the result back into the SECaaS PostgreSQL via /sync-agents. Then
+# reset the on-chain attestation chain so any stale state (from a prior run
+# or from the placeholder /sync-agents called above) is cleared.
+#
+# After this, if the user passed --auto, we trigger /start on SECaaS and on
+# every sidecar to launch the workers that we deliberately held back during
+# container boot (see the EFFECTIVE_AUTO_START stashing above).
+if [[ "$BOOTSTRAP_REFS" == "TRUE" && "$DEPLOY_MODE" == "local" ]]; then
+  echo
+  echo "🔧 Bootstrapping real reference measurements..."
+
+  # Wait for robot1's sidecar to be reachable AND for its target binary
+  # (robot_state_publisher / dummy_publisher) to be alive in the robot
+  # container — that's when /digest returns combined_hash instead of an
+  # error. Gazebo takes ~30s to spin up the publisher.
+  max_attempts=60   # = up to 2 minutes
+  attempt=1
+  while (( attempt <= max_attempts )); do
+    if curl -s "http://localhost:8001/digest" 2>/dev/null | grep -q '"combined_hash"'; then
+      echo "✅ robot1 /digest is ready."
+      break
+    fi
+    echo "   (Attempt $attempt/$max_attempts) Waiting for /digest..."
+    sleep 2
+    (( attempt++ ))
+  done
+  if (( attempt > max_attempts )); then
+    echo "⚠️  /digest didn't come up in time. Skipping bootstrap — attestations will FAIL on placeholder refs until you run bootstrap_ref_measurements.py manually."
+  else
+    python3 "$SCRIPT_DIR/bootstrap_ref_measurements.py" --robots "$N_ROBOTS_VAL" --sync-secaas \
+      && echo "🧹 Resetting on-chain attestation chain..." \
+      && curl -s -X POST "$SECAAS_URL/reset" | jq . \
+      || echo "⚠️  Bootstrap failed — attestations may close as FAILURE."
+  fi
+
+  # Restore the user's AUTO_START intent in .env for human readability /
+  # subsequent ./start.sh invocations. Containers already booted with the
+  # effective value so this is purely cosmetic for the .env file itself.
+  upsert_env "AUTO_START" "$WANT_AUTO_START"
+
+  if [[ "$WANT_AUTO_START" == "TRUE" ]]; then
+    echo "▶ Auto-starting attestation workers (SECaaS + sidecars)..."
+    curl -s -X POST "$SECAAS_URL/start" | jq .
+    for i in $(seq 1 "$N_ROBOTS_VAL"); do
+      curl -s -X POST "http://localhost:$((8000 + i))/start" | jq -c .
+    done
+  fi
+elif [[ "$BOOTSTRAP_REFS" == "TRUE" && "$DEPLOY_MODE" == "remote" ]]; then
+  echo
+  echo "ℹ️  Remote mode — skipping automatic bootstrap. To bootstrap manually:"
+  echo "      ssh $REMOTE1_USER@$REMOTE1_HOST"
+  echo "      cd $REMOTE_DIR && python3 bootstrap_ref_measurements.py --robots $N_ROBOTS_VAL --sync-secaas --secaas-url http://$LOCAL_IP:8000"
+fi
 
 echo "🎉 All done."
