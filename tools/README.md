@@ -36,7 +36,9 @@ while sleep 30; do ./tools/observe.sh; done >> snapshots.jsonl 2>/dev/null
     "block": 7669,
     "events_started": 1100, "events_completed": 366,
     "completed_success": 366, "completed_failure": 0,
-    "in_flight": 734, "verifier_rotations": 3
+    "in_flight": 734, "verifier_rotations": 3,
+    "oldest_pending_block": 7012,
+    "oldest_pending_age_s": 4570
   },
   "logs": { "success": 629, "failure": 0 }
 }
@@ -57,6 +59,13 @@ while sleep 30; do ./tools/observe.sh; done >> snapshots.jsonl 2>/dev/null
 - **`chain.verifier_rotations`** — should equal
   `completed_success ÷ vrp_onchain` (modulo failure stores). With
   `vrp_onchain=100`, you get 1 rotation per 100 successes.
+- **`chain.oldest_pending_age_s`** — direct measurement of the longest
+  wait an attestation currently has, in seconds. Computed as
+  `block.timestamp(latest) - block.timestamp(oldest_pending_started)`.
+  If this number grows monotonically across snapshots, the verifier
+  pipeline is not draining fast enough and your end-to-end latency
+  will keep climbing. If it stays flat or oscillates, the system has
+  reached a steady close-rate that matches its start-rate.
 - **`logs.success` / `logs.failure`** — secaas + sidecar log
   grep-counts since container boot. Useful as a cross-check against
   the on-chain events.

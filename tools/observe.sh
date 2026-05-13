@@ -110,15 +110,52 @@ get_logs_paginated() {
 }
 get_logs_paginated
 
-# One jq pass per metric, all reading the same JSONL tmp file.
-n_started=$(jq -s "[.[] | select(.topics[0]==\"$TOPIC_STARTED\")] | length" "$LOG_TMP")
-n_completed=$(jq -s "[.[] | select(.topics[0]==\"$TOPIC_COMPLETED\")] | length" "$LOG_TMP")
-n_rotated=$(jq -s "[.[] | select(.topics[0]==\"$TOPIC_ROTATED\")] | length" "$LOG_TMP")
-# AttestationCompleted(id indexed, bool verified): data is the 32-byte bool,
-# last hex char is "1" for true / "0" for false.
-n_success=$(jq -s "[.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | select(.data[-1:]==\"1\")] | length" "$LOG_TMP")
-n_failure=$(jq -s "[.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | select(.data[-1:]==\"0\")] | length" "$LOG_TMP")
+# One jq pass over the events file, emits all counters + the list of
+# blockNumbers of pending Started events (their ID is not in any Completed).
+# Hashtable lookup (object key) is O(1), the whole pipeline is one read.
+metrics=$(jq -s "
+  ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | {(.topics[1]): true}] | add // {}) as \$done |
+  {
+    n_started:       ([.[] | select(.topics[0]==\"$TOPIC_STARTED\")] | length),
+    n_completed:     ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\")] | length),
+    n_rotated:       ([.[] | select(.topics[0]==\"$TOPIC_ROTATED\")] | length),
+    n_success:       ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | select(.data[-1:]==\"1\")] | length),
+    n_failure:       ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | select(.data[-1:]==\"0\")] | length),
+    pending_blocks:  [.[] | select(.topics[0]==\"$TOPIC_STARTED\") | select(\$done[.data[0:66]] | not) | .blockNumber]
+  }
+" "$LOG_TMP")
+
+n_started=$(echo   "$metrics" | jq -r '.n_started')
+n_completed=$(echo "$metrics" | jq -r '.n_completed')
+n_rotated=$(echo   "$metrics" | jq -r '.n_rotated')
+n_success=$(echo   "$metrics" | jq -r '.n_success')
+n_failure=$(echo   "$metrics" | jq -r '.n_failure')
 in_flight=$((n_started - n_completed))
+
+# Age (in seconds) of the oldest unclosed attestation — the wall-clock
+# latency the most-recent attestation would face if the verifier is FIFO.
+# Hex strings sort lexicographically which is wrong when lengths differ,
+# so we let bash do the minimum in decimal.
+oldest_age_s=""
+oldest_pending_block=""
+pending_blocks=$(echo "$metrics" | jq -r '.pending_blocks[]?')
+if [[ -n "$pending_blocks" ]]; then
+  for hex in $pending_blocks; do
+    dec=$((hex))
+    if [[ -z "$oldest_pending_block" || $dec -lt $oldest_pending_block ]]; then
+      oldest_pending_block=$dec
+    fi
+  done
+  if [[ -n "$oldest_pending_block" ]]; then
+    old_ts_hex=$(rpc eth_getBlockByNumber "[\"$(printf '0x%x' "$oldest_pending_block")\", false]" \
+      | jq -r 'try .result.timestamp // ""')
+    latest_ts_hex=$(rpc eth_getBlockByNumber "[\"latest\", false]" \
+      | jq -r 'try .result.timestamp // ""')
+    if [[ -n "$old_ts_hex" && -n "$latest_ts_hex" ]]; then
+      oldest_age_s=$(( latest_ts_hex - old_ts_hex ))
+    fi
+  fi
+fi
 
 # ──────────────────────────────────────────────────────────────────────────
 # 5. Sidecar-side counters (from logs, cumulative since container boot)
@@ -148,6 +185,8 @@ snapshot=$(jq -n \
   --argjson n_started "$n_started" --argjson n_completed "$n_completed" \
   --argjson n_success "$n_success" --argjson n_failure "$n_failure" \
   --argjson n_rotated "$n_rotated" --argjson in_flight "$in_flight" \
+  --arg oldest_age_s "${oldest_age_s:-null}" \
+  --arg oldest_pending_block "${oldest_pending_block:-null}" \
   --argjson log_success "$log_success" --argjson log_failure "$log_failure" \
   '{
     ts: $ts,
@@ -164,7 +203,9 @@ snapshot=$(jq -n \
       block: $block,
       events_started: $n_started, events_completed: $n_completed,
       completed_success: $n_success, completed_failure: $n_failure,
-      in_flight: $in_flight, verifier_rotations: $n_rotated
+      in_flight: $in_flight, verifier_rotations: $n_rotated,
+      oldest_pending_block: ($oldest_pending_block | if . == "null" or . == "" then null else tonumber end),
+      oldest_pending_age_s: ($oldest_age_s | if . == "null" or . == "" then null else tonumber end)
     },
     logs: { success: $log_success, failure: $log_failure }
   }')
@@ -184,6 +225,11 @@ echo "$snapshot" | jq -c .  # stdout: one JSON line
     "${itq:-?}" "${ssp_ms:-?}" "${cpu_limit:-?}" "${vrp:-?}" "${current_verifier:0:14}…"
   printf '  chain:      block=%d   started=%d   completed=%d   success=%d   failure=%d   in_flight=%d   rotations=%d\n' \
     "$block" "$n_started" "$n_completed" "$n_success" "$n_failure" "$in_flight" "$n_rotated"
+  if [[ -n "$oldest_age_s" ]]; then
+    h=$(( oldest_age_s / 3600 )); m=$(( (oldest_age_s % 3600) / 60 )); s=$(( oldest_age_s % 60 ))
+    printf '  backlog:    oldest pending = block %d, %dh%02dm%02ds old\n' \
+      "$oldest_pending_block" "$h" "$m" "$s"
+  fi
   printf '  logs:       success=%d   failure=%d\n' "$log_success" "$log_failure"
   echo
 } >&2
