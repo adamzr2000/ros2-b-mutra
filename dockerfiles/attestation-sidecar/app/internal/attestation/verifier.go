@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"app/internal/blockchain"
+	"app/internal/compute"
 	"app/internal/logger"
 	"app/internal/utils"
 
@@ -203,7 +204,7 @@ func processVerifierAttestation(
 	timestamps["get_signatures_start"] = utils.NowMs()
 	timestamps["p_get_signatures_start"] = utils.PerfNs()
 
-	freshSig, refSig, err := client.GetAttestationSignatures(attestationID)
+	freshSig, refSig, iterCount, err := client.GetAttestationSignatures(attestationID)
 	if err != nil {
 		logger.Error("%s Failed to get signatures: %v", logPrefix, err)
 		return
@@ -216,8 +217,18 @@ func processVerifierAttestation(
 	timestamps["verify_compute_start"] = utils.NowMs()
 	timestamps["p_verify_compute_start"] = utils.PerfNs()
 
-	// Logic: Compare signatures
-	isSuccess := strings.EqualFold(freshSig, refSig)
+	// Re-derive the chained reference: under the no-tamper hypothesis the
+	// binary is static, so all K m_i = refSig and the prover's H_K equals
+	// chain(refSig, K). For K=1 this is identity. Must stay bit-for-bit
+	// identical to compute.RollingHashStep used in the prover.
+	derivedRef, derr := compute.RollingHashHex(refSig, iterCount)
+	if derr != nil {
+		logger.Error("%s Failed to derive rolling reference (K=%d): %v", logPrefix, iterCount, derr)
+		return
+	}
+	// freshSig is "0x"-prefixed (Web3 convention); derivedRef is bare hex.
+	freshNorm := strings.TrimPrefix(strings.ToLower(freshSig), "0x")
+	isSuccess := strings.EqualFold(freshNorm, derivedRef)
 	// For testing
 	// isSuccess = true
 

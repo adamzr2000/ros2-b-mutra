@@ -128,7 +128,7 @@ func main() {
 			attID := makeAttID("ev", iter)
 			sig := makeBytes32Hex("evidence", iter)
 			return runTx("SendEvidence", iter, func() (string, error) {
-				return bcClient.SendEvidence(attID, sig, true, *timeoutSec)
+				return bcClient.SendEvidence(attID, sig, 1, true, *timeoutSec)
 			}, bcClient)
 		},
 		"SendRefSignature": func(iter int) TxSample {
@@ -136,7 +136,7 @@ func main() {
 				return failedSample("SendRefSignature", iter, err)
 			}
 			attID := makeAttID("ref", iter)
-			if _, err := bcClient.SendEvidence(attID, makeBytes32Hex("seed-evidence", iter), true, *timeoutSec); err != nil {
+			if _, err := bcClient.SendEvidence(attID, makeBytes32Hex("seed-evidence", iter), 1, true, *timeoutSec); err != nil {
 				return failedSample("SendRefSignature", iter, fmt.Errorf("setup SendEvidence failed: %w", err))
 			}
 			return runTx("SendRefSignature", iter, func() (string, error) {
@@ -148,7 +148,7 @@ func main() {
 				return failedSample("CloseAttestationProcess", iter, err)
 			}
 			attID := makeAttID("close", iter)
-			if _, err := bcClient.SendEvidence(attID, makeBytes32Hex("close-evidence", iter), true, *timeoutSec); err != nil {
+			if _, err := bcClient.SendEvidence(attID, makeBytes32Hex("close-evidence", iter), 1, true, *timeoutSec); err != nil {
 				return failedSample("CloseAttestationProcess", iter, fmt.Errorf("setup SendEvidence failed: %w", err))
 			}
 			if _, err := bcClient.SendRefSignature(attID, makeBytes32Hex("close-ref", iter), true, *timeoutSec); err != nil {
