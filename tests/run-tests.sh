@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Run all B-MuTRA test suites: rolling-hash vectors (Go + Python) and
+# the AttestationManagerOptimized Hardhat tests. Each suite is run in
+# its own throwaway container so no host-side toolchain is required.
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_DIR"
+
+bold() { printf '\033[1m%s\033[0m\n' "$*"; }
+green() { printf '\033[32m%s\033[0m\n' "$*"; }
+red() { printf '\033[31m%s\033[0m\n' "$*"; }
+
+fail=0
+run_suite() {
+  local name="$1"; shift
+  bold "=== $name ==="
+  if "$@"; then
+    green "  PASS — $name"
+  else
+    red "  FAIL — $name"
+    fail=1
+  fi
+  echo
+}
+
+# ---------------------------------------------------------------------------
+# Suite 1 — Python rolling_hash
+# ---------------------------------------------------------------------------
+run_suite "Python rolling_hash" \
+  docker run --rm \
+    -v "$REPO_DIR":/repo -w /repo \
+    python:3.11-slim \
+    bash -c 'pip install --quiet pytest && pytest dockerfiles/secaas/tests/ -q'
+
+# ---------------------------------------------------------------------------
+# Suite 2 — Go RollingHash
+# ---------------------------------------------------------------------------
+run_suite "Go RollingHash" \
+  docker run --rm \
+    -v "$REPO_DIR":/repo \
+    -w /repo/dockerfiles/attestation-sidecar-optimized/app \
+    golang:1.25-bookworm \
+    bash -c '
+      set -e
+      [ ! -f go.mod ] && go mod init app >/dev/null
+      go get github.com/ethereum/go-ethereum@v1.14.12 >/dev/null 2>&1
+      go mod tidy >/dev/null 2>&1
+      go test ./internal/compute/ -count=1
+      rm -f go.mod go.sum
+    '
+
+# ---------------------------------------------------------------------------
+# Suite 3 — Hardhat smart-contract tests
+# ---------------------------------------------------------------------------
+# Requires the project's hardhat:latest image (built by `cd dockerfiles && make hardhat`).
+run_suite "Hardhat AttestationManagerOptimized" \
+  docker run --rm \
+    -v "$REPO_DIR/smart-contracts/contracts":/smart-contracts/contracts:ro \
+    -v "$REPO_DIR/smart-contracts/test":/smart-contracts/test:ro \
+    -v "$REPO_DIR/smart-contracts/scripts":/smart-contracts/scripts:ro \
+    -v "$REPO_DIR/smart-contracts/hardhat.config.js":/smart-contracts/hardhat.config.js:ro \
+    hardhat:latest \
+    bash -c "cd /smart-contracts && npx hardhat test test/AttestationManagerOptimized.test.js"
+
+if (( fail )); then
+  red "Some suites failed."
+  exit 1
+fi
+green "All test suites passed."
