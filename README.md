@@ -57,7 +57,7 @@ Options:
   --export       Set EXPORT_RESULTS=TRUE
   --wait-tx      Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
   --startup      Set ONE_SHOT=TRUE
-  --ssp N        Attestation interval in seconds — sets ATTESTATION_INTERVAL_MS=N*1000 (default: 20)
+  --ssp N        Attestation interval in milliseconds — sets ATTESTATION_INTERVAL_MS=N (default: 20000)
   --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
   --contract standard|optimized  Smart contract variant (default: standard)
   --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
@@ -147,48 +147,58 @@ python3 run_experiments_and_collect_results.py --robots 32 --runs 10 --startup -
 
 Measures per-message arrival timestamps for `/robotX/<topic>` with and without
 attestation sidecars running. Results are stored under
-`experiments/data/performance-benchmark/results/<topic>/<condition>/<mode>/run*.csv`
+`experiments/data/performance-benchmark/results/<topic>/<condition>/<baseline|continuous>/run*.csv`
 with columns `robot, topic, ros_stamp_ns, wall_stamp_ns`.
 
-1. Start robots (no `--export` needed — sidecars will have export disabled):
+Sidecars run in fire-and-forget mode (`WAIT_FOR_VERIFICATION_RESULT=FALSE`) so that
+each attestation cycle covers only memory-read + hash + tx-send, isolating CPU/cache
+interference on the robot process from blockchain confirmation latency.
+
+The recommended topic is `/tf` (published directly by `robot_state_publisher`, the
+attested process). Use `/scan` as a negative control — it originates in the Gazebo
+server and should show no degradation regardless of sidecar parameters.
+
+1. Start robots with `WAIT_FOR_VERIFICATION_RESULT=FALSE` in `.env`:
 
 ```bash
 ./start.sh --robots 4
 ```
 
-2. Start the topic collector, then run both conditions back-to-back:
+2. Start the topic collector, then run conditions back-to-back:
 
 ```bash
-# Default topic: /robotX/scan
-COMPOSE_IGNORE_ORPHANS=1 \
-  docker compose -f docker-compose.robots.yml \
-                 -f docker-compose.benchmark-collector.yml \
-                 up -d topic-collector
-
-# Baseline — no sidecars running (attestation containers not started)
-python3 run_benchmark.py --condition no_sidecar --runs 5 --topic scan
-
-# With sidecars — continuous attestation mode
-python3 run_benchmark.py --condition with_sidecar --mode continuous --runs 5 --topic scan
-
-# With sidecars — startup (one-shot) attestation mode
-python3 run_benchmark.py --condition with_sidecar --mode startup --runs 5 --topic scan
-```
-
-To benchmark a **different topic** (e.g. `/robotX/odom`), restart the collector with
-`TOPIC_NAME` set and pass the matching `--topic` flag to the benchmark script:
-
-```bash
-COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/odom MSG_TYPE=nav_msgs.msg/Odometry \
+# /tf — primary signal (published by robot_state_publisher, the attested process)
+COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/tf MSG_TYPE=tf2_msgs.msg/TFMessage \
   docker compose -f docker-compose.robots.yml \
                  -f docker-compose.benchmark-collector.yml \
                  up -d --force-recreate topic-collector
 
-python3 run_benchmark.py --condition no_sidecar --runs 5 --topic odom
-python3 run_benchmark.py --condition with_sidecar --mode continuous --runs 5 --topic odom
+# Baseline — no sidecars active
+python3 run_benchmark.py --condition no_sidecar --topic tf --duration 300
+
+# With sidecars — vary SSP to show increasing jitter
+python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 20000 --cpu-limit 0.4
+python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 5000  --cpu-limit 0.4
+python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 2000  --cpu-limit 0.4
+python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 1000  --cpu-limit 0.4
+python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 500   --cpu-limit 0.4
+
+# CPU sweep at worst SSP — shows compounding effect of throttling
+python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 500 --cpu-limit 1.0
+python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 500 --cpu-limit 0.1
+
+# /scan — negative control (should remain flat across all conditions)
+COMPOSE_IGNORE_ORPHANS=1 \
+  docker compose -f docker-compose.robots.yml \
+                 -f docker-compose.benchmark-collector.yml \
+                 up -d --force-recreate topic-collector
+
+python3 run_benchmark.py --condition no_sidecar  --topic scan --duration 300
+python3 run_benchmark.py --condition with_sidecar --topic scan --duration 300 --ssp 500 --cpu-limit 0.1
 ```
 
 > `--robots N` in `start.sh` must match `N_ROBOTS` in the collector (default 4).
+> Results are tagged automatically: `SSP{N}ms-ITERQu{N}-cpu{N}-run{N}.csv`.
 
 3. Stop the experimental setup:
 

@@ -6,7 +6,7 @@
     "text_section_prefix": "",
     "eth_address": "0x347848ec4bca44669bbf2f85403276ee90fcdb41",
     "private_key": "0x4ded3ab7dd597b4777b1598e7b28891b5c5339b9aa09ac064c10aadc05c0a507",
-    "eth_node_url": "http://host.docker.internal:21003",
+    "eth_node_url": "http://host.docker.internal:21004",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {

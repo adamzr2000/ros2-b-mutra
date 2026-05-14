@@ -41,8 +41,9 @@ type ProverConfig struct {
 	ResultsFile       string
 	MemoryStorageFile string
 	SelfIntegrity     SelfIntegrityInfo
-	OneShot           bool
-	WaitForTxConfirmations bool
+	OneShot                    bool
+	WaitForTxConfirmations     bool
+	WaitForVerificationResult  bool
 }
 
 // ProverState holds the runtime state of the prover
@@ -66,8 +67,9 @@ func ProcessProverAttestation(
 	resultsDir string,
 	resultsFile string,
 	startTs int64,
-    startP int64,
-    waitForTx bool,
+	startP int64,
+	waitForTx bool,
+	waitForResult bool,
 ) {
 	timestamps := make(map[string]interface{})
 
@@ -99,6 +101,15 @@ func ProcessProverAttestation(
 	}
 
 	logger.Info("%s Evidence sent (attestation started)", logPrefix)
+
+	if !waitForResult {
+		timestamps["p_prover_finished"] = utils.PerfNs()
+		timestamps["prover_finished"] = utils.NowMs()
+		if exportEnabled {
+			utils.ExportAttestationTimesJSON(participantName, attestationID, "prover", timestamps, resultsDir, resultsFile)
+		}
+		return
+	}
 
 	// 3. Wait to become Prover (Poll Loop)
 	//
@@ -219,7 +230,7 @@ func RunProverAndCleanup(
 	ProcessProverAttestation(
 		bc, attestationID, measurement, config.IterQThreshold, stopCh,
 		config.ExportEnabled, config.AgentName, config.ResultsDir, config.ResultsFile,
-		startTs, startP, config.WaitForTxConfirmations,
+		startTs, startP, config.WaitForTxConfirmations, config.WaitForVerificationResult,
 	)
 }
 

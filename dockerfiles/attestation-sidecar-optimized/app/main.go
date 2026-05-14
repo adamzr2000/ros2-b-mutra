@@ -91,8 +91,9 @@ func startAttestation(state *AppState) {
 		ResultsDir:             state.Config.ResultsDir,
 		MemoryStorageFile:      state.Config.MemoryStorageFile,
 		ResultsFile:            state.Config.ResultsFile,
-		OneShot:                state.Config.OneShot,
-		WaitForTxConfirmations: state.Config.VerifierWaitTx,
+		OneShot:                   state.Config.OneShot,
+		WaitForTxConfirmations:    state.Config.VerifierWaitTx,
+		WaitForVerificationResult: state.Config.WaitForVerificationResult,
 		SelfIntegrity: attestation.SelfIntegrityInfo{
 			Enabled:           state.Config.SelfIntegrity.Enabled,
 			CmdName:           state.Config.SelfIntegrity.CmdName,
