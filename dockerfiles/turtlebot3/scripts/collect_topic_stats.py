@@ -74,9 +74,13 @@ class TopicCollector(Node):
             return
         wall_ns = time.time_ns()
         try:
-            ros_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+            stamp = msg.header.stamp
         except AttributeError:
-            ros_ns = 0
+            try:
+                stamp = msg.transforms[0].header.stamp  # tf2_msgs/TFMessage
+            except (AttributeError, IndexError):
+                stamp = None
+        ros_ns = (stamp.sec * 1_000_000_000 + stamp.nanosec) if stamp is not None else 0
         with _lock:
             _records.append({
                 "robot":         robot,

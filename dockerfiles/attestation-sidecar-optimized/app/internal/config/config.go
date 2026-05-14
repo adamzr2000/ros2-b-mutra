@@ -59,9 +59,10 @@ type AppConfig struct {
 	MemoryStorageFile string
 
 	// Runtime Flags (Env)
-	UseRedis  bool
-	AutoStart bool
-	OneShot   bool
+	UseRedis                  bool
+	AutoStart                 bool
+	OneShot                   bool
+	WaitForVerificationResult bool
 
 	// Attestation Params (Env)
 	ProverThreshold      int
@@ -117,7 +118,8 @@ func Load() (*AppConfig, error) {
 		MemoryStorageFile: utils.GetEnvStr("MEMORY_STORAGE_FILE", ""),
 		UseRedis:          utils.GetEnvBool("USE_REDIS", false),
 		AutoStart:         utils.GetEnvBool("AUTO_START", false),
-		OneShot:           utils.GetEnvBool("ONE_SHOT", false),
+		OneShot:                   utils.GetEnvBool("ONE_SHOT", false),
+		WaitForVerificationResult: utils.GetEnvBool("WAIT_FOR_VERIFICATION_RESULT", true),
 
 		ProverThreshold:      utils.GetEnvInt("PROVER_THRESHOLD", 300),
 		SelfIntegrityEnabled: utils.GetEnvBool("SELF_INTEGRITY_ENABLED", false),

@@ -58,6 +58,7 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
                         [--ssp N] [--cpu-limit X] [--contract standard|optimized] [--vrp N]
+                        [--no-wait-result]
 
 Options:
   --robots N     Number of robots to deploy (default: 4, max: $REMOTE2_LIMIT).
@@ -69,10 +70,11 @@ Options:
   --export       Set EXPORT_RESULTS=TRUE
   --wait-tx      Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
   --startup      Set ONE_SHOT=TRUE
-  --ssp N        Attestation interval in seconds — sets ATTESTATION_INTERVAL_MS=N*1000 (default: 20)
+  --ssp N        Attestation interval in milliseconds — sets ATTESTATION_INTERVAL_MS=N (default: 20000)
   --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
   --contract standard|optimized  Smart contract variant (default: standard)
   --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
+  --no-wait-result  Set WAIT_FOR_VERIFICATION_RESULT=FALSE (fire-and-forget mode)
   -h|--help      Show this help
 
 EOF
@@ -85,11 +87,12 @@ EXPORT_RESULTS_VAL="FALSE"
 WAIT_TX_VAL="FALSE"
 ONE_SHOT_VAL="FALSE"
 DEPLOY_MODE="local"
-SSP_VAL="20"
+SSP_VAL="20000"
 CPU_LIMIT_VAL="0.4"
 VARIANT_VAL="standard"
 CONTRACT_VAL="AttestationManager"
 VRP_VAL="1"
+WAIT_RESULT_VAL="TRUE"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -109,7 +112,7 @@ while [[ $# -gt 0 ]]; do
     --ssp)
       SSP_VAL="$2"
       if ! [[ "$SSP_VAL" =~ ^[1-9][0-9]*$ ]]; then
-        echo "❌ --ssp must be a positive integer in seconds (got '$SSP_VAL')"
+        echo "❌ --ssp must be a positive integer in milliseconds (got '$SSP_VAL')"
         exit 1
       fi
       shift 2 ;;
@@ -134,6 +137,7 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       shift 2 ;;
+    --no-wait-result) WAIT_RESULT_VAL="FALSE"; shift ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "❌ Unknown arg: $1"; echo; usage; exit 1 ;;
   esac
@@ -170,15 +174,16 @@ fi
 
 upsert_env "EXPORT_RESULTS"            "$EXPORT_RESULTS_VAL"
 upsert_env "AUTO_START"                "$AUTO_START_VAL"
-upsert_env "WAIT_FOR_TX_CONFIRMATIONS" "$WAIT_TX_VAL"
+upsert_env "WAIT_FOR_TX_CONFIRMATIONS"      "$WAIT_TX_VAL"
+upsert_env "WAIT_FOR_VERIFICATION_RESULT"  "$WAIT_RESULT_VAL"
 upsert_env "ONE_SHOT"                  "$ONE_SHOT_VAL"
 upsert_env "N_ROBOTS"                  "$N_ROBOTS_VAL"
 upsert_env "COMPOSE_PROJECT_NAME"      "$PROJECT_NAME"
 upsert_env "DEPLOY_MODE"               "$DEPLOY_MODE"
-upsert_env "ATTESTATION_INTERVAL_MS"  "$((SSP_VAL * 1000))"
+upsert_env "ATTESTATION_INTERVAL_MS"  "$SSP_VAL"
 upsert_env "CPU_LIMIT"                 "$CPU_LIMIT_VAL"
 
-echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Contract: $CONTRACT_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL, SSP: ${SSP_VAL}s, CPU: $CPU_LIMIT_VAL)"
+echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Contract: $CONTRACT_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL, SSP: ${SSP_VAL}ms, CPU: $CPU_LIMIT_VAL)"
 echo
 
 # Regenerate compose files for the selected mode

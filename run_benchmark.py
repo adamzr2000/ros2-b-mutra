@@ -2,19 +2,21 @@
 """
 Performance benchmark orchestrator.
 
-Measures ROS2 /scan topic jitter with and without attestation sidecars
-to verify the sidecar introduces no robot performance penalty.
+Measures ROS2 topic jitter with and without attestation sidecars to quantify
+the performance impact of continuous memory-read attestation on the robot process.
+
+Sidecars must be started with WAIT_FOR_VERIFICATION_RESULT=FALSE so that each
+attestation cycle is hash-compute + tx-send only (fire-and-forget), isolating
+the memory-read/CPU interference from blockchain confirmation latency.
 
 Usage:
-  python3 run_benchmark.py --condition no_sidecar  --mode continuous --runs 5
-  python3 run_benchmark.py --condition with_sidecar --mode continuous --runs 5
-  python3 run_benchmark.py --condition no_sidecar  --mode startup    --runs 5
-  python3 run_benchmark.py --condition with_sidecar --mode startup    --runs 5
+  python3 run_benchmark.py --condition no_sidecar  --topic tf --duration 300
+  python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 5000 --cpu-limit 0.4
 
 Prerequisites:
-  docker-compose -f docker-compose.robots.yml \\
-                 -f docker-compose.benchmark-collector.yml up -d
-  (add docker-compose.attestation.yml for with_sidecar conditions)
+  WAIT_FOR_VERIFICATION_RESULT=FALSE in .env
+  docker compose -f docker-compose.robots.yml -f docker-compose.benchmark-collector.yml up -d
+  (add docker-compose.attestation.yml for with_sidecar condition)
 """
 
 import argparse
@@ -31,10 +33,46 @@ SECAAS_URL       = "http://localhost:8000"
 SECAAS_PORT      = 8000
 ROBOTS_BASE_PORT = 8001
 N_ROBOTS         = 4
-DURATION_S       = 120
+DEFAULT_DURATION_S = 300
 
 BASE_RESULTS_DIR      = Path(__file__).parent / "experiments/data/performance-benchmark/results"
 COLLECTOR_RESULTS_DIR = "/experiments/data/performance-benchmark/results"   # container-side path
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _read_env_defaults():
+    ssp_ms    = 20000
+    iterqu    = 1
+    cpu_limit = 0.4
+    try:
+        with open(os.path.join(_SCRIPT_DIR, ".env")) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                key, val = key.strip(), val.strip()
+                if key == "ATTESTATION_INTERVAL_MS":
+                    try: ssp_ms = int(val)
+                    except ValueError: pass
+                elif key == "CPU_LIMIT":
+                    try: cpu_limit = float(val)
+                    except ValueError: pass
+                elif key == "ITERQU":
+                    try: iterqu = int(val)
+                    except ValueError: pass
+    except FileNotFoundError:
+        pass
+    return ssp_ms, iterqu, cpu_limit
+
+
+_DEFAULT_SSP, _DEFAULT_ITERQU, _DEFAULT_CPU_LIMIT = _read_env_defaults()
+
+
+def _build_run_tag(ssp_ms, iterqu, cpu_limit):
+    cpu_str = f"{cpu_limit:.1f}".replace(".", "p")
+    return f"SSP{ssp_ms}ms-ITERQu{iterqu}-cpu{cpu_str}"
 
 
 # ── Sidecar helpers (mirrors run_experiments_and_collect_results.py) ───────────
@@ -106,9 +144,7 @@ def set_config(name, port, payload):
 
 def set_config_all(robot_sidecars, payload):
     with ThreadPoolExecutor(max_workers=len(robot_sidecars)) as ex:
-        futs = [ex.submit(set_config, n, p, payload) for n, p in robot_sidecars.items()]
-        for f in as_completed(futs):
-            pass
+        list(as_completed([ex.submit(set_config, n, p, payload) for n, p in robot_sidecars.items()]))
 
 
 def stop_all(sidecars):
@@ -126,25 +162,12 @@ def reset_chain():
         print(f"   [Chain] ⚠️ {e}")
 
 
-def run_warmup(sidecars, robot_sidecars):
-    """One-shot warmup with export disabled (seeds lastSuccess on chain)."""
-    print("🔥 Warmup: seeding lastSuccess...")
-    set_config_all(robot_sidecars, {"one_shot": True, "export_enabled": False})
-    set_config("secaas", SECAAS_PORT, {"export_enabled": False})
-    with ThreadPoolExecutor(max_workers=len(sidecars)) as ex:
-        for f in as_completed([ex.submit(trigger_action, n, p, "start") for n, p in sidecars.items()]):
-            pass
-    wait_for_all_running(robot_sidecars)
-    wait_for_all_finished(robot_sidecars)
-    stop_all(sidecars)
-    print("✅ Warmup done.\n")
-
 
 # ── Collector helpers ──────────────────────────────────────────────────────────
 
 def wait_for_topics_active(min_msgs=N_ROBOTS, timeout=60):
     """Block until collector reports at least min_msgs received (one per robot)."""
-    print(f"   ⏳ Waiting for /scan topics ({min_msgs} msgs)...")
+    print(f"   ⏳ Waiting for topics ({min_msgs} msgs)...")
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -161,11 +184,12 @@ def wait_for_topics_active(min_msgs=N_ROBOTS, timeout=60):
 
 # ── Run loop ───────────────────────────────────────────────────────────────────
 
-def run_benchmark_loop(run_id, condition, mode, topic_slug, sidecars, robot_sidecars):
-    print(f"\n{'='*55}\n🏁 Run {run_id}  [{condition} / {mode} / {topic_slug}]\n{'='*55}")
+def run_benchmark_loop(run_id, condition, folder, topic_slug, sidecars, robot_sidecars, run_tag=None, duration_s=DEFAULT_DURATION_S):
+    print(f"\n{'='*55}\n🏁 Run {run_id}  [{condition} / {topic_slug}]\n{'='*55}")
 
-    host_output      = BASE_RESULTS_DIR / topic_slug / condition / mode / f"run{run_id}.csv"
-    container_output = f"{COLLECTOR_RESULTS_DIR}/{topic_slug}/{condition}/{mode}/run{run_id}.csv"
+    fname = f"{run_tag}-run{run_id}.csv" if run_tag else f"run{run_id}.csv"
+    host_output      = BASE_RESULTS_DIR / topic_slug / condition / folder / fname
+    container_output = f"{COLLECTOR_RESULTS_DIR}/{topic_slug}/{condition}/{folder}/{fname}"
     host_output.parent.mkdir(parents=True, exist_ok=True)
 
     # Reset collector state from previous run
@@ -175,10 +199,7 @@ def run_benchmark_loop(run_id, condition, mode, topic_slug, sidecars, robot_side
     wait_for_topics_active(min_msgs=N_ROBOTS, timeout=60)
 
     if condition == "with_sidecar":
-        set_config_all(robot_sidecars, {
-            "one_shot":       mode == "startup",
-            "export_enabled": False,
-        })
+        set_config_all(robot_sidecars, {"export_enabled": False})
         set_config("secaas", SECAAS_PORT, {"export_enabled": False})
 
         print("   [Agents] Starting...")
@@ -191,27 +212,14 @@ def run_benchmark_loop(run_id, condition, mode, topic_slug, sidecars, robot_side
     print(f"   [Collector] Recording → {host_output}")
     requests.post(f"{COLLECTOR_URL}/start", json={
         "output_file": container_output,
-        "duration_s":  DURATION_S + 10,    # buffer; we stop explicitly below
+        "duration_s":  duration_s + 10,    # buffer; we stop explicitly below
     }, timeout=5)
-    t_collect_start = time.time()
+
+    print(f"   ⏳ {'Running' if condition == 'with_sidecar' else 'Baseline'} for {duration_s}s...")
+    time.sleep(duration_s)
 
     if condition == "with_sidecar":
-        if mode == "startup":
-            wait_for_all_finished(robot_sidecars, timeout=120)
-            stop_all(sidecars)
-            # Pad so the collection window always covers DURATION_S
-            remaining = DURATION_S - (time.time() - t_collect_start)
-            if remaining > 0:
-                print(f"   ⏳ Collector padding {remaining:.1f}s...")
-                time.sleep(remaining)
-            reset_chain()
-        else:
-            print(f"   ⏳ Running for {DURATION_S}s...")
-            time.sleep(DURATION_S)
-            stop_all(sidecars)
-    else:
-        print(f"   ⏳ Baseline for {DURATION_S}s...")
-        time.sleep(DURATION_S)
+        stop_all(sidecars)
 
     # Stop collector
     resp = requests.post(f"{COLLECTOR_URL}/stop", timeout=10)
@@ -226,30 +234,34 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument("--condition", choices=["no_sidecar", "with_sidecar"], required=True)
-    parser.add_argument("--mode",      choices=["startup", "continuous"],
-                        help="Required for with_sidecar; ignored for no_sidecar (always 'baseline').")
-    parser.add_argument("--runs",      type=int, default=5)
+    parser.add_argument("--runs",      type=int, default=1)
+    parser.add_argument("--duration",  type=int, default=DEFAULT_DURATION_S,
+                        help=f"Collection window in seconds (default: {DEFAULT_DURATION_S})")
+    parser.add_argument("--ssp",       type=int,   default=_DEFAULT_SSP,
+                        help=f"Attestation interval in milliseconds (default from .env: {_DEFAULT_SSP})")
+    parser.add_argument("--iterqu",    type=int,   default=_DEFAULT_ITERQU,
+                        help=f"Rolling hash queue depth (default from .env: {_DEFAULT_ITERQU})")
+    parser.add_argument("--cpu-limit", type=float, default=_DEFAULT_CPU_LIMIT,
+                        help=f"Sidecar CPU limit (default from .env: {_DEFAULT_CPU_LIMIT})")
     parser.add_argument("--topic",     default="scan",
                         help="Topic suffix used for this run, e.g. 'scan' or 'odom'. "
                              "Must match TOPIC_NAME set when starting the collector. "
                              "Used only to organise output paths. (default: scan)")
     args = parser.parse_args()
 
-    # no_sidecar has no attestation cycle — startup vs continuous is meaningless
-    if args.condition == "no_sidecar":
-        mode = "baseline"
-    else:
-        if args.mode is None:
-            parser.error("--mode is required for --condition with_sidecar")
-        mode = args.mode
+    folder = "baseline" if args.condition == "no_sidecar" else "continuous"
 
     topic_slug = args.topic.lstrip("/").replace("/", "_") or "scan"
 
     sidecars       = build_sidecars()
     robot_sidecars = {k: v for k, v in sidecars.items() if k != "secaas"}
 
-    print(f"📋 condition={args.condition}  mode={mode}  topic={topic_slug}  runs={args.runs}")
-    print(f"📁 Output: {BASE_RESULTS_DIR / topic_slug / args.condition / mode}/")
+    run_tag = _build_run_tag(args.ssp, args.iterqu, args.cpu_limit) if args.condition == "with_sidecar" else None
+
+    print(f"📋 condition={args.condition}  folder={folder}  topic={topic_slug}  runs={args.runs}  duration={args.duration}s")
+    if run_tag:
+        print(f"📋 params={run_tag}")
+    print(f"📁 Output: {BASE_RESULTS_DIR / topic_slug / args.condition / folder}/")
 
     # Pre-flight: collector
     print("\n🔍 Checking topic collector...")
@@ -267,20 +279,13 @@ def main():
                 sys.exit(1)
         print("✅ Sidecars ready.")
 
-        if mode == "continuous":
-            run_warmup(sidecars, robot_sidecars)
-            set_config_all(robot_sidecars, {"export_enabled": False})
-            set_config("secaas", SECAAS_PORT, {"export_enabled": False})
-            print("   [System] Cooldown 5s after warmup...")
-            time.sleep(5)
-
     for i in range(1, args.runs + 1):
-        run_benchmark_loop(i, args.condition, mode, topic_slug, sidecars, robot_sidecars)
+        run_benchmark_loop(i, args.condition, folder, topic_slug, sidecars, robot_sidecars, run_tag=run_tag, duration_s=args.duration)
         if i < args.runs:
             print("   [System] Cooldown 5s...")
             time.sleep(5)
 
-    print(f"\n🎉 Done. Results in {BASE_RESULTS_DIR / topic_slug / args.condition / mode}/")
+    print(f"\n🎉 Done. Results in {BASE_RESULTS_DIR / topic_slug / args.condition / folder}/")
 
 
 if __name__ == "__main__":
