@@ -1,0 +1,148 @@
+{
+  "vectors": [
+    {
+      "name": "zeros-k1",
+      "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+      "k": 1,
+      "expected": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "zeros-k2",
+      "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+      "k": 2,
+      "expected": "f5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b"
+    },
+    {
+      "name": "zeros-k3",
+      "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+      "k": 3,
+      "expected": "7a0501f5957bdf9cb3a8ff4966f02265f968658b7a9c62642cba1165e86642f5"
+    },
+    {
+      "name": "zeros-k5",
+      "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+      "k": 5,
+      "expected": "60229dc681ffe16bf2737ab786adae1c73a47696a6f61d1d52f255d550333f00"
+    },
+    {
+      "name": "zeros-k10",
+      "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+      "k": 10,
+      "expected": "31f573ed67dfc6e8756fcacd6e4302e0af180330d42eade83ab59af26938cf02"
+    },
+    {
+      "name": "zeros-k100",
+      "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+      "k": 100,
+      "expected": "17b7c0e76c1c36745accafa5cfd803630d81f2a3bb73ef5f9b88a5914623b7e1"
+    },
+    {
+      "name": "ones-k1",
+      "seed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "k": 1,
+      "expected": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "ones-k2",
+      "seed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "k": 2,
+      "expected": "8667e718294e9e0df1d30600ba3eeb201f764aad2dad72748643e4a285e1d1f7"
+    },
+    {
+      "name": "ones-k3",
+      "seed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "k": 3,
+      "expected": "c87568a844c34fa5fd27afbf80a9ee2e120114bf4a47f7baad207a9dee299e93"
+    },
+    {
+      "name": "ones-k5",
+      "seed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "k": 5,
+      "expected": "56cec815f06cbbbabe88b53456396c79393211caf15cd9022722a5c95c7ef843"
+    },
+    {
+      "name": "ones-k10",
+      "seed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "k": 10,
+      "expected": "ff07833bf15e95b6deef173ffef0941e78fb4845382c0e885b74faec4fd77204"
+    },
+    {
+      "name": "ones-k100",
+      "seed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "k": 100,
+      "expected": "5426ccde7e30a0783b7fe255cac12f2d485b3bdc035461b57443294bc7b6f814"
+    },
+    {
+      "name": "combined-k1",
+      "seed": "8c55173fa6a85295a83378cc84dc18baf8810ee21a0d0013b77d0fbd904ebffe",
+      "k": 1,
+      "expected": "8c55173fa6a85295a83378cc84dc18baf8810ee21a0d0013b77d0fbd904ebffe"
+    },
+    {
+      "name": "combined-k2",
+      "seed": "8c55173fa6a85295a83378cc84dc18baf8810ee21a0d0013b77d0fbd904ebffe",
+      "k": 2,
+      "expected": "fdcaff44df21806d0c8ea3566a181be0fe95f66b1b689833b3c248feb0f12c25"
+    },
+    {
+      "name": "combined-k3",
+      "seed": "8c55173fa6a85295a83378cc84dc18baf8810ee21a0d0013b77d0fbd904ebffe",
+      "k": 3,
+      "expected": "5b7db6e39425d0baa543597b86ec9f95a542398bd2f6ef8bc3b71170b05cebd0"
+    },
+    {
+      "name": "combined-k5",
+      "seed": "8c55173fa6a85295a83378cc84dc18baf8810ee21a0d0013b77d0fbd904ebffe",
+      "k": 5,
+      "expected": "84346d0a3cb6c96be410731d15149819cfa70a5d1453acfed6c68d4836846e1b"
+    },
+    {
+      "name": "combined-k10",
+      "seed": "8c55173fa6a85295a83378cc84dc18baf8810ee21a0d0013b77d0fbd904ebffe",
+      "k": 10,
+      "expected": "5fdea3764b83448fabc33077f969275a9122afcaf85784225ecba75c76695155"
+    },
+    {
+      "name": "combined-k100",
+      "seed": "8c55173fa6a85295a83378cc84dc18baf8810ee21a0d0013b77d0fbd904ebffe",
+      "k": 100,
+      "expected": "5dc7b0d036620bac5f9d1a6f62d565b53810510e61d68315b45ed1f6b6ed7ae5"
+    },
+    {
+      "name": "ascending-k1",
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "k": 1,
+      "expected": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    },
+    {
+      "name": "ascending-k2",
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "k": 2,
+      "expected": "7c26fdd1387b71ca2b32c7778087933352bceddf1b767f4f9230aa543df6153a"
+    },
+    {
+      "name": "ascending-k3",
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "k": 3,
+      "expected": "86daa62413078edfabe74dd8f444bea1471bcc4170ad205ed1dacf51feeba544"
+    },
+    {
+      "name": "ascending-k5",
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "k": 5,
+      "expected": "01cdd16413d65814dc1b0495e8c896571642d852ea781d8e6e1bdaeb474c26d3"
+    },
+    {
+      "name": "ascending-k10",
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "k": 10,
+      "expected": "4ef0fdb42e32c38138dbc2410c243dc74c2120cd31e9a439daa8cb379af968a5"
+    },
+    {
+      "name": "ascending-k100",
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "k": 100,
+      "expected": "dfe49e3273e3659ba47aa6077447c05f698d51f38358f899699cbec4e295f12b"
+    }
+  ]
+}

@@ -71,7 +71,8 @@ services:
   validator1:
     << : *besu-def
     ports:
-      - 21001:8545/tcp
+      - 127.0.0.1:21001:8545/tcp
+      - 172.17.0.1:21001:8545/tcp  # docker bridge gateway, reachable from containers via host.docker.internal
       - 30303
       - 9545
     environment:
@@ -89,7 +90,8 @@ services:
   validator2:
     << : *besu-def
     ports:
-      - 21002:8545/tcp
+      - 127.0.0.1:21002:8545/tcp
+      - 172.17.0.1:21002:8545/tcp
       - 30303
       - 9545
     environment:
@@ -109,7 +111,8 @@ services:
   validator3:
     << : *besu-def
     ports:
-      - 21003:8545/tcp
+      - 127.0.0.1:21003:8545/tcp
+      - 172.17.0.1:21003:8545/tcp
       - 30303
       - 9545
     environment:
@@ -129,7 +132,8 @@ services:
   validator4:
     << : *besu-def
     ports:
-      - 21004:8545/tcp
+      - 127.0.0.1:21004:8545/tcp
+      - 172.17.0.1:21004:8545/tcp
       - 30303
       - 9545
     environment:
@@ -318,7 +322,7 @@ services:
     depends_on:
       - validator1
     ports:
-      - 25000:25000/tcp
+      - 127.0.0.1:25000:25000/tcp
     networks:
       quorum-dev-quickstart:
         ipv4_address: 172.16.239.31
@@ -337,7 +341,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
     ports:
-      - 9090:9090/tcp
+      - 127.0.0.1:9090:9090/tcp
     networks:
       quorum-dev-quickstart:
         ipv4_address: 172.16.239.32
@@ -351,7 +355,7 @@ services:
       - ./config/grafana/provisioning/:/etc/grafana/provisioning/
       - grafana:/var/lib/grafana
     ports:
-      - 3000:3000/tcp
+      - 127.0.0.1:3000:3000/tcp
     networks:
       quorum-dev-quickstart:
         ipv4_address: 172.16.239.33
@@ -362,7 +366,7 @@ services:
       - ./loki/loki.yml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - 3100:3100/tcp
+      - 127.0.0.1:3100:3100/tcp
     networks:
       quorum-dev-quickstart:
         ipv4_address: 172.16.239.34

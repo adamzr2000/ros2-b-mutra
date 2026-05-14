@@ -57,10 +57,18 @@ echo "Chain ID   : $chain_id"
 [[ -n "$contract_name" ]] && echo "Contract   : $contract_name"
 [[ -n "$vrp"           ]] && echo "VRP        : $vrp"
 
-# Rewrite localhost → host.docker.internal so the Hardhat container can reach
-# the Besu validators exposed on the host's ports.
-rpc_url="${rpc_url/localhost/host.docker.internal}"
-rpc_url="${rpc_url/127.0.0.1/host.docker.internal}"
+# Rewrite the RPC URL to talk directly to validator1 over the Besu docker
+# network, so we don't need the host-side port to be reachable from the
+# hardhat container. host port mappings can stay bound to 127.0.0.1 only.
+# Maps:
+#   http://localhost:21001  -> http://validator1:8545
+#   http://localhost:21002  -> http://validator2:8545  ...
+besu_net="quorum-dev-quickstart"
+rpc_url_internal="$rpc_url"
+for i in 1 2 3 4; do
+  rpc_url_internal="${rpc_url_internal//localhost:2100$i/validator$i:8545}"
+  rpc_url_internal="${rpc_url_internal//127.0.0.1:2100$i/validator$i:8545}"
+done
 
 # Build optional env flags
 contract_env_flag=""
@@ -68,9 +76,9 @@ vrp_env_flag=""
 [[ -n "$contract_name" ]] && contract_env_flag="-e CONTRACT_NAME=$contract_name"
 [[ -n "$vrp"           ]] && vrp_env_flag="-e VRP=$vrp"
 
-# Run in Docker
-docker run -it --rm --name hardhat \
-  --add-host=host.docker.internal:host-gateway \
+# Run in Docker — attached to the Besu network so we can resolve validatorN.
+docker run --rm --name hardhat \
+  --network "$besu_net" \
   -v "$(pwd)/smart-contracts/scripts":/smart-contracts/scripts \
   -v "$(pwd)/smart-contracts/deployments":/smart-contracts/deployments \
   -v "$(pwd)/smart-contracts/contracts":/smart-contracts/contracts \
@@ -78,7 +86,7 @@ docker run -it --rm --name hardhat \
   -v "$(pwd)/smart-contracts/artifacts":/smart-contracts/artifacts \
   -v "$(pwd)/smart-contracts/hardhat.config.js":/smart-contracts/hardhat.config.js \
   -e PRIVATE_KEY="$private_key" \
-  -e RPC_URL="$rpc_url" \
+  -e RPC_URL="$rpc_url_internal" \
   -e CHAIN_ID="$chain_id" \
   ${contract_env_flag} \
   ${vrp_env_flag} \

@@ -77,7 +77,7 @@ def process_secaas_attestation(
             timestamps["get_signatures_start"] = helpers.now_ms()
             timestamps["p_get_signatures_start"] = helpers.perf_ns()
 
-            fresh_sig_hex, _ = blockchain_client.get_attestation_signatures(attestation_id)
+            fresh_sig_hex, _, iter_count = blockchain_client.get_attestation_signatures(attestation_id)
 
             timestamps["p_get_signatures_finished"] = helpers.perf_ns()
             timestamps["get_signatures_finished"] = helpers.now_ms()
@@ -86,8 +86,21 @@ def process_secaas_attestation(
             timestamps["verify_compute_start"] = helpers.now_ms()
             timestamps["p_verify_compute_start"] = helpers.perf_ns()
 
-            is_success = (fresh_sig_hex.lower() == ref_hash.lower())
-            is_success = True
+            # Re-derive the chained reference under the no-tamper hypothesis:
+            # all K m_i = ref_hash, so prover's H_K equals chain(ref_hash, K).
+            # K=1 is the identity case. Construction must stay bit-for-bit
+            # identical to compute.RollingHashStep used in the Go prover.
+            try:
+                derived_ref = helpers.rolling_hash(ref_hash, int(iter_count))
+            except Exception as ex:
+                error(f"{log_prefix} Failed to derive rolling reference (K={iter_count}): {ex}")
+                derived_ref = ref_hash
+
+            # Web3.to_hex prepends "0x"; derived_ref is bare hex.
+            def _strip0x(s: str) -> str:
+                return s[2:] if s.lower().startswith("0x") else s
+            is_success = (_strip0x(fresh_sig_hex).lower() == _strip0x(derived_ref).lower())
+            # is_success = True
 
             timestamps["p_verify_compute_finished"] = helpers.perf_ns()
             timestamps["verify_compute_finished"] = helpers.now_ms()

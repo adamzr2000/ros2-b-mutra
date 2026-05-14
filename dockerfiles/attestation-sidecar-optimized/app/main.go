@@ -85,6 +85,7 @@ func startAttestation(state *AppState) {
 		Offset:                 state.Config.Agent.Offset,
 		TextSectionPrefix:      state.Config.Agent.TextSectionPrefix,
 		Threshold:              state.Config.ProverThreshold,
+		IterQThreshold:         state.Config.IterQThreshold,
 		AgentName:              state.Config.Agent.Name,
 		ExportEnabled:          state.Config.ExportEnabled,
 		ResultsDir:             state.Config.ResultsDir,
@@ -238,6 +239,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Validate IterQ threshold: must match the contract's MAX_ITER_COUNT
+	// otherwise SendEvidence reverts. K=0 is meaningless; K=1 is single-shot.
+	if cfg.IterQThreshold < 1 || cfg.IterQThreshold > 10000 {
+		logger.Error("ITERQ_THRESHOLD=%d is out of range [1, 10000]", cfg.IterQThreshold)
+		os.Exit(1)
+	}
+	logger.Info("IterQ threshold (K) = %d", cfg.IterQThreshold)
+
 	// ---------------------------------------------------------
 	// 1.5 Compute Self-Integrity Info (Auto-Detection)
 	// ---------------------------------------------------------
@@ -350,6 +359,27 @@ func main() {
 			resp.Status = "idle"
 		}
 		c.JSON(200, resp)
+	})
+
+	r.GET("/digest", func(c *gin.Context) {
+		si := compute.SelfIntegrityParams{
+			Enabled:           cfg.SelfIntegrity.Enabled,
+			CmdName:           cfg.SelfIntegrity.CmdName,
+			TextSectionSize:   cfg.SelfIntegrity.TextSectionSize,
+			TextSectionOffset: cfg.SelfIntegrity.TextSectionOffset,
+		}
+		d, err := compute.ComputeAttestationDigest(
+			cfg.Agent.CmdName,
+			cfg.Agent.TextSectionSize,
+			cfg.Agent.Offset,
+			cfg.Agent.TextSectionPrefix,
+			si,
+		)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, d)
 	})
 
 	r.POST("/start", func(c *gin.Context) {

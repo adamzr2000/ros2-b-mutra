@@ -405,7 +405,10 @@ func (bc *BlockchainClient) ResetAttestationChain(wait bool, timeout int) (strin
 	return txHash, nil
 }
 
-func (bc *BlockchainClient) SendEvidence(attID string, freshSig string, wait bool, timeout int) (string, error) {
+// SendEvidence submits an attestation request with an IterQ depth K
+// (iterCount). The contract enforces 1 <= K <= MAX_ITER_COUNT (10000).
+// K=1 means a single measurement (no rolling-hash chaining).
+func (bc *BlockchainClient) SendEvidence(attID string, freshSig string, iterCount uint32, wait bool, timeout int) (string, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
 		return "", err
@@ -415,7 +418,7 @@ func (bc *BlockchainClient) SendEvidence(attID string, freshSig string, wait boo
         return "", err
     }
 
-	data, err := bc.contractABI.Pack("SendEvidence", attIDBytes, sigBytes)
+	data, err := bc.contractABI.Pack("SendEvidence", attIDBytes, sigBytes, iterCount)
 	if err != nil {
 		return "", err
 	}
@@ -723,38 +726,45 @@ func (bc *BlockchainClient) GetProverAddress(attID string) (common.Address, erro
 	return addr, nil
 }
 
-func (bc *BlockchainClient) GetAttestationSignatures(attID string) (string, string, error) {
+// GetAttestationSignatures returns (fresh, ref, iterCount) where iterCount
+// is the IterQ depth K the prover used when submitting fresh. The verifier
+// must apply the same fold count to ref before comparing.
+func (bc *BlockchainClient) GetAttestationSignatures(attID string) (string, string, uint32, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 	data, err := bc.contractABI.Pack("GetAttestationSignatures", attIDBytes, bc.ethAddress)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 	res, err := bc.rawEthCall(nil, data)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 
 	values, err := bc.contractABI.Unpack("GetAttestationSignatures", res)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
-	if len(values) < 2 {
-		return "", "", fmt.Errorf("GetAttestationSignatures: expected 2 returns, got %d", len(values))
+	if len(values) < 3 {
+		return "", "", 0, fmt.Errorf("GetAttestationSignatures: expected 3 returns, got %d", len(values))
 	}
 
 	fresh, ok := values[0].([32]byte)
 	if !ok {
-		return "", "", fmt.Errorf("GetAttestationSignatures: fresh type %T", values[0])
+		return "", "", 0, fmt.Errorf("GetAttestationSignatures: fresh type %T", values[0])
 	}
 	ref, ok := values[1].([32]byte)
 	if !ok {
-		return "", "", fmt.Errorf("GetAttestationSignatures: ref type %T", values[1])
+		return "", "", 0, fmt.Errorf("GetAttestationSignatures: ref type %T", values[1])
+	}
+	k, ok := values[2].(uint32)
+	if !ok {
+		return "", "", 0, fmt.Errorf("GetAttestationSignatures: iterCount type %T", values[2])
 	}
 
-	return "0x" + hex.EncodeToString(fresh[:]), "0x" + hex.EncodeToString(ref[:]), nil
+	return "0x" + hex.EncodeToString(fresh[:]), "0x" + hex.EncodeToString(ref[:]), k, nil
 }
 
 

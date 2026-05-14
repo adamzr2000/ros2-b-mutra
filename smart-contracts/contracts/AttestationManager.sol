@@ -22,10 +22,16 @@ contract AttestationManager {
         bytes32 fresh_signature;
         bytes32 ref_signature;
 
+        uint32 iterCount; // IterQ depth K: number of fresh measurements folded into freshSig
+
         AttestationState state;
         AttestationResult result;
         uint256 timestamp; // Timestamp for attestation closure
     }
+
+    // Hard cap on the K parameter accepted by SendEvidence. Mirrors the
+    // optimized variant. Keeps storage bounded and verifier CPU cost low.
+    uint32 public constant MAX_ITER_COUNT = 10000;
 
     address private secaas;
     address[] private participants;
@@ -43,7 +49,7 @@ contract AttestationManager {
     // Define events
     event AgentRegistered(address agent);
     event AgentRemoved(address agent);
-    event AttestationStarted(bytes32 id);
+    event AttestationStarted(bytes32 id, uint32 iterCount);
     event ReadyForEvaluation(bytes32 id);
     event AttestationCompleted(bytes32 id);
     event ChainReset();
@@ -125,9 +131,10 @@ contract AttestationManager {
     } 
 
 
-    function SendEvidence(bytes32 id, bytes32 freshMeasurement) public {
+    function SendEvidence(bytes32 id, bytes32 freshMeasurement, uint32 iterCount) public {
         Agent storage currentAgent = agent[msg.sender];
         require(currentAgent.registered, "SendEvidence : Agent is not registered");
+        require(iterCount >= 1 && iterCount <= MAX_ITER_COUNT, "SendEvidence : iterCount out of range");
 
         MutualAttestation storage currentAttestation = attestation[id];
         currentAttestation.id = id;
@@ -137,12 +144,13 @@ contract AttestationManager {
         // Assign fixed-size array
         currentAttestation.fresh_signature = freshMeasurement;
         currentAttestation.ref_signature = bytes32(0);
+        currentAttestation.iterCount = iterCount;
 
         currentAttestation.state = AttestationState.Open;
         currentAttestation.result = AttestationResult.None;
-        currentAttestation.timestamp = 0; 
+        currentAttestation.timestamp = 0;
 
-        emit AttestationStarted(id);
+        emit AttestationStarted(id, iterCount);
     }
 
     function GetProverAddress(bytes32 id, address callAddress) public view returns (address) {
@@ -166,7 +174,7 @@ contract AttestationManager {
         return true;
     }
 
-    function GetAttestationSignatures(bytes32 id, address callAddress) public view returns (bytes32, bytes32) {
+    function GetAttestationSignatures(bytes32 id, address callAddress) public view returns (bytes32, bytes32, uint32) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.verifier == callAddress, "Only the verifier can retrieve the signatures");
         // readiness: either process completed OR this attestation is verified by secaas
@@ -175,7 +183,7 @@ contract AttestationManager {
             currentAttestation.verifier == secaas,
             "Attestation not completed (unless verifier is secaas)"
         );
-        return (currentAttestation.fresh_signature, currentAttestation.ref_signature);
+        return (currentAttestation.fresh_signature, currentAttestation.ref_signature, currentAttestation.iterCount);
     }
 
     function GetAttestationInfo(bytes32 id) public view returns (address, address, AttestationResult, uint256) {
