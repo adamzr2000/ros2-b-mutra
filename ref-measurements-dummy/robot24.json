@@ -1,8 +1,0 @@
-{
-    "name": "robot24",
-    "eth_address": "0xf4341f0bc6d76951bbb4dc917821c2241ebe02cb",
-    "private_key": "0x7bee59d2c274cc8d4bc93b734b74153a06576975fe77326303c3f95c4eacf249",
-    "robot_hash": "1509176d49c565a41ef314d07b6af751c457ece64f60677ddee4825f4f4f155d",
-    "attestation_sidecar_hash": "1509176d49c565a41ef314d07b6af751c457ece64f60677ddee4825f4f4f155d",
-    "combined_hash": "1509176d49c565a41ef314d07b6af751c457ece64f60677ddee4825f4f4f155d"
-}

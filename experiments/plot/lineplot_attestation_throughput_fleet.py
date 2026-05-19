@@ -18,9 +18,9 @@ import matplotlib.lines as mlines
 import seaborn as sns
 
 INPUT_FILE            = "../data/attestation-times/_summary/durations_raw.csv"
-VARIANT               = "standard"   # ← continuous-mode variant to plot
-SSP_S                 = 20           # sidecar sleep period (s)
-ITERQU                = 1            # rolling-hash queue depth
+VARIANT    = "rr"   # ← continuous-mode variant to plot
+SSP_MS                 = 20000           # sidecar sleep period (ms)
+ITERQ                = 1            # rolling-hash queue depth
 CPU_LIMIT             = 0.4          # sidecar CPU limit
 EXPERIMENT_DURATION_S = 120
 ATTESTATION_INTERVAL_S = 10
@@ -33,7 +33,7 @@ LINE_WIDTH  = 2.0
 
 def main():
     script_dir = Path(__file__).parent.resolve()
-    csv_path   = (script_dir / INPUT_FILE).resolve()
+    csv_path   = (script_dir / INPUT_FILE.format(VARIANT=VARIANT)).resolve()
     if not csv_path.exists():
         raise SystemExit(f"CSV not found: {csv_path}")
 
@@ -47,10 +47,8 @@ def main():
 
     # Total attestations per (n_robots, run) in continuous mode
     sub = df[
-        (df["mode"]      == "continuous") &
-        (df["variant"]   == VARIANT) &
-        (df["ssp_s"]     == SSP_S) &
-        (df["iterqu"]    == ITERQU) &
+        (df["ssp_ms"]     == SSP_MS) &
+        (df["iterq"]    == ITERQ) &
         (df["cpu_limit"] == CPU_LIMIT) &
         (df["role"]      == "prover") &
         (df["metric"]    == "total_lifecycle")

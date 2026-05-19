@@ -3,12 +3,12 @@
 Per-N summary of blockchain stats for continuous-mode experiments.
 
 Expected file layout:
-    results/N{n}/continuous/{variant}/blockchain-SSP{ssp}s-ITERQu{iterqu}-cpu{cpu}-run{k}.csv
+    results/N{n}/continuous/{variant}/blockchain-SSP{ssp}s-ITERQ{iterq}-cpu{cpu}-run{k}.csv
 e.g.
-    results/N4/continuous/standard/blockchain-SSP20s-ITERQu1-cpu0p4-run1.csv
+    results/N4/continuous/rr/blockchain-SSP20s-ITERQ1-cpu0p4-run1.csv
 
 Aggregation pipeline:
-  blocks (per run CSV) → per-run stats → mean ± std across (N, ssp_s, iterqu, cpu_limit) groups
+  blocks (per run CSV) → per-run stats → mean ± std across (N, ssp_s, iterq, cpu_limit) groups
 """
 import argparse
 import glob
@@ -19,30 +19,30 @@ import pandas as pd
 
 RESULTS_ROOT    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 N_VALUES        = [4, 8, 16, 24, 32, 40, 50, 64, 100]
-_KNOWN_VARIANTS = {"standard", "exception", "batched"}
+_KNOWN_VARIANTS = {"rr", "lv"}
 
 SUMMARY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_summary")
 
 _FILE_RE   = re.compile(r"^(?P<base>.+)-run(?P<run>\d+)\.csv$", re.IGNORECASE)
 _PARAMS_RE = re.compile(
-    r"-SSP(?P<ssp>\d+)s-ITERQu(?P<iterqu>\d+)-cpu(?P<cpu>[\dp]+)$",
+    r"-SSP(?P<ssp>\d+)s-ITERQ(?P<iterq>\d+)-cpu(?P<cpu>[\dp]+)$",
     re.IGNORECASE,
 )
 
 
 def _extract_params(base: str):
-    """Return (ssp_s, iterqu, cpu_limit) parsed from the base stem, or (None, None, None)."""
+    """Return (ssp_s, iterq, cpu_limit) parsed from the base stem, or (None, None, None)."""
     m = _PARAMS_RE.search(base)
     if m:
-        return int(m.group("ssp")), int(m.group("iterqu")), float(m.group("cpu").replace("p", "."))
+        return int(m.group("ssp")), int(m.group("iterq")), float(m.group("cpu").replace("p", "."))
     return None, None, None
 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Summarize blockchain stats per N.")
-    p.add_argument("--variant", default="standard",
+    p.add_argument("--variant", default="rr",
                    choices=sorted(_KNOWN_VARIANTS),
-                   help="Contract variant to summarize (default: standard).")
+                   help="Contract variant to summarize (default: rr).")
     return p.parse_args()
 
 
@@ -68,7 +68,7 @@ def per_run_stats(df: pd.DataFrame) -> dict:
 
 
 def summarize_variant(variant: str) -> list[dict]:
-    """Scan all blockchain CSVs under variant dir; return one row per (N, ssp_s, iterqu, cpu_limit)."""
+    """Scan all blockchain CSVs under variant dir; return one row per (N, ssp_s, iterq, cpu_limit)."""
     rows = []
     for n in N_VALUES:
         dir_path = os.path.join(RESULTS_ROOT, f"N{n}", "continuous", variant)
@@ -76,16 +76,16 @@ def summarize_variant(variant: str) -> list[dict]:
         if not files:
             continue
 
-        # Group files by (ssp_s, iterqu, cpu_limit)
+        # Group files by (ssp_s, iterq, cpu_limit)
         groups: dict[tuple, list] = {}
         for f in files:
             m = _FILE_RE.match(os.path.basename(f))
             if not m:
                 continue
-            ssp_s, iterqu, cpu_limit = _extract_params(m.group("base"))
-            groups.setdefault((ssp_s, iterqu, cpu_limit), []).append(f)
+            ssp_s, iterq, cpu_limit = _extract_params(m.group("base"))
+            groups.setdefault((ssp_s, iterq, cpu_limit), []).append(f)
 
-        for (ssp_s, iterqu, cpu_limit), group_files in sorted(groups.items()):
+        for (ssp_s, iterq, cpu_limit), group_files in sorted(groups.items()):
             run_stats = []
             for f in group_files:
                 try:
@@ -95,7 +95,7 @@ def summarize_variant(variant: str) -> list[dict]:
             if not run_stats:
                 continue
             runs_df = pd.DataFrame(run_stats)
-            row = {"N": n, "ssp_s": ssp_s, "iterqu": iterqu, "cpu_limit": cpu_limit, "runs": len(run_stats)}
+            row = {"N": n, "ssp_s": ssp_s, "iterq": iterq, "cpu_limit": cpu_limit, "runs": len(run_stats)}
             for col in runs_df.columns:
                 row[f"{col}_mean"] = runs_df[col].mean()
                 row[f"{col}_std"]  = runs_df[col].std()
@@ -128,14 +128,14 @@ def main():
     ]
 
     print(f"\nVariant: {variant}")
-    header = (f"{'N':>5}  {'ssp_s':>5}  {'iterqu':>6}  {'cpu':>5}  {'runs':>4}"
+    header = (f"{'N':>5}  {'ssp_s':>5}  {'iterq':>6}  {'cpu':>5}  {'runs':>4}"
               + "".join(f"  {lbl:>{COL_W}}" for _, lbl in metrics))
     print(header)
     print("-" * len(header))
 
     for _, row in df.iterrows():
         line = (f"{int(row['N']):>5}  {str(row['ssp_s']):>5}  "
-                f"{str(row['iterqu']):>6}  {str(row['cpu_limit']):>5}  {int(row['runs']):>4}")
+                f"{str(row['iterq']):>6}  {str(row['cpu_limit']):>5}  {int(row['runs']):>4}")
         for key, _ in metrics:
             mean = row[f"{key}_mean"]
             std  = row[f"{key}_std"]

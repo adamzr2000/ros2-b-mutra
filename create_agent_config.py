@@ -10,7 +10,7 @@ NODES_DIR = os.path.join(BESU_BASE, "config", "nodes")
 # Validator RPC ports exposed on the Docker host (validator1→21001 … validator4→21004)
 _VALIDATOR_PORTS = [21001, 21002, 21003, 21004]
 
-_DEFAULT_CONTRACT = "AttestationManager"  # ← change this to switch contracts
+_DEFAULT_CONTRACT = "AttestationManagerRR"  # ← change this to switch contracts
 
 
 def pick_random_eth_node_url(blockchain_host: str) -> str:
@@ -52,16 +52,13 @@ def generate_fake_hash(data: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
-def create_agent_files(agent_index: int, config_dir: str, ref_dir: str, blockchain_host: str,
+def create_agent_files(agent_index: int, config_dir: str, ref_dir, blockchain_host: str,
                        cmd_name: str, text_section_size: int, offset: int, text_section_prefix: str,
                        contract_address: str, contract_abi: list):
     # robot i -> agent i
     agent_dir = os.path.join(NODES_DIR, f"agent{agent_index}")
     eth_node_url = pick_random_eth_node_url(blockchain_host)
     creds = read_credentials_from_dir(agent_dir, eth_node_url)
-
-    # TO BE REPLACED (placeholder reference signatures)
-    fake_hash = generate_fake_hash(f"robot{agent_index}")
 
     # 1) Normal config -> ./config/robot{i}.json
     robot_config = {
@@ -82,7 +79,12 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir: str, blockcha
     with open(config_path, "w") as f:
         json.dump(robot_config, f, indent=4)
 
-    # 2) Ref-measurements -> ./ref-measurements/robot{i}.json
+    if ref_dir is None:
+        print(f"Created {config_path} using agent{agent_index} (RPC: {eth_node_url}).")
+        return
+
+    # 2) Ref-measurements -> ./ref-measurements/robot{i}.json (placeholder, replaced by bootstrap)
+    fake_hash = generate_fake_hash(f"robot{agent_index}")
     ref_measurements = {
         "name": f"robot{agent_index}",
         "eth_address": creds["eth_address"],
@@ -133,7 +135,8 @@ if __name__ == "__main__":
     parser.add_argument("--contract", default=_DEFAULT_CONTRACT,
                         help=f"Smart contract name to use (default: {_DEFAULT_CONTRACT})")
     parser.add_argument("--config-output", default="./config", help="Output directory for normal config JSON files")
-    parser.add_argument("--ref-output", default="./ref-measurements", help="Output directory for ref-measurements JSON files")
+    parser.add_argument("--ref-output", default=None,
+                        help="Output directory for ref-measurements JSON files. Omit to skip writing ref-measurements.")
     parser.add_argument("--blockchain-host", default="host.docker.internal",
                         help="Hostname/IP for Besu RPC endpoints (default: host.docker.internal)")
     parser.add_argument("--cmd-name", default="robot_state_publisher",
@@ -161,7 +164,6 @@ if __name__ == "__main__":
     print(f"ℹ️  Using contract: {contract_name}  ({contract_data['address']})")
 
     os.makedirs(args.config_output, exist_ok=True)
-    os.makedirs(args.ref_output, exist_ok=True)
 
     create_secaas_config(args.config_output, args.blockchain_host,
                          contract_data["address"], contract_abi)
@@ -171,7 +173,7 @@ if __name__ == "__main__":
                            args.cmd_name, args.text_section_size, args.offset, args.text_section_prefix,
                            contract_data["address"], contract_abi)
 
-    print(
-        f"Successfully created {args.num_agents} robot configs in {args.config_output} "
-        f"and ref-measurements in {args.ref_output}."
-    )
+    msg = f"Successfully created {args.num_agents} robot configs in {args.config_output}"
+    if args.ref_output:
+        msg += f" and ref-measurements in {args.ref_output}"
+    print(msg + ".")

@@ -1,8 +1,8 @@
 {
     "name": "robot6",
-    "eth_address": "0x3384adff19cd89e06521e60df5248954525b01c0",
-    "private_key": "0x4f487fad4dec853eb4f2d9c8195b7daf5a411d405cc131513ec9ec2297082fc0",
-    "robot_hash": "d3cc38d83ffc4d0c78197eefeb3d5af9cdaf2eb3539eb97f8a7c4ec3869f3c31",
-    "attestation_sidecar_hash": "d3cc38d83ffc4d0c78197eefeb3d5af9cdaf2eb3539eb97f8a7c4ec3869f3c31",
-    "combined_hash": "d3cc38d83ffc4d0c78197eefeb3d5af9cdaf2eb3539eb97f8a7c4ec3869f3c31"
+    "eth_address": "0x22f0c1c147f514ecd8528936f50b80013bce0a2c",
+    "private_key": "0x0f9c62051dd2a3c0bacebca9ce8581c2063499451e78941fcd39fa263a9443b3",
+    "robot_hash": "ea18c14df70d116224cf6b0b225cf00c5fd9311bf28405c77bdec520227d1657",
+    "attestation_sidecar_hash": "8211f6880ec530a9be8f96c76a60df188b7c92a37648b1b39610964c563fb6b5",
+    "combined_hash": "a12af9c4e6b0f2f27e878129ae3d2ace6fc37397e67f1e687ee6c098dda65248"
 }

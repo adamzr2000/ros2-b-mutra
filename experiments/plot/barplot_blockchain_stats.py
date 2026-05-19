@@ -18,9 +18,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-VARIANT    = "standard"   # ← continuous-mode variant to plot
-SSP_S      = 20           # sidecar sleep period (s)
-ITERQU     = 1            # rolling-hash queue depth
+VARIANT    = "rr"   # ← continuous-mode variant to plot
+SSP_MS      = 20000           # sidecar sleep period (ms)
+ITERQ     = 1            # rolling-hash queue depth
 CPU_LIMIT  = 0.4          # sidecar CPU limit
 INPUT_FILE = f"../data/blockchain-stats/_summary/blockchain_stats_summary_{VARIANT}.csv"
 IDLE_CSV   = "../data/blockchain-stats/results/idle/blockchain-idle-120s.csv"
@@ -34,12 +34,12 @@ SHOW_ERRORS = False
 
 def main():
     script_dir = Path(__file__).parent.resolve()
-    csv_path   = (script_dir / INPUT_FILE).resolve()
+    csv_path   = (script_dir / INPUT_FILE.format(VARIANT=VARIANT)).resolve()
     if not csv_path.exists():
         raise SystemExit(f"Summary CSV not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
-    df = df[(df["ssp_s"] == SSP_S) & (df["iterqu"] == ITERQU) & (df["cpu_limit"] == CPU_LIMIT)]
+    df = df[(df["ssp_ms"] == SSP_MS) & (df["iterq"] == ITERQ) & (df["cpu_limit"] == CPU_LIMIT)]
     df = df.set_index("N").sort_index()
 
     idle_path = (script_dir / IDLE_CSV).resolve()

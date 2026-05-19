@@ -68,7 +68,7 @@ def parse_args() -> argparse.Namespace:
 		),
 	)
 	parser.add_argument(
-		"--seconds",
+		"--duration",
 		type=int,
 		default=120,
 		help="Idle collection duration in seconds (default: 120)",
@@ -79,8 +79,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
 	args = parse_args()
 
-	if args.seconds <= 0:
-		print("Error: --seconds must be > 0", file=sys.stderr)
+	if args.duration <= 0:
+		print("Error: --duration must be > 0", file=sys.stderr)
 		return 2
 
 	base = args.collector_url.rstrip("/")
@@ -88,7 +88,7 @@ def main() -> int:
 	start_url = f"{base}/monitor/start"
 	stop_url = f"{base}/monitor/stop"
 
-	csv_name = args.csv_name or f"blockchain-idle-{args.seconds}s.csv"
+	csv_name = args.csv_name or f"blockchain-idle-{args.duration}s.csv"
 
 	payload = {
 		"rpc_url": args.rpc_url,
@@ -108,8 +108,8 @@ def main() -> int:
 		started = True
 		print(json.dumps(start_resp, indent=2))
 
-		print(f"[3/4] Collecting idle stats for {args.seconds}s...")
-		time.sleep(args.seconds)
+		print(f"[3/4] Collecting idle stats for {args.duration}s...")
+		time.sleep(args.duration)
 
 		print("[4/4] Stopping monitor")
 		stop_resp = _post_json(stop_url, timeout=20)

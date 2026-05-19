@@ -1,8 +1,0 @@
-{
-    "name": "robot92",
-    "eth_address": "0x7db4cf3deb325b428d547c439f890936010659c1",
-    "private_key": "0x9afb6c2c7e59499fefd4d040b351f5ffa74849f7e69b3c43f0a7c9efc2d41b7c",
-    "robot_hash": "c6d0f0c1a166af5cda1a2bd48c46523d5cdaff71d5987f7811b40ef08af088e8",
-    "attestation_sidecar_hash": "c6d0f0c1a166af5cda1a2bd48c46523d5cdaff71d5987f7811b40ef08af088e8",
-    "combined_hash": "c6d0f0c1a166af5cda1a2bd48c46523d5cdaff71d5987f7811b40ef08af088e8"
-}

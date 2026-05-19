@@ -13,11 +13,11 @@ PROJECT_NAME="ros2-b-mutra"
 PASSWORD="netcom;"
 
 # Remote host constants
-REMOTE1_HOST="10.5.1.21"
-REMOTE1_USER="desire6g"
+REMOTE1_HOST="10.5.1.20"
+REMOTE1_USER="nextnet"
 REMOTE1_LIMIT=64
 REMOTE2_HOST=""          # placeholder — set when a second remote host is available
-REMOTE2_USER="desire6g"
+REMOTE2_USER="nextnet"
 REMOTE2_LIMIT=128
 REMOTE_DIR="~/ros2-b-mutra"
 
@@ -57,7 +57,7 @@ remote_compose_up() {
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
-                        [--ssp N] [--cpu-limit X] [--contract standard|optimized] [--vrp N]
+                        [--ssp N] [--cpu-limit X] [--contract rr|lv]
                         [--iterq K] [--no-bootstrap]
                         [--no-wait-result]
 
@@ -71,12 +71,15 @@ Options:
   --export       Set EXPORT_RESULTS=TRUE
   --wait-tx      Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
   --startup      Set ONE_SHOT=TRUE
-  --ssp N        Attestation interval in milliseconds — sets ATTESTATION_INTERVAL_MS=N (default: 20000)
+  --ssp N        Attestation interval in milliseconds — sets ATTESTATION_INTERVAL_MS=N (default: 20000).
+                 Use 0 for back-to-back measurements with no sleep (bounded only by CPU_LIMIT).
   --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
-  --contract standard|optimized  Smart contract variant (default: optimized)
-  --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
+  --contract rr|lv  Smart contract variant (default: lv; rr = round-robin verifier election)
   --iterq K      IterQ rolling-hash threshold: number of fresh measurements folded into
                  one on-chain attestation. K=1 = single-shot. Range: 1..10000 (default: 1)
+  --no-cpu-limit Remove the CPU cgroup cap from sidecar containers entirely (uncapped).
+                 Mutually exclusive with --cpu-limit.
+                 Saves CPU_LIMIT=none to .env; outputs files tagged cpuNC.
   --no-bootstrap Skip the automatic reference-measurements bootstrap step. By default,
                  after the stack is up, start.sh captures real refs from robot1's sidecar
                  via /digest, syncs them to the SECaaS DB, and resets the on-chain chain
@@ -97,9 +100,10 @@ ONE_SHOT_VAL="FALSE"
 DEPLOY_MODE="local"
 SSP_VAL="20000"
 CPU_LIMIT_VAL="0.4"
-VARIANT_VAL="optimized"
-CONTRACT_VAL="AttestationManagerOptimized"
-VRP_VAL="1"
+NO_CPU_LIMIT_VAL="FALSE"
+CPU_LIMIT_EXPLICIT="FALSE"
+VARIANT_VAL="lv"
+CONTRACT_VAL="AttestationManagerLV"
 ITERQ_VAL="1"
 BOOTSTRAP_REFS="TRUE"
 WAIT_RESULT_VAL="TRUE"
@@ -121,29 +125,24 @@ while [[ $# -gt 0 ]]; do
     --startup)  ONE_SHOT_VAL="TRUE"; shift ;;
     --ssp)
       SSP_VAL="$2"
-      if ! [[ "$SSP_VAL" =~ ^[1-9][0-9]*$ ]]; then
-        echo "❌ --ssp must be a positive integer in milliseconds (got '$SSP_VAL')"
+      if ! [[ "$SSP_VAL" =~ ^(0|[1-9][0-9]*)$ ]]; then
+        echo "❌ --ssp must be a non-negative integer in milliseconds (got '$SSP_VAL')"
         exit 1
       fi
       shift 2 ;;
     --cpu-limit)
       CPU_LIMIT_VAL="$2"
+      CPU_LIMIT_EXPLICIT="TRUE"
       if ! [[ "$CPU_LIMIT_VAL" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
         echo "❌ --cpu-limit must be a positive number (got '$CPU_LIMIT_VAL')"
         exit 1
       fi
       shift 2 ;;
+    --no-cpu-limit) NO_CPU_LIMIT_VAL="TRUE"; shift ;;
     --contract)
       VARIANT_VAL="$2"
-      if [[ "$VARIANT_VAL" != "standard" && "$VARIANT_VAL" != "optimized" ]]; then
-        echo "❌ --contract must be 'standard' or 'optimized' (got '$VARIANT_VAL')"
-        exit 1
-      fi
-      shift 2 ;;
-    --vrp)
-      VRP_VAL="$2"
-      if ! [[ "$VRP_VAL" =~ ^[1-9][0-9]*$ ]]; then
-        echo "❌ --vrp must be a positive integer (got '$VRP_VAL')"
+      if [[ "$VARIANT_VAL" != "rr" && "$VARIANT_VAL" != "lv" ]]; then
+        echo "❌ --contract must be 'rr' or 'lv' (got '$VARIANT_VAL')"
         exit 1
       fi
       shift 2 ;;
@@ -161,11 +160,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# --no-cpu-limit and --cpu-limit are mutually exclusive
+if [[ "$NO_CPU_LIMIT_VAL" == "TRUE" && "$CPU_LIMIT_EXPLICIT" == "TRUE" ]]; then
+  echo "❌ --no-cpu-limit and --cpu-limit are mutually exclusive"
+  exit 1
+fi
+
 # Map user-facing variant to internal contract name
-if [[ "$VARIANT_VAL" == "optimized" ]]; then
-  CONTRACT_VAL="AttestationManagerOptimized"
+if [[ "$VARIANT_VAL" == "lv" ]]; then
+  CONTRACT_VAL="AttestationManagerLV"
 else
-  CONTRACT_VAL="AttestationManager"
+  CONTRACT_VAL="AttestationManagerRR"
 fi
 
 # Validate remote2 requirements before proceeding
@@ -211,14 +216,22 @@ upsert_env "N_ROBOTS"                  "$N_ROBOTS_VAL"
 upsert_env "COMPOSE_PROJECT_NAME"      "$PROJECT_NAME"
 upsert_env "DEPLOY_MODE"               "$DEPLOY_MODE"
 upsert_env "ATTESTATION_INTERVAL_MS"  "$SSP_VAL"
-upsert_env "CPU_LIMIT"                 "$CPU_LIMIT_VAL"
+if [[ "$NO_CPU_LIMIT_VAL" == "TRUE" ]]; then
+  upsert_env "CPU_LIMIT" "none"
+else
+  upsert_env "CPU_LIMIT" "$CPU_LIMIT_VAL"
+fi
 upsert_env "ITERQ_THRESHOLD"           "$ITERQ_VAL"
 
-echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Contract: $CONTRACT_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL, SSP: ${SSP_VAL}ms, CPU: $CPU_LIMIT_VAL, IterQ: $ITERQ_VAL)"
+CPU_DISPLAY="$CPU_LIMIT_VAL"
+[[ "$NO_CPU_LIMIT_VAL" == "TRUE" ]] && CPU_DISPLAY="none (uncapped)"
+echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Contract: $CONTRACT_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL, SSP: ${SSP_VAL}ms, CPU: $CPU_DISPLAY, IterQ: $ITERQ_VAL)"
 
 # Regenerate compose files for the selected mode
 echo "🔧 Generating compose files for $N_ROBOTS_VAL robot(s) [mode: $DEPLOY_MODE]..."
-python3 "$SCRIPT_DIR/generate_compose.py" --robots "$N_ROBOTS_VAL" --blockchain-host "$LOCAL_IP" --mode "$DEPLOY_MODE" --contract "$CONTRACT_VAL"
+COMPOSE_FLAGS=(--robots "$N_ROBOTS_VAL" --blockchain-host "$LOCAL_IP" --mode "$DEPLOY_MODE" --contract "$CONTRACT_VAL")
+[[ "$NO_CPU_LIMIT_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--no-cpu-limit)
+python3 "$SCRIPT_DIR/generate_compose.py" "${COMPOSE_FLAGS[@]}"
 echo
 
 # Reset local EventWatcher checkpoints (SECaaS always on d-mutra)
@@ -243,7 +256,6 @@ sleep 10
 # ── Deploy the smart contract ──────────────────────────────────────────────────
 cd "$SCRIPT_DIR"
 deploy_flags=(--rpc_url http://localhost:21001 --chain_id 1337 --contract "$CONTRACT_VAL")
-[[ "$CONTRACT_VAL" == "AttestationManagerOptimized" ]] && deploy_flags+=(--vrp "$VRP_VAL")
 ./deploy_sc.sh "${deploy_flags[@]}"
 
 # ── Generate agent config JSONs (config/ and config-dummy/) ───────────────────
@@ -270,7 +282,6 @@ python3 "$SCRIPT_DIR/create_agent_config.py" \
   --num-agents 100 \
   --contract "$CONTRACT_VAL" \
   --config-output "$SCRIPT_DIR/config-dummy" \
-  --ref-output "$SCRIPT_DIR/ref-measurements-dummy" \
   --blockchain-host "$CFG_BLOCKCHAIN_HOST" \
   --cmd-name dummy_publisher \
   --text-section-size 175521 \

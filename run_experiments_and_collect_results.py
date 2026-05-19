@@ -11,17 +11,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # --- Configuration ---
 MONITOR_URL      = "http://localhost:6000"
 MONITOR_PORT     = 6000
-ETH_MONITOR_URL  = "http://localhost:7000"
 SECAAS_URL       = "http://localhost:8000"   # SECaaS is always on local machine
 SECAAS_PORT      = 8000
 ROBOTS_BASE_PORT = 8001   # robot1=8001, robot2=8002, ...
-ETH_RPC_URL      = "http://host.docker.internal:21001"
 
 # Multi-host defaults (overridable via CLI)
-_DEFAULT_REMOTE1_HOST  = "10.5.1.21"   # remote host 1 (up to REMOTE1_LIMIT robots)
+_DEFAULT_REMOTE1_HOST  = "10.5.1.20"   # remote host 1 (up to REMOTE1_LIMIT robots)
 _DEFAULT_REMOTE2_HOST  = ""            # remote host 2 (placeholder)
 _DEFAULT_REMOTE1_LIMIT = 64            # remote mode: robots 1-N are on remote1
-REMOTE_USER            = "desire6g"
+REMOTE_USER            = "nextnet"
 REMOTE_DIR             = "~/ros2-b-mutra"
 
 # Absolute path so the script works regardless of the working directory
@@ -32,9 +30,9 @@ _SECAAS_HOST_PORT = ("localhost", SECAAS_PORT)
 
 
 def _read_env_defaults():
-    """Read SSP_ms, ITERQu, and CPU_LIMIT defaults from .env (set by start.sh)."""
+    """Read SSP_ms, ITERQ, and CPU_LIMIT defaults from .env (set by start.sh)."""
     ssp_ms    = 20000
-    iterqu    = 1
+    iterq    = 1
     cpu_limit = 0.4
     env_path  = os.path.join(_SCRIPT_DIR, ".env")
     try:
@@ -55,17 +53,17 @@ def _read_env_defaults():
                         cpu_limit = float(val)
                     except ValueError:
                         pass
-                elif key == "ITERQU":
+                elif key == "ITERQ_THRESHOLD":
                     try:
-                        iterqu = int(val)
+                        iterq = int(val)
                     except ValueError:
                         pass
     except FileNotFoundError:
         pass
-    return ssp_ms, iterqu, cpu_limit
+    return ssp_ms, iterq, cpu_limit
 
 
-_DEFAULT_SSP, _DEFAULT_ITERQU, _DEFAULT_CPU_LIMIT = _read_env_defaults()
+_DEFAULT_SSP, _DEFAULT_ITERQ, _DEFAULT_CPU_LIMIT = _read_env_defaults()
 
 
 def build_sidecars(num_robots, remote1_host=None, remote2_host=None,
@@ -124,8 +122,7 @@ def check_all_services(sidecars, robot_sidecars):
     """Verifies that ALL defined services are up and listening (parallel)."""
     print("\n🔍 Pre-flight check: Verifying all services...")
 
-    checks = {"monitor": f"{MONITOR_URL}/monitor/status",
-              "eth-monitor": f"{ETH_MONITOR_URL}/monitor/status"}
+    checks = {"monitor": f"{MONITOR_URL}/monitor/status"}
 
     # Add remote monitors derived from robot sidecar hosts
     remote_mon_urls = {
@@ -250,18 +247,17 @@ def reset_chain():
         print(f"   [Chain] ⚠️ Warning: Reset failed: {e}")
 
 
-def _build_run_tag(ssp_ms, iterqu, cpu_limit) -> str:
-    """Build the param-tag string embedded in output filenames, e.g. 'SSP20000ms-ITERQu1-cpu0p4'."""
-    if ssp_ms is None or iterqu is None or cpu_limit is None:
+def _build_run_tag(ssp_ms, iterq, cpu_limit) -> str:
+    """Build the param-tag string embedded in output filenames, e.g. 'SSP20000ms-ITERQ1-cpu0p4'."""
+    if ssp_ms is None or iterq is None or cpu_limit is None:
         return ""
     cpu_str = f"{cpu_limit:.1f}".replace(".", "p")
-    return f"SSP{ssp_ms}ms-ITERQu{iterqu}-cpu{cpu_str}"
+    return f"SSP{ssp_ms}ms-ITERQ{iterq}-cpu{cpu_str}"
 
 
 def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
-                        startup_mode=False, blockchain_dir=None,
-                        ssp_ms=None, iterqu=None, cpu_limit=None):
-    run_tag = _build_run_tag(ssp_ms, iterqu, cpu_limit)
+                        startup_mode=False, ssp_ms=None, iterq=None, cpu_limit=None):
+    run_tag = _build_run_tag(ssp_ms, iterq, cpu_limit)
     print(f"\n==============================\n🏁 Run {run_id}\n==============================")
 
     # 1. Push common config to all robot sidecars, then set per-robot results_file (continuous only)
@@ -287,21 +283,10 @@ def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, 
         try:
             payload = {"containers": containers, "interval": 1.0, "csv_dir": stats_dir}
             if run_tag:
-                payload.update({"ssp_ms": ssp_ms, "iterqu": iterqu, "cpu_limit": cpu_limit})
+                payload.update({"ssp_ms": ssp_ms, "iterq": iterq, "cpu_limit": cpu_limit})
             requests.post(f"{mon_url}/monitor/start", json=payload, timeout=5)
         except Exception as e:
             print(f"   ⚠️ Monitor {mon_url} start failed: {e}")
-
-    # Start blockchain monitor (continuous mode only)
-    if not startup_mode and blockchain_dir:
-        print(f"   [Eth Monitor] Starting blockchain stats -> {blockchain_dir}")
-        try:
-            payload = {"rpc_url": ETH_RPC_URL, "poll_interval": 1.0, "csv_dir": blockchain_dir}
-            if run_tag:
-                payload.update({"ssp_ms": ssp_ms, "iterqu": iterqu, "cpu_limit": cpu_limit})
-            requests.post(f"{ETH_MONITOR_URL}/monitor/start", json=payload, timeout=5)
-        except Exception as e:
-            print(f"   ⚠️ Eth monitor start failed: {e}")
 
     # Allow monitor to complete one clean baseline sample before agents start
     time.sleep(1)
@@ -331,11 +316,6 @@ def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, 
     for mon_url in monitor_groups:
         try:
             requests.post(f"{mon_url}/monitor/stop", timeout=60)
-        except Exception:
-            pass
-    if not startup_mode and blockchain_dir:
-        try:
-            requests.post(f"{ETH_MONITOR_URL}/monitor/stop", timeout=10)
         except Exception:
             pass
 
@@ -415,8 +395,8 @@ def sync_remote_results(remote_hosts: list):
 
 def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
                     startup_mode, remote1_host=None, remote2_host=None,
-                    remote1_limit=_DEFAULT_REMOTE1_LIMIT, num_robots=0, blockchain_dir=None,
-                    ssp_ms=None, iterqu=None, cpu_limit=None):
+                    remote1_limit=_DEFAULT_REMOTE1_LIMIT, num_robots=0,
+                    ssp_ms=None, iterq=None, cpu_limit=None):
     reset_checkpoints(remote1_host=remote1_host, remote2_host=remote2_host,
                       remote1_limit=remote1_limit, num_robots=num_robots)
 
@@ -433,8 +413,8 @@ def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_
 
     for i in range(1, runs + 1):
         run_experiment_loop(i, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
-                            startup_mode=startup_mode, blockchain_dir=blockchain_dir,
-                            ssp_ms=ssp_ms, iterqu=iterqu, cpu_limit=cpu_limit)
+                            startup_mode=startup_mode,
+                            ssp_ms=ssp_ms, iterq=iterq, cpu_limit=cpu_limit)
         if i < runs:
             print("   [System] Cooling down for 5s...")
             time.sleep(5)
@@ -471,13 +451,13 @@ if __name__ == "__main__":
     # Experiment parameters — defaults read from .env (set by start.sh)
     parser.add_argument("--ssp",       type=int,   default=_DEFAULT_SSP,
                         help=f"Attestation interval in milliseconds — SSP (default from .env: {_DEFAULT_SSP})")
-    parser.add_argument("--iterqu",    type=int,   default=_DEFAULT_ITERQU,
-                        help=f"Rolling hash queue depth — ITERQu (default from .env: {_DEFAULT_ITERQU})")
+    parser.add_argument("--iterq",    type=int,   default=_DEFAULT_ITERQ,
+                        help=f"Rolling hash queue depth — ITERQ (default from .env: {_DEFAULT_ITERQ})")
     parser.add_argument("--cpu-limit", type=float, default=_DEFAULT_CPU_LIMIT,
                         help=f"Sidecar CPU limit (default from .env: {_DEFAULT_CPU_LIMIT})")
-    parser.add_argument("--variant",   default="standard",
-                        choices=["standard", "optimized"],
-                        help="Continuous-mode variant subdirectory (default: standard)")
+    parser.add_argument("--variant",   default="rr",
+                        choices=["rr", "lv"],
+                        help="Continuous-mode variant subdirectory (default: rr)")
 
     args = parser.parse_args()
 
@@ -502,16 +482,14 @@ if __name__ == "__main__":
     robot_label = f"N{args.robots}"
 
     if args.startup:
-        ssp_ms, iterqu, cpu_limit = None, None, None
+        ssp_ms, iterq, cpu_limit = None, None, None
         stats_dir       = f"/experiments/data/docker-stats/results/{robot_label}/startup"
         attestation_dir = f"/experiments/data/attestation-times/results/{robot_label}/startup"
-        blockchain_dir  = None
     else:
-        ssp_ms, iterqu, cpu_limit = args.ssp, args.iterqu, args.cpu_limit
+        ssp_ms, iterq, cpu_limit = args.ssp, args.iterq, args.cpu_limit
         variant  = args.variant
         stats_dir       = f"/experiments/data/docker-stats/results/{robot_label}/continuous/{variant}"
         attestation_dir = f"/experiments/data/attestation-times/results/{robot_label}/continuous/{variant}"
-        blockchain_dir  = f"/experiments/data/blockchain-stats/results/{robot_label}/continuous/{variant}"
 
     sidecars = build_sidecars(args.robots, remote1_host=remote1_host, remote2_host=remote2_host,
                               remote1_limit=remote1_limit)
@@ -523,11 +501,9 @@ if __name__ == "__main__":
     if args.startup:
         print("🔁 Mode: STARTUP (one-shot)")
     else:
-        print(f"🔁 Mode: CONTINUOUS ({args.duration}s per run)  variant={args.variant}  {_build_run_tag(ssp_ms, iterqu, cpu_limit)}")
+        print(f"🔁 Mode: CONTINUOUS ({args.duration}s per run)  variant={args.variant}  {_build_run_tag(ssp_ms, iterq, cpu_limit)}")
     print(f"📁 Stats dir:       {stats_dir}")
     print(f"📁 Attestation dir: {attestation_dir}")
-    if blockchain_dir:
-        print(f"📁 Blockchain dir:  {blockchain_dir}")
 
     if not check_all_services(sidecars, robot_sidecars):
         print("🛑 Aborting: Not all services are ready.")
@@ -538,8 +514,7 @@ if __name__ == "__main__":
                         sidecars, robot_sidecars, startup_mode=args.startup,
                         remote1_host=remote1_host, remote2_host=remote2_host,
                         remote1_limit=remote1_limit, num_robots=args.robots,
-                        blockchain_dir=blockchain_dir,
-                        ssp_ms=ssp_ms, iterqu=iterqu, cpu_limit=cpu_limit)
+                        ssp_ms=ssp_ms, iterq=iterq, cpu_limit=cpu_limit)
     except KeyboardInterrupt:
         print("\n🛑 Interrupted by user.")
 

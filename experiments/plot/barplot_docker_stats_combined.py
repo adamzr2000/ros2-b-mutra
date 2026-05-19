@@ -13,9 +13,9 @@ import seaborn as sns
 
 INPUT_FILE = "../data/docker-stats/_summary/overall_resource_usage_per_container.csv"
 MODE      = "continuous"
-VARIANT   = "standard"   # ← continuous-mode variant to plot
-SSP_S     = 20           # sidecar sleep period (s)
-ITERQU    = 1            # rolling-hash queue depth
+VARIANT    = "rr"   # ← continuous-mode variant to plot
+SSP_MS     = 20000           # sidecar sleep period (ms)
+ITERQ    = 1            # rolling-hash queue depth
 CPU_LIMIT = 0.4          # sidecar CPU limit
 N_VALUES  = [4, 8, 16, 32, 64]
 
@@ -67,7 +67,7 @@ def _aggregate(df, n_values):
 
 def main():
     script_dir = Path(__file__).parent.resolve()
-    csv_path   = (script_dir / INPUT_FILE).resolve()
+    csv_path   = (script_dir / INPUT_FILE.format(VARIANT=VARIANT)).resolve()
     if not csv_path.exists():
         raise SystemExit(f"CSV not found: {csv_path}")
 
@@ -75,13 +75,12 @@ def main():
     df = df[df["n_robots"].isin(N_VALUES)]
     mode_df = df[
         (df["mode"]      == MODE) &
-        (df["variant"]   == VARIANT) &
-        (df["ssp_s"]     == SSP_S) &
-        (df["iterqu"]    == ITERQU) &
+        (df["ssp_ms"]     == SSP_MS) &
+        (df["iterq"]    == ITERQ) &
         (df["cpu_limit"] == CPU_LIMIT)
     ].copy()
     if mode_df.empty:
-        raise SystemExit(f"No data for mode={MODE} variant={VARIANT} SSP={SSP_S}s ITERQu={ITERQU} cpu={CPU_LIMIT}")
+        raise SystemExit(f"No data for mode={MODE} variant={VARIANT} SSP={SSP_MS}s ITERQ={ITERQ} cpu={CPU_LIMIT}")
 
     sns.set_theme(context="paper", style="ticks",
                   rc={"xtick.direction": "out", "ytick.direction": "out"},

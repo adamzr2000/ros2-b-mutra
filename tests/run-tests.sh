@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run all B-MuTRA test suites: rolling-hash vectors (Go + Python) and
-# the AttestationManagerOptimized Hardhat tests. Each suite is run in
+# the AttestationManagerLV Hardhat tests. Each suite is run in
 # its own throwaway container so no host-side toolchain is required.
 set -euo pipefail
 
@@ -54,14 +54,14 @@ run_suite "Go RollingHash" \
 # Suite 3 — Hardhat smart-contract tests
 # ---------------------------------------------------------------------------
 # Requires the project's hardhat:latest image (built by `cd dockerfiles && make hardhat`).
-run_suite "Hardhat AttestationManagerOptimized" \
+run_suite "Hardhat AttestationManagerLV" \
   docker run --rm \
     -v "$REPO_DIR/smart-contracts/contracts":/smart-contracts/contracts:ro \
     -v "$REPO_DIR/smart-contracts/test":/smart-contracts/test:ro \
     -v "$REPO_DIR/smart-contracts/scripts":/smart-contracts/scripts:ro \
     -v "$REPO_DIR/smart-contracts/hardhat.config.js":/smart-contracts/hardhat.config.js:ro \
     hardhat:latest \
-    bash -c "cd /smart-contracts && npx hardhat test test/AttestationManagerOptimized.test.js"
+    bash -c "cd /smart-contracts && npx hardhat test test/AttestationManagerLV.test.js"
 
 if (( fail )); then
   red "Some suites failed."

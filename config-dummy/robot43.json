@@ -4,19 +4,13 @@
     "text_section_size": 175521,
     "offset": 5744,
     "text_section_prefix": "",
-    "eth_address": "0xef07729fd0728f57dd99688165396e577a7ed002",
-    "private_key": "0xfacf5e5bb8439e0db172be04d0a68cc783c8bf0cc23abe40ef7d1c36899da913",
-    "eth_node_url": "http://host.docker.internal:21001",
+    "eth_address": "0x4d6efc7bd1f7a0ac7127c00719a59d06c1f1d463",
+    "private_key": "0x8278caea31405e4e24e3b97d7955c7a4053739a08728074676d1a73cdafe9920",
+    "eth_node_url": "http://host.docker.internal:21004",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {
-            "inputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "_vrp",
-                    "type": "uint256"
-                }
-            ],
+            "inputs": [],
             "stateMutability": "nonpayable",
             "type": "constructor"
         },
@@ -50,16 +44,10 @@
             "anonymous": false,
             "inputs": [
                 {
-                    "indexed": true,
+                    "indexed": false,
                     "internalType": "bytes32",
                     "name": "id",
                     "type": "bytes32"
-                },
-                {
-                    "indexed": false,
-                    "internalType": "bool",
-                    "name": "verified",
-                    "type": "bool"
                 }
             ],
             "name": "AttestationCompleted",
@@ -73,6 +61,12 @@
                     "internalType": "bytes32",
                     "name": "id",
                     "type": "bytes32"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint32",
+                    "name": "iterCount",
+                    "type": "uint32"
                 }
             ],
             "name": "AttestationStarted",
@@ -95,19 +89,6 @@
                 }
             ],
             "name": "ReadyForEvaluation",
-            "type": "event"
-        },
-        {
-            "anonymous": false,
-            "inputs": [
-                {
-                    "indexed": true,
-                    "internalType": "address",
-                    "name": "newVerifier",
-                    "type": "address"
-                }
-            ],
-            "name": "VerifierRotated",
             "type": "event"
         },
         {
@@ -158,6 +139,24 @@
                     "internalType": "bool",
                     "name": "",
                     "type": "bool"
+                },
+                {
+                    "internalType": "bytes32[]",
+                    "name": "",
+                    "type": "bytes32[]"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "GetAttestationChain",
+            "outputs": [
+                {
+                    "internalType": "bytes32[]",
+                    "name": "",
+                    "type": "bytes32[]"
                 }
             ],
             "stateMutability": "view",
@@ -184,7 +183,7 @@
                     "type": "address"
                 },
                 {
-                    "internalType": "enum AttestationManagerOptimized.AttestationResult",
+                    "internalType": "enum AttestationManagerRR.AttestationResult",
                     "name": "",
                     "type": "uint8"
                 },
@@ -221,6 +220,11 @@
                     "internalType": "bytes32",
                     "name": "",
                     "type": "bytes32"
+                },
+                {
+                    "internalType": "uint32",
+                    "name": "",
+                    "type": "uint32"
                 }
             ],
             "stateMutability": "view",
@@ -237,22 +241,9 @@
             "name": "GetAttestationState",
             "outputs": [
                 {
-                    "internalType": "enum AttestationManagerOptimized.AttestationState",
+                    "internalType": "enum AttestationManagerRR.AttestationState",
                     "name": "",
                     "type": "uint8"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "GetCurrentVerifier",
-            "outputs": [
-                {
-                    "internalType": "address",
-                    "name": "",
-                    "type": "address"
                 }
             ],
             "stateMutability": "view",
@@ -277,19 +268,6 @@
                     "internalType": "address",
                     "name": "",
                     "type": "address"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "GetVRP",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
                 }
             ],
             "stateMutability": "view",
@@ -363,6 +341,19 @@
             "type": "function"
         },
         {
+            "inputs": [],
+            "name": "MAX_ITER_COUNT",
+            "outputs": [
+                {
+                    "internalType": "uint32",
+                    "name": "",
+                    "type": "uint32"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
             "inputs": [
                 {
                     "internalType": "string",
@@ -418,6 +409,11 @@
                     "internalType": "bytes32",
                     "name": "freshMeasurement",
                     "type": "bytes32"
+                },
+                {
+                    "internalType": "uint32",
+                    "name": "iterCount",
+                    "type": "uint32"
                 }
             ],
             "name": "SendEvidence",
@@ -447,6 +443,32 @@
                 }
             ],
             "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "freshnessWindow",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "rrIndex",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
             "type": "function"
         }
     ]

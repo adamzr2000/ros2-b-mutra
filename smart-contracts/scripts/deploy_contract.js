@@ -2,7 +2,7 @@ const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
-const CONTRACT_NAME = process.env.CONTRACT_NAME || "AttestationManager";
+const CONTRACT_NAME = process.env.CONTRACT_NAME || "AttestationManagerRR";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -10,9 +10,9 @@ async function main() {
 
   const factory = await ethers.getContractFactory(CONTRACT_NAME);
 
-  // AttestationManagerOptimized requires a VRP constructor argument
+  // AttestationManagerLV_StructDelete requires a VRP constructor argument; all others take none
   let contract;
-  if (CONTRACT_NAME === "AttestationManagerOptimized") {
+  if (CONTRACT_NAME === "AttestationManagerLV_StructDelete") {
     const vrp = parseInt(process.env.VRP || "1");
     console.log(`VRP        : ${vrp}`);
     contract = await factory.deploy(vrp, { gasPrice: 0 });

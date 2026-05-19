@@ -37,8 +37,8 @@ REMOTE1_LIMIT = 64   # remote mode: robots 1..64 on remote1
 REMOTE2_LIMIT = 128  # remote mode: robots 65..128 on remote2
 
 CONTRACT_TO_IMAGE = {
-    "AttestationManager":          "attestation-sidecar:latest",
-    "AttestationManagerOptimized": "attestation-sidecar-optimized:latest",
+    "AttestationManagerRR": "attestation-sidecar:latest",
+    "AttestationManagerLV": "attestation-sidecar:latest",
 }
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -175,7 +175,8 @@ def generate_robots_remote_yml(n_start: int, n_end: int) -> str:
 # ── Attestation compose generators ───────────────────────────────────────────
 
 def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config",
-                             sidecar_image: str = "attestation-sidecar:latest") -> str:
+                             sidecar_image: str = "attestation-sidecar:latest",
+                             no_cpu_limit: bool = False) -> str:
     """Sidecars start..n on a single host. Reaches Besu via host-exposed ports."""
     lines = [
         "# docker-compose.attestation.yml",
@@ -186,7 +187,7 @@ def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config
 
     for i in range(start, n + 1):
         port = 8000 + i
-        lines += [
+        sidecar_lines = [
             f"  robot{i}-sidecar:",
             f"    container_name: robot{i}-sidecar",
             f"    image: {sidecar_image}",
@@ -219,21 +220,28 @@ def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config
             f'    pid: "container:robot{i}"',
             f"    cap_add:",
             f"      - SYS_PTRACE",
-            f"    deploy:",
-            f"      resources:",
-            f"        limits:",
-            f"          cpus: '${{CPU_LIMIT}}'",
+        ]
+        if not no_cpu_limit:
+            sidecar_lines += [
+                f"    deploy:",
+                f"      resources:",
+                f"        limits:",
+                f"          cpus: '${{CPU_LIMIT}}'",
+            ]
+        sidecar_lines += [
             f"    extra_hosts:",
             f'      - "host.docker.internal:host-gateway"',
             f"",
         ]
+        lines += sidecar_lines
 
     return "\n".join(lines) + "\n"
 
 
 def generate_attestation_remote_yml(n_start: int, n_end: int, config_dir: str = "./config-dummy",
                                     blockchain_host: str = "",
-                                    sidecar_image: str = "attestation-sidecar:latest") -> str:
+                                    sidecar_image: str = "attestation-sidecar:latest",
+                                    no_cpu_limit: bool = False) -> str:
     """Sidecars n_start..n_end on remote host.
     blockchain_host is local machine's IP reachable from the remote host; it is injected
     as the resolution target for host.docker.internal so the same config JSON works
@@ -282,11 +290,14 @@ def generate_attestation_remote_yml(n_start: int, n_end: int, config_dir: str = 
             f'    pid: "container:robot{i}"',
             f"    cap_add:",
             f"      - SYS_PTRACE",
-            f"    deploy:",
-            f"      resources:",
-            f"        limits:",
-            f"          cpus: '${{CPU_LIMIT}}'",
         ]
+        if not no_cpu_limit:
+            lines += [
+                f"    deploy:",
+                f"      resources:",
+                f"        limits:",
+                f"          cpus: '${{CPU_LIMIT}}'",
+            ]
         if blockchain_host:
             lines += [
                 f"    extra_hosts:",
@@ -321,10 +332,14 @@ if __name__ == "__main__":
              "remote: d-mutra hosts Besu+SECaaS only; all robots+sidecars on remote host(s).",
     )
     parser.add_argument(
-        "--contract", default="AttestationManager",
+        "--contract", default="AttestationManagerRR",
         choices=list(CONTRACT_TO_IMAGE.keys()),
         help="Smart contract in use — determines which sidecar image is written into compose files "
-             "(default: AttestationManager → attestation-sidecar:latest).",
+             "(default: AttestationManagerRR → attestation-sidecar:latest).",
+    )
+    parser.add_argument(
+        "--no-cpu-limit", action="store_true", default=False,
+        help="Omit the deploy.resources.limits.cpus block from sidecar services (uncapped).",
     )
     args = parser.parse_args()
 
@@ -334,6 +349,7 @@ if __name__ == "__main__":
 
     n = args.robots
     sidecar_image = CONTRACT_TO_IMAGE[args.contract]
+    no_cpu_limit  = args.no_cpu_limit
 
     if args.mode == "remote":
         # ── REMOTE MODE: all robots on remote host(s) ─────────────────────────
@@ -361,7 +377,8 @@ if __name__ == "__main__":
         with open(attest_r1_path, "w") as f:
             f.write(generate_attestation_remote_yml(1, r1_end, config_dir=cfg_dir,
                                                     blockchain_host=args.blockchain_host,
-                                                    sidecar_image=sidecar_image))
+                                                    sidecar_image=sidecar_image,
+                                                    no_cpu_limit=no_cpu_limit))
         print(f"✅ {attest_r1_path}  (sidecars 1–{r1_end}, image: {sidecar_image})")
 
         # Remote2: robots REMOTE1_LIMIT+1..min(n, REMOTE2_LIMIT) (only when N > REMOTE1_LIMIT)
@@ -378,7 +395,8 @@ if __name__ == "__main__":
                 f.write(generate_attestation_remote_yml(REMOTE1_LIMIT + 1, r2_end,
                                                         config_dir="./config-dummy",
                                                         blockchain_host=args.blockchain_host,
-                                                        sidecar_image=sidecar_image))
+                                                        sidecar_image=sidecar_image,
+                                                        no_cpu_limit=no_cpu_limit))
             print(f"✅ {attest_r2_path}  (sidecars {REMOTE1_LIMIT + 1}–{r2_end}, image: {sidecar_image})")
 
     else:
@@ -393,5 +411,6 @@ if __name__ == "__main__":
 
         cfg_dir = "./config" if n <= GAZEBO_LIMIT else "./config-dummy"
         with open(attestation_path, "w") as f:
-            f.write(generate_attestation_yml(n, config_dir=cfg_dir, sidecar_image=sidecar_image))
+            f.write(generate_attestation_yml(n, config_dir=cfg_dir, sidecar_image=sidecar_image,
+                                             no_cpu_limit=no_cpu_limit))
         print(f"✅ {attestation_path}  ({n} sidecars, image: {sidecar_image}, ports 8001–{8000 + n})")

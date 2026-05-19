@@ -6,17 +6,15 @@ private_key=""
 rpc_url=""
 chain_id=""
 contract_name=""
-vrp=""
 
 # Default path if private_key not passed
 DEFAULT_KEY_PATH="blockchain/quorum-test-network/config/nodes/validator1/accountPrivateKey"
 
 usage() {
-  echo "Usage: $0 [--private_key <hexkey>] --rpc_url <url> --chain_id <id> [--contract <name>] [--vrp <n>]"
+  echo "Usage: $0 [--private_key <hexkey>] --rpc_url <url> --chain_id <id> [--contract <name>]"
   echo "       If --private_key is not given, will try to read from:"
   echo "       $DEFAULT_KEY_PATH"
-  echo "       If --contract is not given, deploy_contract.js default is used (AttestationManager)."
-  echo "       --vrp N  Verifier Refreshing Period for AttestationManagerOptimized (default: 1)."
+  echo "       If --contract is not given, deploy_contract.js default is used (AttestationManagerRR)."
   exit 1
 }
 
@@ -27,7 +25,6 @@ while [[ $# -gt 0 ]]; do
     --rpc_url)     rpc_url="${2:-}";        shift 2 ;;
     --chain_id)    chain_id="${2:-}";       shift 2 ;;
     --contract)    contract_name="${2:-}";  shift 2 ;;
-    --vrp)         vrp="${2:-}";            shift 2 ;;
     -h|--help)     usage ;;
     *) echo "Unknown option: $1"; usage ;;
   esac
@@ -55,7 +52,6 @@ echo "Private Key: [HIDDEN]"
 echo "RPC URL    : $rpc_url"
 echo "Chain ID   : $chain_id"
 [[ -n "$contract_name" ]] && echo "Contract   : $contract_name"
-[[ -n "$vrp"           ]] && echo "VRP        : $vrp"
 
 # Rewrite the RPC URL to talk directly to validator1 over the Besu docker
 # network, so we don't need the host-side port to be reachable from the
@@ -72,9 +68,7 @@ done
 
 # Build optional env flags
 contract_env_flag=""
-vrp_env_flag=""
 [[ -n "$contract_name" ]] && contract_env_flag="-e CONTRACT_NAME=$contract_name"
-[[ -n "$vrp"           ]] && vrp_env_flag="-e VRP=$vrp"
 
 # Run in Docker — attached to the Besu network so we can resolve validatorN.
 docker run --rm --name hardhat \
@@ -89,6 +83,5 @@ docker run --rm --name hardhat \
   -e RPC_URL="$rpc_url_internal" \
   -e CHAIN_ID="$chain_id" \
   ${contract_env_flag} \
-  ${vrp_env_flag} \
   hardhat:latest \
   bash -lc "npx hardhat run scripts/deploy_contract.js --network besu"

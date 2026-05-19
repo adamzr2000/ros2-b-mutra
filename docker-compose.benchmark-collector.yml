@@ -12,7 +12,7 @@ services:
     hostname: topic-collector
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
-      - N_ROBOTS=4
+      - ROBOT_ID=${ROBOT_ID:-1}
       - COLLECTOR_PORT=7001
       - TOPIC_NAME=${TOPIC_NAME:-/scan}
       - MSG_TYPE=${MSG_TYPE:-sensor_msgs.msg/LaserScan}

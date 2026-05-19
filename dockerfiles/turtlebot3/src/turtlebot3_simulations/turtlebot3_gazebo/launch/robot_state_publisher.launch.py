@@ -43,7 +43,8 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'use_sim_time': use_sim_time,
-                'robot_description': robot_desc
+                'robot_description': robot_desc,
+                'publish_frequency': 30.0,
             }],
             remappings=remappings,
         ),

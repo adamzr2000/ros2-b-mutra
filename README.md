@@ -33,36 +33,14 @@ The following modules will be built and tagged locally:
 1. Start the full experiment:
 
 ```bash
-./start.sh --auto --contract standard
+./start.sh --auto --contract rr --ssp 20000 --cpu-limit 0.5 --iterq 1
 ```
 
 This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
 - **4-node Private Ethereum-based blockchain** with [Hyperledger Besu](https://besu.hyperledger.org/private-networks) platform running [QBFT](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft) consensus algorithm
 - **Gazebo** robot simulator
-- **4 Robot(s)** with `turtlebot3-gazebo` and `attestation-sidecar`
+- **4 Robot(s)**, each including `turtlebot3-gazebo` and `attestation-sidecar` container images
 - **Security-as-a-Service (SECaaS)**
-
-```bash
-netcom@d-mutra:~/ros2-b-mutra$ ./start.sh -h
-Usage: start.sh [--robots N] [--remote] [--auto] [--export] [--startup] [--wait-tx]
-                        [--ssp N] [--cpu-limit X] [--contract standard|optimized] [--vrp N]
-
-Options:
-  --robots N     Number of robots to deploy (default: 4, max: 128).
-  --remote       Remote deployment mode: d-mutra VM hosts only Besu+SECaaS+monitoring;
-                 all robots+sidecars run on remote host(s) (remote1 up to 64 robots,
-                 remote2 for 65–128 robots).
-                 Default (local mode): everything runs on d-mutra.
-  --auto         Set AUTO_START=TRUE
-  --export       Set EXPORT_RESULTS=TRUE
-  --wait-tx      Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
-  --startup      Set ONE_SHOT=TRUE
-  --ssp N        Attestation interval in milliseconds — sets ATTESTATION_INTERVAL_MS=N (default: 20000)
-  --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
-  --contract standard|optimized  Smart contract variant (default: standard)
-  --vrp N        Verifier Refreshing Period for optimized contract (default: 1)
-  -h|--help      Show this help
-```
 
 2. Stop the experiment:
 
@@ -84,14 +62,14 @@ Services exposed:
 - [Block Explorer](http://localhost:25000/explorer/nodes)
 - [Grafana](http://localhost:3000)
 
-2. Deploy a smart contract (`standard` or `optimized`):
+2. Deploy a smart contract (`rr` or `lv`):
 
 ```bash
-# Standard (AttestationManager)
-./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337
+# Round-robin (AttestationManagerRR)
+./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerRR
 
-# Optimized (AttestationManagerOptimized) — requires --vrp N
-./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerOptimized --vrp 1
+# Last-verifier (AttestationManagerLV) — requires --vrp N
+./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerLV --vrp 1
 ```
 
 > **Note:** `start.sh` handles blockchain init and contract deployment automatically.
@@ -105,16 +83,16 @@ cd blockchain/quorum-test-network
 
 ---
 
-## Data collection (attestation times + docker stats + blockchain stats)
+## Data collection (attestation times + docker stats)
 
 1. Start the experimental setup:
 
 ```bash
-# Local mode — everything runs on d-mutra VM (default)
-./start.sh --robots 4 --export
+# Local mode (default)
+./start.sh --robots 4 --export --contract rr --ssp 20000 --cpu-limit 0.4 --iterq 1
 
-# Remote mode — d-mutra VM hosts Besu+SECaaS+monitoring; robots+sidecars on remote1 host
-./start.sh --robots 32 --export --remote
+# Remote mode — Blockchain+SECaaS+Monitoring on local host; Robots+Sidecars+Monitoring on remote1 host
+./start.sh --robots 32 --export --remote --contract rr --ssp 20000 --cpu-limit 0.4 --iterq 1
 ```
 
 Use `--startup` for one-shot attestation mode, `--robots N` to scale (1–128).
@@ -122,18 +100,18 @@ Use `--startup` for one-shot attestation mode, `--robots N` to scale (1–128).
 2. Run attestation workflow in loop:
 
 ```bash
-# Local — continuous mode
-python3 run_experiments_and_collect_results.py --robots 4 --runs 5 --duration 120
+# Local — continuous mode (--variant must match contract deployed by start.sh: rr or lv)
+python3 run_experiments_and_collect_results.py --robots 4 --runs 5 --duration 120 --variant lv
 
-# Local — startup (one-shot) mode
+# Local — startup (one-shot) mode (no variant needed)
 python3 run_experiments_and_collect_results.py --robots 4 --runs 10 --startup
 
 # Remote — add --remote (must match --remote used in start.sh)
-python3 run_experiments_and_collect_results.py --robots 32 --runs 5 --duration 120 --remote
+python3 run_experiments_and_collect_results.py --robots 32 --runs 5 --duration 120 --variant lv --remote
 python3 run_experiments_and_collect_results.py --robots 32 --runs 10 --startup --remote
 ```
 
-`--robots N` must match the value used in `start.sh`.
+`--robots N` must match the value used in `start.sh`. `--variant` sets the results subdirectory (`rr` or `lv`) and must match the contract deployed.
 
 3. Stop the experimental setup:
 
@@ -143,64 +121,128 @@ python3 run_experiments_and_collect_results.py --robots 32 --runs 10 --startup -
 
 ---
 
-## Data collection (robot application performance)
+## Data collection (blockchain stats)
 
-Measures per-message arrival timestamps for `/robotX/<topic>` with and without
-attestation sidecars running. Results are stored under
-`experiments/data/performance-benchmark/results/<topic>/<condition>/<baseline|continuous>/run*.csv`
-with columns `robot, topic, ros_stamp_ns, wall_stamp_ns`.
+Measures on-chain activity (transactions per block, gas, block time) while robots perform
+continuous attestation. Three sweeps are collected:
 
-Sidecars run in fire-and-forget mode (`WAIT_FOR_VERIFICATION_RESULT=FALSE`) so that
-each attestation cycle covers only memory-read + hash + tx-send, isolating CPU/cache
-interference on the robot process from blockchain confirmation latency.
+- **Idle** — no attestation, baseline chain activity
+- **N sweep** — fixed SSP and ITERQ, increasing number of robots
+- **ITERQ sweep** — fixed N (largest), fixed SSP, increasing ITERQ
 
-The recommended topic is `/tf` (published directly by `robot_state_publisher`, the
-attested process). Use `/scan` as a negative control — it originates in the Gazebo
-server and should show no degradation regardless of sidecar parameters.
+Results: `experiments/data/blockchain-stats/results/`
+Tagged: `N{N}/blockchain-SSP{N}ms-ITERQ{N}-run{N}.csv`. Run index is auto-incremented.
 
-1. Start robots with `WAIT_FOR_VERIFICATION_RESULT=FALSE` in `.env`:
+1. Start the experimental setup:
 
 ```bash
-./start.sh --robots 4
+# Local
+./start.sh --robots <N> --contract rr --ssp 20000 --iterq 1
+
+# Remote
+./start.sh --robots <N> --remote --contract rr --ssp 20000 --iterq 1
 ```
 
-2. Start the topic collector, then run conditions back-to-back:
+SSP and ITERQ set here are overridden at runtime by the collection script, so these
+values only affect what the containers start with before the first `/config` push.
+
+2. Collect idle baseline
+
+No robots active — just the chain running:
 
 ```bash
-# /tf — primary signal (published by robot_state_publisher, the attested process)
+python3 collect_blockchain_stats_idle.py --duration 300
+```
+
+Results go to `experiments/data/blockchain-stats/results/idle/`.
+
+3. N sweep (fixed SSP, fixed ITERQ)
+
+```bash
+python3 run_experiments_and_collect_blockchain_stats.py --robots <N> --ssp 20000 --iterq 1 --duration 300
+```
+
+Restart the the experimental setup for each N
+
+Add `--remote` to both `start.sh` and the collection script when robots are on a remote host.
+
+4. ITERQ sweep (largest N, fixed SSP)
+
+Keep the experimental setup running at the largest N from Step 3.
+
+```bash
+python3 run_experiments_and_collect_blockchain_stats.py --robots 64 --ssp 20000 --iterq 2  --duration 300
+python3 run_experiments_and_collect_blockchain_stats.py --robots 64 --ssp 20000 --iterq 4  --duration 300
+python3 run_experiments_and_collect_blockchain_stats.py --robots 64 --ssp 20000 --iterq 8  --duration 300
+```
+
+Add `--remote` to both `start.sh` and the collection script when robots are on a remote host.
+
+5. Stop
+
+```bash
+./stop.sh
+```
+
+---
+
+## Data collection (robot app performance)
+
+Measures wall-clock inter-arrival intervals of `/robotX/tf` with and without attestation
+sidecars. The topic is published by `robot_state_publisher` — the exact process being
+attested — so any sidecar-induced CPU interference shows up directly as delivery jitter.
+
+Results: `experiments/data/robot-stats/results/tf/<condition>/<mode>/run*.csv`
+Tagged: `SSP{N}ms-ITERQ{N}-cpu{N|NC}-run{N}.csv` (`NC` = no CPU cap).
+
+Two sweeps are collected. SSP is pushed to sidecars at runtime via `/config`; the CPU
+cap is a cgroup set at container start and requires a stack restart to change.
+
+- **SSP sweep** — no CPU cap (`--no-cpu-limit`), SSP ∈ {5000, 1000, 500, 100, 10} ms
+- **CPU sweep** — fixed SSP = 10 ms (most aggressive), CPU ∈ {0.5, 0.25, 0.1} cores
+
+1. Start the experimental setup:
+
+```bash
+# SSP sweep: no CPU cap (tagged cpuNC)
+./start.sh --robots 4 --contract rr --no-cpu-limit --no-wait-result
+
+# CPU sweep: restart once per CPU limit value
+./start.sh --robots 4 --contract rr --ssp 10 --cpu-limit <0.5|0.25|0.1> --no-wait-result
+```
+
+2. Start the topic collector
+
+```bash
 COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/tf MSG_TYPE=tf2_msgs.msg/TFMessage \
   docker compose -f docker-compose.robots.yml \
                  -f docker-compose.benchmark-collector.yml \
                  up -d --force-recreate topic-collector
-
-# Baseline — no sidecars active
-python3 run_benchmark.py --condition no_sidecar --topic tf --duration 300
-
-# With sidecars — vary SSP to show increasing jitter
-python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 20000 --cpu-limit 0.4
-python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 5000  --cpu-limit 0.4
-python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 2000  --cpu-limit 0.4
-python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 1000  --cpu-limit 0.4
-python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 500   --cpu-limit 0.4
-
-# CPU sweep at worst SSP — shows compounding effect of throttling
-python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 500 --cpu-limit 1.0
-python3 run_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 500 --cpu-limit 0.1
-
-# /scan — negative control (should remain flat across all conditions)
-COMPOSE_IGNORE_ORPHANS=1 \
-  docker compose -f docker-compose.robots.yml \
-                 -f docker-compose.benchmark-collector.yml \
-                 up -d --force-recreate topic-collector
-
-python3 run_benchmark.py --condition no_sidecar  --topic scan --duration 300
-python3 run_benchmark.py --condition with_sidecar --topic scan --duration 300 --ssp 500 --cpu-limit 0.1
 ```
 
-> `--robots N` in `start.sh` must match `N_ROBOTS` in the collector (default 4).
-> Results are tagged automatically: `SSP{N}ms-ITERQu{N}-cpu{N}-run{N}.csv`.
+3. Run conditions
 
-3. Stop the experimental setup:
+```bash
+# Baseline (run once, no sidecars)
+python3 run_robot_benchmark.py --condition no_sidecar --topic tf --duration 300
+
+# SSP sweep (no CPU cap)
+python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 5000
+python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 1000
+python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 500
+python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 100
+python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10
+
+# CPU sweep — stop stack, restart with new cpu-limit, restart collector, then run:
+docker compose -f docker-compose.benchmark-collector.yml down && ./stop.sh
+./start.sh --robots 4 --contract rr --ssp 10 --cpu-limit <X> --no-wait-result
+# (restart collector as above)
+python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10 --cpu-limit 0.5
+python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10 --cpu-limit 0.25
+python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10 --cpu-limit 0.1
+```
+
+### Step 4 — Stop
 
 ```bash
 ./stop.sh

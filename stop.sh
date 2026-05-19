@@ -10,13 +10,13 @@ PROJECT_NAME="ros2-b-mutra"
 PASSWORD="netcom;"
 
 # Remote host constants
-REMOTE1_HOST="10.5.1.21"
-REMOTE1_USER="desire6g"
-REMOTE1_PASSWORD="desire6g2024;"
+REMOTE1_HOST="10.5.1.20"
+REMOTE1_USER="nextnet"
+REMOTE1_PASSWORD="nextnet;"
 REMOTE1_LIMIT=64
 REMOTE2_HOST=""          # placeholder — set when a second remote host is available
-REMOTE2_USER="desire6g"
-REMOTE2_PASSWORD="desire6g2024;"
+REMOTE2_USER="nextnet"
+REMOTE2_PASSWORD="nextnet;"
 REMOTE_DIR="~/ros2-b-mutra"
 
 # Read N_ROBOTS and DEPLOY_MODE from .env

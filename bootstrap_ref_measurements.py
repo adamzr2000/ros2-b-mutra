@@ -11,11 +11,9 @@ the whole fleet.
 
 Usage:
     python3 bootstrap_ref_measurements.py --robots 4
-    python3 bootstrap_ref_measurements.py --robots 4 --ref-dir ./ref-measurements-dummy
     python3 bootstrap_ref_measurements.py --robots 4 --sync-secaas
 
-Sidecar /digest is exposed only on the optimized variant (start.sh
---contract optimized). Run AFTER start.sh has brought the fleet up.
+Run AFTER start.sh has brought the fleet up.
 """
 import argparse
 import json

@@ -7,9 +7,8 @@ Expected file layout:
     results/N{n_robots}/continuous/{variant}/{container}-run{N}.csv
 e.g.
     results/N4/startup/secaas-run3.csv
-    results/N4/continuous/standard/robot1-sidecar-run1.csv
-    results/N4/continuous/exception/robot1-sidecar-run1.csv
-    results/N4/continuous/batched/robot1-sidecar-run1.csv
+    results/N4/continuous/rr/robot1-sidecar-run1.csv
+    results/N4/continuous/lv/robot1-sidecar-run1.csv
 
 variant is "" for startup (no variant subdirectory).
 
@@ -35,24 +34,24 @@ METRICS = [
 
 FILE_PATTERN    = re.compile(r"^(?P<container>.+)-run(?P<run>\d+)\.csv$", re.IGNORECASE)
 _KNOWN_MODES    = {"startup", "continuous"}
-_KNOWN_VARIANTS = {"standard", "exception", "batched"}
+_KNOWN_VARIANTS = {"rr", "lv"}
 
-# Optional param segment encoded in filename: -SSP{n}s-ITERQu{n}-cpu{n}p{n}
+# Optional param segment encoded in filename: -SSP{n}s-ITERQ{n}-cpu{n}p{n}
 _PARAMS_RE = re.compile(
-    r"-SSP(?P<ssp>\d+)s-ITERQu(?P<iterqu>\d+)-cpu(?P<cpu>[\dp]+)$",
+    r"-SSP(?P<ssp>\d+)s-ITERQ(?P<iterq>\d+)-cpu(?P<cpu>[\dp]+)$",
     re.IGNORECASE,
 )
 
 
 def _extract_params(base: str):
-    """Strip -SSP/ITERQu/cpu suffix from base; return (ssp_s, iterqu, cpu_limit, cleaned_base).
+    """Strip -SSP/ITERQ/cpu suffix from base; return (ssp_s, iterq, cpu_limit, cleaned_base).
     Returns (None, None, None, base) when the suffix is absent (e.g. startup files)."""
     m = _PARAMS_RE.search(base)
     if m:
         ssp    = int(m.group("ssp"))
-        iterqu = int(m.group("iterqu"))
+        iterq = int(m.group("iterq"))
         cpu    = float(m.group("cpu").replace("p", "."))
-        return ssp, iterqu, cpu, base[: m.start()]
+        return ssp, iterq, cpu, base[: m.start()]
     return None, None, None, base
 
 OUT_OVERALL_FILE  = "overall_resource_usage_per_container.csv"
@@ -115,9 +114,9 @@ def _parse_path(csv_path: Path):
     if not m:
         return None
 
-    ssp_s, iterqu, cpu_limit, container = _extract_params(m.group("container"))
+    ssp_s, iterq, cpu_limit, container = _extract_params(m.group("container"))
     run_id = int(m.group("run"))
-    return n_robots, mode, variant, container, ssp_s, iterqu, cpu_limit, run_id
+    return n_robots, mode, variant, container, ssp_s, iterq, cpu_limit, run_id
 
 
 def coerce_numeric(df, cols):
@@ -142,7 +141,7 @@ def main():
         parsed = _parse_path(csv_path)
         if parsed is None:
             continue
-        n_robots, mode, variant, container, ssp_s, iterqu, cpu_limit, run_id = parsed
+        n_robots, mode, variant, container, ssp_s, iterq, cpu_limit, run_id = parsed
 
         try:
             df = pd.read_csv(csv_path)
@@ -162,7 +161,7 @@ def main():
         df["mode"]       = mode
         df["variant"]    = variant
         df["ssp_s"]      = ssp_s
-        df["iterqu"]     = iterqu
+        df["iterq"]     = iterq
         df["cpu_limit"]  = cpu_limit
         df["container"]  = container
         df["run"]        = run_id
@@ -178,7 +177,7 @@ def main():
         if metric not in all_df.columns:
             all_df[metric] = pd.NA
 
-    GROUP_KEYS = ["n_robots", "mode", "variant", "ssp_s", "iterqu", "cpu_limit", "container", "run"]
+    GROUP_KEYS = ["n_robots", "mode", "variant", "ssp_s", "iterq", "cpu_limit", "container", "run"]
 
     # ---------------------------
     # OVERALL SUMMARY (equal-run)
@@ -200,12 +199,12 @@ def main():
     )
     per_run = per_run_mean.merge(per_run_total, on=GROUP_KEYS, how="outer")
     overall = (
-        per_run.groupby(["n_robots", "mode", "variant", "ssp_s", "iterqu", "cpu_limit", "container"], dropna=False)
+        per_run.groupby(["n_robots", "mode", "variant", "ssp_s", "iterq", "cpu_limit", "container"], dropna=False)
                .agg({m: ["mean", "std"] for m in METRICS})
     )
     overall.columns = [f"{m}_{stat}" for m, stat in overall.columns]
     overall = overall.reset_index().sort_values(
-        ["n_robots", "mode", "variant", "ssp_s", "iterqu", "cpu_limit", "container"]
+        ["n_robots", "mode", "variant", "ssp_s", "iterq", "cpu_limit", "container"]
     ).reset_index(drop=True)
 
     out_csv_overall = out_dir / OUT_OVERALL_FILE
@@ -223,7 +222,7 @@ def main():
     tl["timestamp"] = pd.to_numeric(tl["timestamp"], errors="coerce")
     tl = tl.dropna(subset=["timestamp"])
 
-    # Relative time per (n_robots, mode, variant, ssp_s, iterqu, cpu_limit, container, run)
+    # Relative time per (n_robots, mode, variant, ssp_s, iterq, cpu_limit, container, run)
     t0 = tl.groupby(GROUP_KEYS, dropna=False)["timestamp"].transform("min")
     tl["t_rel_s"] = ((tl["timestamp"] - t0) / 1000.0).round().astype("Int64")
 
@@ -238,12 +237,12 @@ def main():
     # ----------------------------------------
     timeline = (
         per_run_sec.groupby(
-            ["n_robots", "mode", "variant", "ssp_s", "iterqu", "cpu_limit", "container", "t_rel_s"],
+            ["n_robots", "mode", "variant", "ssp_s", "iterq", "cpu_limit", "container", "t_rel_s"],
             dropna=False,
         )[METRICS]
                    .mean(numeric_only=True)
                    .reset_index()
-                   .sort_values(["n_robots", "mode", "variant", "ssp_s", "iterqu", "cpu_limit", "container", "t_rel_s"])
+                   .sort_values(["n_robots", "mode", "variant", "ssp_s", "iterq", "cpu_limit", "container", "t_rel_s"])
                    .reset_index(drop=True)
     )
 

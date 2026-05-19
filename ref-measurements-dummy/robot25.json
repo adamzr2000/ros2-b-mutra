@@ -1,8 +1,0 @@
-{
-    "name": "robot25",
-    "eth_address": "0x007536f5b1d833f2eab60c959386b4a516a581bb",
-    "private_key": "0x93a2dc775c2f5036f54d70c880bc5fe31bd77948df26cd6982d0d057b9016430",
-    "robot_hash": "a7c97b788d001039ab62df6f2a830d391a6e6f0fd787ebabba42ee38b87a2118",
-    "attestation_sidecar_hash": "a7c97b788d001039ab62df6f2a830d391a6e6f0fd787ebabba42ee38b87a2118",
-    "combined_hash": "a7c97b788d001039ab62df6f2a830d391a6e6f0fd787ebabba42ee38b87a2118"
-}

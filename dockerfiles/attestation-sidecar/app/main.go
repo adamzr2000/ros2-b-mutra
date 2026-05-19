@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -430,24 +431,28 @@ func main() {
 		c.JSON(200, gin.H{"message": fmt.Sprintf("Mode set to %s.", mode), "one_shot": body.OneShot})
 	})
 
-	// POST /config  {"results_dir": "...", "one_shot": true|false, "export_enabled": true|false}
+	// POST /config  {"results_dir": "...", "one_shot": true|false, "export_enabled": true|false, "attestation_interval_ms": N, "iterq_threshold": K}
 	// Partial update — only fields present in the body are applied.
 	// Rejected while an attestation is in progress.
 	// results_dir change also clears ResultsFile so the next /start picks a fresh run number.
 	// one_shot change resets lastResult so /status returns "idle" cleanly.
+	// attestation_interval_ms takes effect on the next measurement cycle (updates ATTESTATION_INTERVAL_MS env var).
+	// iterq_threshold takes effect on the next measurement cycle (updates appState.Config.IterQThreshold in-process).
 	r.POST("/config", func(c *gin.Context) {
 		var body struct {
-			ResultsDir    *string `json:"results_dir"`
-			ResultsFile   *string `json:"results_file"`
-			OneShot       *bool   `json:"one_shot"`
-			ExportEnabled *bool   `json:"export_enabled"`
+			ResultsDir             *string `json:"results_dir"`
+			ResultsFile            *string `json:"results_file"`
+			OneShot                *bool   `json:"one_shot"`
+			ExportEnabled          *bool   `json:"export_enabled"`
+			AttestationIntervalMs  *int    `json:"attestation_interval_ms"`
+			IterQThreshold         *int    `json:"iterq_threshold"`
 		}
 		if err := c.ShouldBindJSON(&body); err != nil {
 			c.JSON(400, gin.H{"error": "invalid body"})
 			return
 		}
-		if body.ResultsDir == nil && body.ResultsFile == nil && body.OneShot == nil && body.ExportEnabled == nil {
-			c.JSON(400, gin.H{"error": "no recognized fields: use results_dir, results_file, one_shot, export_enabled"})
+		if body.ResultsDir == nil && body.ResultsFile == nil && body.OneShot == nil && body.ExportEnabled == nil && body.AttestationIntervalMs == nil && body.IterQThreshold == nil {
+			c.JSON(400, gin.H{"error": "no recognized fields: use results_dir, results_file, one_shot, export_enabled, attestation_interval_ms, iterq_threshold"})
 			return
 		}
 
@@ -493,6 +498,31 @@ func main() {
 			appState.Config.ExportEnabled = *body.ExportEnabled
 			applied["export_enabled"] = *body.ExportEnabled
 			logger.Info("Export enabled set to: %v", *body.ExportEnabled)
+		}
+
+		if body.AttestationIntervalMs != nil {
+			ms := *body.AttestationIntervalMs
+			if ms < 0 {
+				ms = 0
+			}
+			os.Setenv("ATTESTATION_INTERVAL_MS", strconv.Itoa(ms))
+			applied["attestation_interval_ms"] = ms
+			logger.Info("Attestation interval set to: %dms", ms)
+		}
+
+		if body.IterQThreshold != nil {
+			k := *body.IterQThreshold
+			if k < 1 {
+				c.JSON(400, gin.H{"error": "iterq_threshold must be >= 1"})
+				return
+			}
+			if k > 10000 {
+				c.JSON(400, gin.H{"error": "iterq_threshold must be <= 10000"})
+				return
+			}
+			appState.Config.IterQThreshold = uint32(k)
+			applied["iterq_threshold"] = k
+			logger.Info("IterQ threshold (K) set to: %d", k)
 		}
 
 		c.JSON(200, gin.H{"applied": applied})

@@ -29,7 +29,7 @@ import rclpy
 from rclpy.node import Node
 from flask import Flask, request, jsonify
 
-N_ROBOTS   = int(os.environ.get("N_ROBOTS", "4"))
+ROBOT_ID   = int(os.environ.get("ROBOT_ID", "1"))
 PORT       = int(os.environ.get("COLLECTOR_PORT", "7000"))
 TOPIC_NAME = os.environ.get("TOPIC_NAME", "/scan")          # suffix, e.g. /scan or /odom
 _MSG_TYPE  = os.environ.get("MSG_TYPE", "sensor_msgs.msg/LaserScan")
@@ -56,16 +56,15 @@ class TopicCollector(Node):
     def __init__(self):
         super().__init__("topic_collector")
         self._total_msgs = 0
-        for i in range(1, N_ROBOTS + 1):
-            full_topic = f"/robot{i}{TOPIC_NAME}"
-            self.create_subscription(
-                MsgType,
-                full_topic,
-                lambda msg, r=f"robot{i}", t=full_topic: self._cb(r, t, msg),
-                10,
-            )
+        full_topic = f"/robot{ROBOT_ID}{TOPIC_NAME}"
+        self.create_subscription(
+            MsgType,
+            full_topic,
+            lambda msg, r=f"robot{ROBOT_ID}", t=full_topic: self._cb(r, t, msg),
+            10,
+        )
         self.get_logger().info(
-            f"Subscribed to {N_ROBOTS} topics: /robotX{TOPIC_NAME}  [{_MSG_TYPE}]"
+            f"Subscribed to {full_topic}  [{_MSG_TYPE}]"
         )
 
     def _cb(self, robot, topic, msg):
@@ -73,13 +72,24 @@ class TopicCollector(Node):
         if not _recording:
             return
         wall_ns = time.time_ns()
+
+        # For TFMessage: only record messages from robot_state_publisher.
+        # robot_state_publisher bundles all moving joint transforms in one message
+        # (child_frame_id = wheel links, etc.).  The Gazebo diff-drive plugin
+        # publishes a separate single-transform message with child_frame_id =
+        # "base_footprint" (odom → base_footprint) — skip those.
         try:
-            stamp = msg.header.stamp
+            transforms = msg.transforms   # tf2_msgs/TFMessage
+            if transforms and all(t.child_frame_id == "base_footprint"
+                                  for t in transforms):
+                return                    # diff-drive odometry transform — ignore
+            stamp = transforms[0].header.stamp if transforms else None
         except AttributeError:
             try:
-                stamp = msg.transforms[0].header.stamp  # tf2_msgs/TFMessage
-            except (AttributeError, IndexError):
+                stamp = msg.header.stamp  # standard stamped message
+            except AttributeError:
                 stamp = None
+
         ros_ns = (stamp.sec * 1_000_000_000 + stamp.nanosec) if stamp is not None else 0
         with _lock:
             _records.append({

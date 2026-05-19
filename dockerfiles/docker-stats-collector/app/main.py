@@ -29,8 +29,8 @@ class StartRequest(BaseModel):
         None,
         description="Optional map {container_ref: csv filename or absolute path} to override automatic naming"
     )
-    ssp_s:     Optional[int]   = Field(None, description="SSP value — embeds -SSP{X}s-ITERQu{X}-cpu{X}p{X}- tag in auto-generated filenames")
-    iterqu:    Optional[int]   = Field(None, description="ITERQu value for param tag")
+    ssp_s:     Optional[int]   = Field(None, description="SSP value — embeds -SSP{X}s-ITERQ{X}-cpu{X}p{X}- tag in auto-generated filenames")
+    iterq:    Optional[int]   = Field(None, description="ITERQ value for param tag")
     cpu_limit: Optional[float] = Field(None, description="CPU limit value for param tag (e.g. 0.4 → cpu0p4)")
     stdout: bool = False
     write_header: bool = True
@@ -90,12 +90,12 @@ def _sanitize_ref(ref: str) -> str:
     """Make a filename-safe container ref."""
     return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in ref)
 
-def _param_tag(ssp_s, iterqu, cpu_limit) -> str:
-    """Build the experiment-param suffix, e.g. '-SSP20s-ITERQu1-cpu0p4'. Empty string if any param is None."""
-    if ssp_s is None or iterqu is None or cpu_limit is None:
+def _param_tag(ssp_s, iterq, cpu_limit) -> str:
+    """Build the experiment-param suffix, e.g. '-SSP20s-ITERQ1-cpu0p4'. Empty string if any param is None."""
+    if ssp_s is None or iterq is None or cpu_limit is None:
         return ""
     cpu_str = f"{cpu_limit:.1f}".replace(".", "p")
-    return f"-SSP{ssp_s}s-ITERQu{iterqu}-cpu{cpu_str}"
+    return f"-SSP{ssp_s}s-ITERQ{iterq}-cpu{cpu_str}"
 
 def _next_run_csv(csv_dir: str, ref: str, tag: str = "") -> str:
     safe = _sanitize_ref(ref)
@@ -147,7 +147,7 @@ def _make_csv_path(csv_dir: Optional[str], ref: str, csv_names: Optional[Dict[st
     response_model=StartResponse,
 )
 def monitor_start(req: StartRequest):
-    tag = _param_tag(req.ssp_s, req.iterqu, req.cpu_limit)
+    tag = _param_tag(req.ssp_s, req.iterq, req.cpu_limit)
     started, skipped = [], []
     for ref in req.containers:
         try:

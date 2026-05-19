@@ -16,7 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-RESULTS_DIR = Path(__file__).parent.parent / "data/performance-benchmark/results"
+RESULTS_DIR = Path(__file__).parent.parent / "data/robot-stats/results"
 
 RUN        = "run1"   # which run to display
 BIN_S      = 5.0      # time-bin width in seconds

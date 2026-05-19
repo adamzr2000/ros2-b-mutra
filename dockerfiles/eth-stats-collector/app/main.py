@@ -22,8 +22,8 @@ class StartRequest(BaseModel):
     poll_interval: float = Field(1.0, description="Seconds between block polls")
     csv_dir: Optional[str] = Field(None, description="Directory to write the CSV file into")
     csv_name: Optional[str] = Field(None, description="CSV filename (without .csv). Auto-named if omitted.")
-    ssp_s:     Optional[int]   = Field(None, description="SSP value — embeds -SSP{X}s-ITERQu{X}-cpu{X}p{X}- tag in auto-generated filename")
-    iterqu:    Optional[int]   = Field(None, description="ITERQu value for param tag")
+    ssp_s:     Optional[int]   = Field(None, description="SSP value — embeds -SSP{X}s-ITERQ{X}-cpu{X}p{X}- tag in auto-generated filename")
+    iterq:    Optional[int]   = Field(None, description="ITERQ value for param tag")
     cpu_limit: Optional[float] = Field(None, description="CPU limit value for param tag (e.g. 0.4 → cpu0p4)")
 
 class MessageResponse(BaseModel):
@@ -39,12 +39,12 @@ class StatusResponse(BaseModel):
 
 # ---------- Helpers ----------
 
-def _param_tag(ssp_s, iterqu, cpu_limit) -> str:
-    """Build the experiment-param suffix, e.g. '-SSP20s-ITERQu1-cpu0p4'. Empty string if any param is None."""
-    if ssp_s is None or iterqu is None or cpu_limit is None:
+def _param_tag(ssp_s, iterq, cpu_limit) -> str:
+    """Build the experiment-param suffix, e.g. '-SSP20s-ITERQ1-cpu0p4'. Empty string if any param is None."""
+    if ssp_s is None or iterq is None or cpu_limit is None:
         return ""
     cpu_str = f"{cpu_limit:.1f}".replace(".", "p")
-    return f"-SSP{ssp_s}s-ITERQu{iterqu}-cpu{cpu_str}"
+    return f"-SSP{ssp_s}s-ITERQ{iterq}-cpu{cpu_str}"
 
 def _next_run_csv(csv_dir: str, tag: str = "") -> str:
     os.makedirs(csv_dir, exist_ok=True)
@@ -93,7 +93,7 @@ def monitor_start(req: StartRequest):
     if mon and mon.is_running():
         raise HTTPException(status_code=409, detail="Monitor already running. Stop it first.")
 
-    tag      = _param_tag(req.ssp_s, req.iterqu, req.cpu_limit)
+    tag      = _param_tag(req.ssp_s, req.iterq, req.cpu_limit)
     csv_path = _resolve_csv_path(req.csv_dir, req.csv_name, tag)
     monitor = BlockchainMonitor(
         rpc_url=req.rpc_url,

@@ -13,9 +13,9 @@ INPUT_FILE_TEMPLATE = "../data/docker-stats/_summary/timeline_resource_usage_per
 TARGET_RUN = 1
 N_ROBOTS   = 4
 MODES      = ["startup", "continuous"]
-VARIANT    = "standard"   # ← continuous-mode variant to plot
-SSP_S      = 20           # sidecar sleep period (s)
-ITERQU     = 1            # rolling-hash queue depth
+VARIANT    = "rr"   # ← continuous-mode variant to plot
+SSP_MS      = 20000           # sidecar sleep period (ms)
+ITERQ     = 1            # rolling-hash queue depth
 CPU_LIMIT  = 0.4          # sidecar CPU limit
 
 LINE_WIDTH   = 2.0
@@ -70,16 +70,14 @@ def main():
         if mode == "continuous":
             subset = df[
                 (df["n_robots"]  == N_ROBOTS) &
-                (df["mode"]      == mode) &
-                (df["variant"]   == VARIANT) &
-                (df["ssp_s"]     == SSP_S) &
-                (df["iterqu"]    == ITERQU) &
+                (df["ssp_ms"]     == SSP_MS) &
+                (df["iterq"]    == ITERQ) &
                 (df["cpu_limit"] == CPU_LIMIT)
             ].copy()
         else:
             subset = df[(df["n_robots"] == N_ROBOTS) & (df["mode"] == mode)].copy()
         if subset.empty:
-            print(f"[WARN] No data for N={N_ROBOTS} mode={mode} variant='{VARIANT}' SSP={SSP_S}s ITERQu={ITERQU} cpu={CPU_LIMIT}, skipping.")
+            print(f"[WARN] No data for N={N_ROBOTS} mode={mode} variant='{VARIANT}' SSP={SSP_MS}s ITERQ={ITERQ} cpu={CPU_LIMIT}, skipping.")
             continue
         generate_plot(subset, N_ROBOTS, mode, script_dir)
 

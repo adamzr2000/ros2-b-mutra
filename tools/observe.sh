@@ -15,7 +15,7 @@
 set -uo pipefail
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-ADDR_FILE="$REPO/smart-contracts/deployments/besu-AttestationManagerOptimized.json"
+ADDR_FILE="$REPO/smart-contracts/deployments/besu-AttestationManagerLV.json"
 
 # keccak256 of the three events and the 4-byte selectors of two view fns.
 # Regenerate with:
