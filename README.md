@@ -137,9 +137,6 @@ Tagged: `N{N}/blockchain-SSP{N}ms-ITERQ{N}-run{N}.csv`. Run index is auto-increm
 1. Start the experimental setup:
 
 ```bash
-# Local
-./start.sh --robots <N> --contract rr --ssp 20000 --iterq 1
-
 # Remote
 ./start.sh --robots <N> --remote --contract rr --ssp 20000 --iterq 1
 ```
@@ -160,12 +157,10 @@ Results go to `experiments/data/blockchain-stats/results/idle/`.
 3. N sweep (fixed SSP, fixed ITERQ)
 
 ```bash
-python3 run_experiments_and_collect_blockchain_stats.py --robots <N> --ssp 20000 --iterq 1 --duration 300
+python3 run_experiments_and_collect_blockchain_stats.py --remote --robots <N> --ssp 20000 --iterq 1 --duration 300
 ```
 
 Restart the the experimental setup for each N
-
-Add `--remote` to both `start.sh` and the collection script when robots are on a remote host.
 
 4. ITERQ sweep (largest N, fixed SSP)
 
@@ -264,3 +259,12 @@ python3 create_agent_config.py --num-agents 100 --config-output ./config-dummy \
 ```
 
 > Note: To create blockchain agent credentials see [blockchain/quorum-test-network/extra](./blockchain/quorum-test-network/extra)
+
+
+### Fix arp_cache: neighbor table overflow!
+
+```bash
+sudo sysctl -w net.ipv4.neigh.default.gc_thresh1=2048
+sudo sysctl -w net.ipv4.neigh.default.gc_thresh2=4096
+sudo sysctl -w net.ipv4.neigh.default.gc_thresh3=8192
+```

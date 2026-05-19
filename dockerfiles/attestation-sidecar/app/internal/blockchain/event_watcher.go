@@ -89,7 +89,22 @@ func (ew *EventWatcher) loadCheckpoint() {
 		if err == nil {
 			var cp CheckpointData
 			if err := json.Unmarshal(fileBytes, &cp); err == nil {
-				ew.fromBlock = big.NewInt(int64(cp.FromBlock))
+				loaded := big.NewInt(int64(cp.FromBlock))
+
+				// Guard against stale checkpoints from a previous chain instance.
+				// If from_block is ahead of the current tip the chain was restarted
+				// and this checkpoint is from a different run — scanning from the
+				// stale offset would cause the watcher to wait forever.
+				header, herr := ew.client.client.HeaderByNumber(context.Background(), nil)
+				if herr == nil && header != nil && loaded.Cmp(header.Number) > 0 {
+					logger.Warn("Checkpoint from_block=%d is ahead of chain tip=%d — stale chain detected, resetting to 0",
+						cp.FromBlock, header.Number.Uint64())
+					// fromBlock stays at 0 (initialised in NewEventWatcher)
+					// Do NOT restore seenKeys — they reference a different chain.
+					return
+				}
+
+				ew.fromBlock = loaded
 				for _, k := range cp.SeenKeys {
 					ew.seenKeys[k] = true
 				}
@@ -98,7 +113,7 @@ func (ew *EventWatcher) loadCheckpoint() {
 			}
 		}
 	}
-	// Fallback logic
+	// No checkpoint: start from the current chain tip to skip historical noise.
 	header, err := ew.client.client.HeaderByNumber(context.Background(), nil)
 	if err == nil && header != nil {
 		ew.fromBlock = header.Number

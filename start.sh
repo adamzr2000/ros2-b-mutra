@@ -248,6 +248,23 @@ else
   echo
 fi
 
+# Reset remote EventWatcher checkpoints so robot sidecars don't start with a
+# stale from_block from an old chain (remote checkpoints are not cleared above).
+# The files are root-owned (written by Docker containers), so we use a throwaway
+# alpine container to delete them — no sudo TTY issues.
+if [[ "$DEPLOY_MODE" == "remote" ]]; then
+  echo "🧹 Resetting remote EventWatcher checkpoints on $REMOTE1_HOST..."
+  run_remote "$REMOTE1_HOST" "$REMOTE1_USER" \
+    "mkdir -p $REMOTE_DIR/checkpoints && docker run --rm -v \$(realpath $REMOTE_DIR/checkpoints):/cp alpine sh -c 'find /cp -name \"*.json\" -delete' && echo 'Done.'"
+  echo
+  if (( N_ROBOTS_VAL > REMOTE1_LIMIT )) && [[ -n "$REMOTE2_HOST" ]]; then
+    echo "🧹 Resetting remote EventWatcher checkpoints on $REMOTE2_HOST..."
+    run_remote "$REMOTE2_HOST" "$REMOTE2_USER" \
+      "mkdir -p $REMOTE_DIR/checkpoints && docker run --rm -v \$(realpath $REMOTE_DIR/checkpoints):/cp alpine sh -c 'find /cp -name \"*.json\" -delete' && echo 'Done.'"
+    echo
+  fi
+fi
+
 # ── Initialize the blockchain network (always on d-mutra) ─────────────────────
 cd "$SCRIPT_DIR/blockchain/quorum-test-network"
 ./run.sh
@@ -420,7 +437,7 @@ else
 fi
 # ══════════════════════════════════════════════════════════════════════════════
 
-# ── Reference measurements bootstrap (local mode only) ────────────────────────
+# ── Reference measurements bootstrap ──────────────────────────────────────────
 # Capture the *real* triplet (robot_hash, sidecar_hash, combined_hash) from
 # robot1's sidecar, patch every ref-measurements/robot{i}.json with it, and
 # push the result back into the SECaaS PostgreSQL via /sync-agents. Then
@@ -472,9 +489,31 @@ if [[ "$BOOTSTRAP_REFS" == "TRUE" && "$DEPLOY_MODE" == "local" ]]; then
   fi
 elif [[ "$BOOTSTRAP_REFS" == "TRUE" && "$DEPLOY_MODE" == "remote" ]]; then
   echo
-  echo "ℹ️  Remote mode — skipping automatic bootstrap. To bootstrap manually:"
-  echo "      ssh $REMOTE1_USER@$REMOTE1_HOST"
-  echo "      cd $REMOTE_DIR && python3 bootstrap_ref_measurements.py --robots $N_ROBOTS_VAL --sync-secaas --secaas-url http://$LOCAL_IP:8000"
+  echo "🔧 Bootstrapping real reference measurements (remote)..."
+
+  max_attempts=60   # = up to 2 minutes
+  attempt=1
+  while (( attempt <= max_attempts )); do
+    if curl -s "http://$REMOTE1_HOST:8001/digest" 2>/dev/null | grep -q '"combined_hash"'; then
+      echo "✅ robot1 /digest is ready."
+      break
+    fi
+    echo "   (Attempt $attempt/$max_attempts) Waiting for /digest on $REMOTE1_HOST:8001..."
+    sleep 2
+    (( attempt++ ))
+  done
+  if (( attempt > max_attempts )); then
+    echo "⚠️  /digest didn't come up in time. Run bootstrap manually:"
+    echo "      python3 bootstrap_ref_measurements.py --robots $N_ROBOTS_VAL --sidecar-host $REMOTE1_HOST --sync-secaas"
+  else
+    python3 "$SCRIPT_DIR/bootstrap_ref_measurements.py" \
+      --robots "$N_ROBOTS_VAL" \
+      --sidecar-host "$REMOTE1_HOST" \
+      --sync-secaas \
+      && echo "🧹 Resetting on-chain attestation chain..." \
+      && curl -s -X POST "$SECAAS_URL/reset" | jq . \
+      || echo "⚠️  Bootstrap failed — attestations may close as FAILURE."
+  fi
 fi
 
 echo "🎉 All done."
