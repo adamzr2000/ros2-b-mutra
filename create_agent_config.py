@@ -139,6 +139,8 @@ if __name__ == "__main__":
                         help="Output directory for ref-measurements JSON files. Omit to skip writing ref-measurements.")
     parser.add_argument("--blockchain-host", default="host.docker.internal",
                         help="Hostname/IP for Besu RPC endpoints (default: host.docker.internal)")
+    parser.add_argument("--secaas-host", default=None,
+                        help="Hostname/IP for Besu RPC used by SECaaS config; falls back to --blockchain-host if omitted")
     parser.add_argument("--cmd-name", default="robot_state_publisher",
                         help="Process name to attest (default: robot_state_publisher)")
     parser.add_argument("--text-section-size", type=int, default=42223,
@@ -165,7 +167,8 @@ if __name__ == "__main__":
 
     os.makedirs(args.config_output, exist_ok=True)
 
-    create_secaas_config(args.config_output, args.blockchain_host,
+    secaas_host = args.secaas_host or args.blockchain_host
+    create_secaas_config(args.config_output, secaas_host,
                          contract_data["address"], contract_abi)
 
     for i in range(1, args.num_agents + 1):

@@ -73,6 +73,7 @@ services:
     ports:
       - 127.0.0.1:21001:8545/tcp
       - 172.17.0.1:21001:8545/tcp  # docker bridge gateway, reachable from containers via host.docker.internal
+      - ${LOCAL_IP:-0.0.0.0}:21001:8545/tcp  # external interface — reachable from remote hosts
       - 30303
       - 9545
     environment:
@@ -92,6 +93,7 @@ services:
     ports:
       - 127.0.0.1:21002:8545/tcp
       - 172.17.0.1:21002:8545/tcp
+      - ${LOCAL_IP:-0.0.0.0}:21002:8545/tcp
       - 30303
       - 9545
     environment:
@@ -113,6 +115,7 @@ services:
     ports:
       - 127.0.0.1:21003:8545/tcp
       - 172.17.0.1:21003:8545/tcp
+      - ${LOCAL_IP:-0.0.0.0}:21003:8545/tcp
       - 30303
       - 9545
     environment:
@@ -134,6 +137,7 @@ services:
     ports:
       - 127.0.0.1:21004:8545/tcp
       - 172.17.0.1:21004:8545/tcp
+      - ${LOCAL_IP:-0.0.0.0}:21004:8545/tcp
       - 30303
       - 9545
     environment:

@@ -36,7 +36,8 @@ The following modules will be built and tagged locally:
 ./start.sh --auto --contract rr --ssp 20000 --cpu-limit 0.5 --iterq 1
 ```
 
-This will start all required containers and start processing attestations (`AUTO_START=TRUE`)
+This will start all required containers, deploy the [AttestationManagerRR.sol](./smart-contracts/contracts/AttestationManagerRR.sol) or [AttestationManagerRR.sol](./smart-contracts/contracts/AttestationManagerLV.sol.sol)
+and start processing attestations (`AUTO_START=TRUE`)
 - **4-node Private Ethereum-based blockchain** with [Hyperledger Besu](https://besu.hyperledger.org/private-networks) platform running [QBFT](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft) consensus algorithm
 - **Gazebo** robot simulator
 - **4 Robot(s)**, each including `turtlebot3-gazebo` and `attestation-sidecar` container images
@@ -68,11 +69,11 @@ Services exposed:
 # Round-robin (AttestationManagerRR)
 ./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerRR
 
-# Last-verifier (AttestationManagerLV) — requires --vrp N
-./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerLV --vrp 1
+# Last-verifier (AttestationManagerLV)
+./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerLV
 ```
 
-> **Note:** `start.sh` handles blockchain init and contract deployment automatically.
+> **Note:** [start.sh](./start.sh) handles blockchain init and contract deployment automatically.
 
 3. Remove the network:
 

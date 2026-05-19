@@ -280,7 +280,7 @@ def generate_attestation_remote_yml(n_start: int, n_end: int, config_dir: str = 
             f"      - ENABLE_LIBS_HASH=${{ENABLE_LIBS_HASH}}",
             f"      - SELF_INTEGRITY_ENABLED=${{SELF_INTEGRITY_ENABLED}}",
             f"    ports:",
-            f'      - "127.0.0.1:{port}:8000"',
+            f'      - "0.0.0.0:{port}:8000"',
             f"    volumes:",
             f"      - {config_dir}/robot{i}.json:/config/robot{i}.json",
             f"      - ./experiments/data/:/experiments/data:rw",

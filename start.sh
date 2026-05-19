@@ -24,6 +24,7 @@ REMOTE_DIR="~/ros2-b-mutra"
 # Local machine's IP reachable from remote hosts (injected as host.docker.internal
 # so remote sidecars can reach the Besu validators on d-mutra).
 LOCAL_IP="10.5.99.99"
+export LOCAL_IP  # consumed by blockchain/quorum-test-network/docker-compose.yml for external port binding
 
 # Ignore orphan warnings when using multiple compose files for the same project
 export COMPOSE_IGNORE_ORPHANS=1
@@ -274,6 +275,7 @@ python3 "$SCRIPT_DIR/create_agent_config.py" \
   --config-output "$SCRIPT_DIR/config" \
   --ref-output "$SCRIPT_DIR/ref-measurements" \
   --blockchain-host "$CFG_BLOCKCHAIN_HOST" \
+  --secaas-host "host.docker.internal" \
   --cmd-name robot_state_publisher \
   --text-section-size 42223 \
   --offset 0
