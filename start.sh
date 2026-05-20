@@ -21,10 +21,11 @@ REMOTE2_USER="nextnet"
 REMOTE2_LIMIT=128
 REMOTE_DIR="~/ros2-b-mutra"
 
-# Local machine's IP reachable from remote hosts (injected as host.docker.internal
-# so remote sidecars can reach the Besu validators on d-mutra).
+# d-mutra's IP reachable from remote hosts — used only in remote mode so that
+# sidecars on remote machines know where to reach the Besu validators on d-mutra.
+# The quorum compose file no longer binds to this IP directly; it uses "21001:8545"
+# (all-interfaces) so no LOCAL_IP export is needed for docker compose.
 LOCAL_IP="10.5.99.99"
-export LOCAL_IP  # consumed by blockchain/quorum-test-network/docker-compose.yml for external port binding
 
 # Ignore orphan warnings when using multiple compose files for the same project
 export COMPOSE_IGNORE_ORPHANS=1
@@ -228,9 +229,17 @@ CPU_DISPLAY="$CPU_LIMIT_VAL"
 [[ "$NO_CPU_LIMIT_VAL" == "TRUE" ]] && CPU_DISPLAY="none (uncapped)"
 echo "✅ .env updated (Robots: $N_ROBOTS_VAL, Mode: $DEPLOY_MODE, Contract: $CONTRACT_VAL, Auto: $AUTO_START_VAL, Export: $EXPORT_RESULTS_VAL, Startup: $ONE_SHOT_VAL, SSP: ${SSP_VAL}ms, CPU: $CPU_DISPLAY, IterQ: $ITERQ_VAL)"
 
-# Regenerate compose files for the selected mode
+# Regenerate compose files for the selected mode.
+# Blockchain host differs per mode:
+#   local  — sidecars are on d-mutra, reach validators via host.docker.internal
+#   remote — sidecars are on remote machines, reach validators via d-mutra's LAN IP
 echo "🔧 Generating compose files for $N_ROBOTS_VAL robot(s) [mode: $DEPLOY_MODE]..."
-COMPOSE_FLAGS=(--robots "$N_ROBOTS_VAL" --blockchain-host "$LOCAL_IP" --mode "$DEPLOY_MODE" --contract "$CONTRACT_VAL")
+if [[ "$DEPLOY_MODE" == "remote" ]]; then
+  COMPOSE_BLOCKCHAIN_HOST="$LOCAL_IP"
+else
+  COMPOSE_BLOCKCHAIN_HOST="host.docker.internal"
+fi
+COMPOSE_FLAGS=(--robots "$N_ROBOTS_VAL" --blockchain-host "$COMPOSE_BLOCKCHAIN_HOST" --mode "$DEPLOY_MODE" --contract "$CONTRACT_VAL")
 [[ "$NO_CPU_LIMIT_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--no-cpu-limit)
 python3 "$SCRIPT_DIR/generate_compose.py" "${COMPOSE_FLAGS[@]}"
 echo

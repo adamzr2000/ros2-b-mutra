@@ -225,7 +225,6 @@ python3 run_robot_benchmark.py --condition no_sidecar --topic tf --duration 300
 # SSP sweep (no CPU cap)
 python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 5000
 python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 1000
-python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 500
 python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 100
 python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10
 
