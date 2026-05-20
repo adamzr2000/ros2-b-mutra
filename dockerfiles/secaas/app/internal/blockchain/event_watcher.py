@@ -31,8 +31,20 @@ class EventWatcher:
         self.poll_interval = poll_interval
 
         cp = self._load_checkpoint()
-        self.from_block = cp.get("from_block", self.w3.eth.block_number)
-        self.seen_keys = set(cp.get("seen_keys", []))
+        saved_block = cp.get("from_block")
+        chain_tip   = self.w3.eth.block_number
+        if saved_block is not None and saved_block > chain_tip:
+            # Stale checkpoint from a previous chain instance (e.g. Quorum restarted).
+            # Scanning from a block ahead of the tip would cause the watcher to wait forever.
+            logger.warning(
+                "Checkpoint from_block=%d is ahead of chain tip=%d — stale chain detected, resetting to 0",
+                saved_block, chain_tip,
+            )
+            self.from_block = 0
+            # Do NOT restore seen_keys — they reference a different chain instance.
+        else:
+            self.from_block = saved_block if saved_block is not None else chain_tip
+            self.seen_keys = set(cp.get("seen_keys", []))
 
     def _load_checkpoint(self) -> Dict[str, Any]:
         if os.path.exists(self.checkpoint_path):

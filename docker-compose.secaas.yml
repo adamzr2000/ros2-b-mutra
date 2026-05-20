@@ -45,6 +45,7 @@ services:
       - "./ref-measurements/:/ref-measurements:rw"
       - "./experiments/:/experiments:rw"
       - ./dockerfiles/secaas/app:/src/app
+      - ./checkpoints/secaas:/checkpoints
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

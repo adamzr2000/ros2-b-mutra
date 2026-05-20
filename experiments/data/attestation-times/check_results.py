@@ -35,11 +35,9 @@ CONTINUOUS (each robot does multiple attestations per run)
 import json
 import os
 import sys
-import glob
 import re
-from collections import defaultdict
 
-RESULTS_DIR   = os.path.join(os.path.dirname(__file__), "results")
+RESULTS_DIR     = os.path.join(os.path.dirname(__file__), "results")
 TIMEOUT_WARN_MS = 30_000   # flag prover entries slower than this
 
 # ── ANSI colours ──────────────────────────────────────────────────────────────
@@ -55,39 +53,94 @@ def fail(msg):  print(f"  {RED}✘{RESET}  {RED}{msg}{RESET}")
 def warn(msg):  print(f"  {YELLOW}⚠{RESET}  {YELLOW}{msg}{RESET}")
 def info(msg):  print(f"     {msg}")
 
+# ── File-name helpers ─────────────────────────────────────────────────────────
+
+_RUN_RE    = re.compile(r"-run(\d+)\.json$", re.IGNORECASE)
+_PARAMS_RE = re.compile(r"SSP\d+ms-ITERQ\d+-cpu(?:[\dp]+|NC)", re.IGNORECASE)
+
+
+def _listdir(directory):
+    try:
+        return os.listdir(directory)
+    except FileNotFoundError:
+        return []
+
+
+def _file_tag(fname):
+    """Extract param tag (e.g. 'SSP20000ms-ITERQ1-cpuNC') or '' for startup files."""
+    m = _PARAMS_RE.search(fname)
+    return m.group(0) if m else ""
+
+
+def detect_param_tags(directory):
+    """Return sorted unique param tags found in directory. Returns [''] if none (startup)."""
+    tags = set()
+    for f in _listdir(directory):
+        if not f.lower().endswith(".json"):
+            continue
+        if not (f.lower().startswith("robot") or f.lower().startswith("secaas")):
+            continue
+        if not _RUN_RE.search(f):
+            continue
+        tags.add(_file_tag(f))
+    return sorted(tags) or [""]
+
+
+def detect_robots(directory, tag=""):
+    """Return sorted robot indices for files matching the given param tag."""
+    robots = set()
+    for fname in _listdir(directory):
+        if not fname.lower().startswith("robot"):
+            continue
+        if _file_tag(fname) != tag:
+            continue
+        m = re.match(r"^robot(\d+)", fname, re.IGNORECASE)
+        if m:
+            robots.add(int(m.group(1)))
+    return sorted(robots)
+
+
+def detect_runs(directory, tag=""):
+    """Return sorted run numbers from secaas files matching the given param tag."""
+    runs = set()
+    for fname in _listdir(directory):
+        if not fname.lower().startswith("secaas"):
+            continue
+        if _file_tag(fname) != tag:
+            continue
+        m = _RUN_RE.search(fname)
+        if m:
+            runs.add(int(m.group(1)))
+    return sorted(runs)
+
+
+def _robot_path(directory, ri, run, tag=""):
+    if tag:
+        return os.path.join(directory, f"robot{ri}-{tag}-run{run}.json")
+    return os.path.join(directory, f"robot{ri}-run{run}.json")
+
+
+def _secaas_path(directory, run, tag=""):
+    if tag:
+        return os.path.join(directory, f"secaas-{tag}-run{run}.json")
+    return os.path.join(directory, f"secaas-run{run}.json")
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def load_json(path):
     try:
         with open(path) as f:
             return json.load(f)
-    except Exception as e:
+    except Exception:
         return None
 
-def detect_runs(directory, prefix):
-    """Return the sorted list of run numbers found for the given file prefix."""
-    pattern = os.path.join(directory, f"{prefix}-run*.json")
-    nums = []
-    for p in glob.glob(pattern):
-        m = re.search(r"-run(\d+)\.json$", p)
-        if m:
-            nums.append(int(m.group(1)))
-    return sorted(set(nums))
-
-def detect_robots(directory, prefix):
-    """Return sorted list of robot indices from files like prefix-robot{i}-run1.json."""
-    pattern = os.path.join(directory, f"{prefix}-robot*-run1.json")
-    indices = []
-    for p in glob.glob(pattern):
-        m = re.search(r"-robot(\d+)-run\d+\.json$", p)
-        if m:
-            indices.append(int(m.group(1)))
-    return sorted(set(indices))
 
 def role_count(data, role):
     """Return len of a role list; handles both list and int (legacy)."""
     v = data.get(role, [])
     return len(v) if isinstance(v, list) else int(v)
+
 
 def max_prover_duration(data):
     entries = data.get("prover", [])
@@ -95,19 +148,18 @@ def max_prover_duration(data):
         return 0.0
     return max(e.get("dur_prover_e2e_ms", 0.0) for e in entries)
 
+
 # ── Per-mode checks ───────────────────────────────────────────────────────────
 
 def check_startup(directory, N, robots, runs):
     errors = warnings = 0
 
     for run in runs:
+        secaas_data = load_json(_secaas_path(directory, run))
         secaas_oracle_count = 0
 
-        # ── SECaaS run file ──────────────────────────────────────────────────
-        secaas_path = os.path.join(directory, f"secaas-run{run}.json")
-        secaas_data = load_json(secaas_path)
         if secaas_data is None:
-            fail(f"run{run}: secaas file missing or unreadable: {secaas_path}")
+            fail(f"run{run}: secaas file missing or unreadable")
             errors += 1
         else:
             secaas_oracle_count = role_count(secaas_data, "oracle")
@@ -119,10 +171,8 @@ def check_startup(directory, N, robots, runs):
                      f"(possible attestation-ID collision)")
                 errors += 1
 
-        # ── Robot files ──────────────────────────────────────────────────────
         for ri in robots:
-            rpath = os.path.join(directory, f"startup-robot{ri}-run{run}.json")
-            rdata = load_json(rpath)
+            rdata = load_json(_robot_path(directory, ri, run))
 
             if rdata is None:
                 fail(f"run{run} robot{ri}: file missing or unreadable")
@@ -140,26 +190,21 @@ def check_startup(directory, N, robots, runs):
 
             max_dur = max_prover_duration(rdata)
             if max_dur >= TIMEOUT_WARN_MS:
-                warn(f"run{run} robot{ri}: prover dur={max_dur:.0f}ms (≥{TIMEOUT_WARN_MS}ms — possible timeout)")
+                warn(f"run{run} robot{ri}: prover dur={max_dur:.0f}ms "
+                     f"(≥{TIMEOUT_WARN_MS}ms — possible timeout)")
                 warnings += 1
-
-        # No "total resolved" check here — robot verifier exports are legitimately
-        # dropped in startup mode when MarkExperimentStop is called before the
-        # verifier goroutine finishes. prover=1 per robot is the success signal.
 
     return errors, warnings
 
 
-def check_continuous(directory, N, robots, runs):
+def check_continuous(directory, N, robots, runs, tag=""):
     errors = warnings = 0
 
     for run in runs:
+        secaas_data = load_json(_secaas_path(directory, run, tag))
         robot_verifier_total = 0
         robot_prover_total   = 0
 
-        # ── SECaaS run file ──────────────────────────────────────────────────
-        secaas_path = os.path.join(directory, f"secaas-run{run}.json")
-        secaas_data = load_json(secaas_path)
         if secaas_data is None:
             fail(f"run{run}: secaas file missing or unreadable")
             errors += 1
@@ -177,10 +222,8 @@ def check_continuous(directory, N, robots, runs):
                      f"(expected 0 in continuous steady-state)")
                 warnings += 1
 
-        # ── Robot files ──────────────────────────────────────────────────────
         for ri in robots:
-            rpath = os.path.join(directory, f"continuous-robot{ri}-run{run}.json")
-            rdata = load_json(rpath)
+            rdata = load_json(_robot_path(directory, ri, run, tag))
 
             if rdata is None:
                 fail(f"run{run} robot{ri}: file missing or unreadable")
@@ -199,32 +242,48 @@ def check_continuous(directory, N, robots, runs):
 
             max_dur = max_prover_duration(rdata)
             if max_dur >= TIMEOUT_WARN_MS:
-                warn(f"run{run} robot{ri}: max prover dur={max_dur:.0f}ms (≥{TIMEOUT_WARN_MS}ms — possible timeout)")
+                warn(f"run{run} robot{ri}: max prover dur={max_dur:.0f}ms "
+                     f"(≥{TIMEOUT_WARN_MS}ms — possible timeout)")
                 warnings += 1
 
             robot_verifier_total += role_count(rdata, "verifier")
 
-        # ── Coverage: peer verification must be happening ────────────────────
         if robot_verifier_total == 0:
             fail(f"run{run}: total robot verifier entries=0 (no peer verification happened)")
             errors += 1
 
+        oracle_n = role_count(secaas_data, "oracle") if secaas_data else "?"
         info(f"run{run}: prover_entries={robot_prover_total}  "
              f"peer_verifier_entries={robot_verifier_total}  "
-             f"secaas_oracle={ role_count(secaas_data, 'oracle') if secaas_data else '?'}")
+             f"secaas_oracle={oracle_n}")
 
     return errors, warnings
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _print_header(label, N, n_robots, n_runs):
+    print(f"\n{BOLD}{CYAN}{'─'*60}{RESET}")
+    print(f"{BOLD}{CYAN}{label}  (N={N}, robots={n_robots}, runs={n_runs}){RESET}")
+    print(f"{BOLD}{CYAN}{'─'*60}{RESET}")
+
+
+def _report(e, w):
+    if e == 0 and w == 0:
+        ok("All checks passed")
+    else:
+        if e: fail(f"{e} error(s)")
+        if w: warn(f"{w} warning(s)")
+
+
 def main():
     results_dir = sys.argv[1] if len(sys.argv) > 1 else RESULTS_DIR
 
     n_dirs = sorted(
-        d for d in glob.glob(os.path.join(results_dir, "N*"))
-        if os.path.isdir(d)
-    )
+        d for d in (os.path.join(results_dir, e) for e in os.listdir(results_dir))
+        if os.path.isdir(d) and re.match(r"N\d+$", os.path.basename(d))
+    ) if os.path.isdir(results_dir) else []
+
     if not n_dirs:
         print(f"No N* directories found under {results_dir}")
         sys.exit(1)
@@ -235,49 +294,53 @@ def main():
         n_label = os.path.basename(n_dir)
         N = int(re.search(r"(\d+)$", n_label).group(1))
 
-        for mode in ("startup", "continuous"):
-            mode_dir = os.path.join(n_dir, mode)
-            if not os.path.isdir(mode_dir):
-                continue
-
-            prefix  = mode
-            robots  = detect_robots(mode_dir, prefix)
-            runs    = detect_runs(mode_dir, "secaas")
-
+        # ── Startup ───────────────────────────────────────────────────────────
+        startup_dir = os.path.join(n_dir, "startup")
+        if os.path.isdir(startup_dir):
+            robots = detect_robots(startup_dir)
+            runs   = detect_runs(startup_dir)
             if not robots or not runs:
-                warn(f"{n_label}/{mode}: no data files found, skipping")
+                warn(f"{n_label}/startup: no data files found, skipping")
                 total_warnings += 1
+            else:
+                _print_header(f"{n_label} / STARTUP", N, len(robots), len(runs))
+                e, w = check_startup(startup_dir, N, robots, runs)
+                total_errors += e; total_warnings += w
+                _report(e, w)
+
+        # ── Continuous ────────────────────────────────────────────────────────
+        cont_dir = os.path.join(n_dir, "continuous")
+        if not os.path.isdir(cont_dir):
+            continue
+
+        for contract in sorted(os.listdir(cont_dir)):
+            contract_dir = os.path.join(cont_dir, contract)
+            if not os.path.isdir(contract_dir):
                 continue
 
-            print(f"\n{BOLD}{CYAN}{'─'*60}{RESET}")
-            print(f"{BOLD}{CYAN}{n_label} / {mode.upper()}  "
-                  f"(N={N}, robots={len(robots)}, runs={len(runs)}){RESET}")
-            print(f"{BOLD}{CYAN}{'─'*60}{RESET}")
+            for tag in detect_param_tags(contract_dir):
+                robots = detect_robots(contract_dir, tag)
+                runs   = detect_runs(contract_dir, tag)
+                tag_label = f"  [{tag}]" if tag else ""
 
-            if mode == "startup":
-                e, w = check_startup(mode_dir, N, robots, runs)
-            else:
-                e, w = check_continuous(mode_dir, N, robots, runs)
+                if not robots or not runs:
+                    warn(f"{n_label}/continuous/{contract}{tag_label}: no data files found, skipping")
+                    total_warnings += 1
+                    continue
 
-            total_errors   += e
-            total_warnings += w
-
-            if e == 0 and w == 0:
-                ok(f"All checks passed")
-            else:
-                if e:
-                    fail(f"{e} error(s)")
-                if w:
-                    warn(f"{w} warning(s)")
+                _print_header(f"{n_label} / CONTINUOUS / {contract}{tag_label}",
+                              N, len(robots), len(runs))
+                e, w = check_continuous(contract_dir, N, robots, runs, tag)
+                total_errors += e; total_warnings += w
+                _report(e, w)
 
     print(f"\n{'═'*60}")
     if total_errors == 0 and total_warnings == 0:
         print(f"{BOLD}{GREEN}All checks passed across all N/mode combinations.{RESET}")
+    elif total_errors:
+        print(f"{BOLD}{RED}TOTAL: {total_errors} error(s)  {total_warnings} warning(s){RESET}")
     else:
-        if total_errors:
-            print(f"{BOLD}{RED}TOTAL: {total_errors} error(s)  {total_warnings} warning(s){RESET}")
-        else:
-            print(f"{BOLD}{YELLOW}TOTAL: 0 errors  {total_warnings} warning(s){RESET}")
+        print(f"{BOLD}{YELLOW}TOTAL: 0 errors  {total_warnings} warning(s){RESET}")
     print()
 
     sys.exit(1 if total_errors else 0)
