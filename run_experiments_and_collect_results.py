@@ -259,7 +259,8 @@ def _build_run_tag(ssp_ms, iterq, cpu_limit) -> str:
 
 
 def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
-                        startup_mode=False, ssp_ms=None, iterq=None, cpu_limit=None):
+                        startup_mode=False, ssp_ms=None, iterq=None, cpu_limit=None,
+                        startup_timeout=180):
     run_tag = _build_run_tag(ssp_ms, iterq, cpu_limit)
     print(f"\n==============================\n🏁 Run {run_id}\n==============================")
 
@@ -305,7 +306,7 @@ def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, 
     wait_for_all_running(robot_sidecars, timeout=30)
 
     if startup_mode:
-        wait_for_all_finished(robot_sidecars, timeout=180)
+        wait_for_all_finished(robot_sidecars, timeout=startup_timeout)
         stop_all_agents(sidecars)
         time.sleep(3)
         reset_chain()
@@ -323,7 +324,7 @@ def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, 
             pass
 
 
-def run_continuous_warmup(sidecars, robot_sidecars):
+def run_continuous_warmup(sidecars, robot_sidecars, startup_timeout=180):
     """One-shot warmup run with export disabled to seed lastSuccess on-chain."""
     print("\n🔥 Continuous warmup: seeding lastSuccess via one-shot run (export disabled)...")
 
@@ -337,7 +338,7 @@ def run_continuous_warmup(sidecars, robot_sidecars):
             print(f"      {f.result()}")
 
     wait_for_all_running(robot_sidecars, timeout=30)
-    wait_for_all_finished(robot_sidecars, timeout=180)
+    wait_for_all_finished(robot_sidecars, timeout=startup_timeout)
     stop_all_agents(sidecars)
 
     print("   ✅ Warmup complete. lastSuccess seeded for all robots.\n")
@@ -399,7 +400,7 @@ def sync_remote_results(remote_hosts: list):
 def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
                     startup_mode, remote1_host=None, remote2_host=None,
                     remote1_limit=_DEFAULT_REMOTE1_LIMIT, num_robots=0,
-                    ssp_ms=None, iterq=None, cpu_limit=None):
+                    ssp_ms=None, iterq=None, cpu_limit=None, startup_timeout=180):
     reset_checkpoints(remote1_host=remote1_host, remote2_host=remote2_host,
                       remote1_limit=remote1_limit, num_robots=num_robots)
 
@@ -408,7 +409,7 @@ def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_
     set_config("secaas", _SECAAS_HOST_PORT, {"results_dir": attestation_dir})
 
     if not startup_mode:
-        run_continuous_warmup(sidecars, robot_sidecars)
+        run_continuous_warmup(sidecars, robot_sidecars, startup_timeout=startup_timeout)
         set_config_all(robot_sidecars, {"export_enabled": True})
         set_config("secaas", _SECAAS_HOST_PORT, {"export_enabled": True})
         print("   [System] Cooling down for 5s after warmup...")
@@ -417,7 +418,8 @@ def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_
     for i in range(1, runs + 1):
         run_experiment_loop(i, duration, stats_dir, attestation_dir, sidecars, robot_sidecars,
                             startup_mode=startup_mode,
-                            ssp_ms=ssp_ms, iterq=iterq, cpu_limit=cpu_limit)
+                            ssp_ms=ssp_ms, iterq=iterq, cpu_limit=cpu_limit,
+                            startup_timeout=startup_timeout)
         if i < runs:
             print("   [System] Cooling down for 5s...")
             time.sleep(5)
@@ -450,6 +452,9 @@ if __name__ == "__main__":
                       help="One-shot mode: poll until all agents report 'finished'")
     mode.add_argument("--duration", type=int,
                       help="Continuous mode: run for this many seconds then stop agents")
+
+    parser.add_argument("--startup-timeout", type=int, default=180,
+                        help="Max seconds to wait for all agents to finish in startup/warmup mode (default: 180)")
 
     # Experiment parameters — defaults read from .env (set by start.sh)
     parser.add_argument("--ssp",       type=int,   default=_DEFAULT_SSP,
@@ -520,7 +525,8 @@ if __name__ == "__main__":
                         sidecars, robot_sidecars, startup_mode=args.startup,
                         remote1_host=remote1_host, remote2_host=remote2_host,
                         remote1_limit=remote1_limit, num_robots=args.robots,
-                        ssp_ms=ssp_ms, iterq=iterq, cpu_limit=cpu_limit)
+                        ssp_ms=ssp_ms, iterq=iterq, cpu_limit=cpu_limit,
+                        startup_timeout=args.startup_timeout)
     except KeyboardInterrupt:
         print("\n🛑 Interrupted by user.")
 

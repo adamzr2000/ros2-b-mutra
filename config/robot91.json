@@ -6,7 +6,7 @@
     "text_section_prefix": "",
     "eth_address": "0xe106ba5b6b7bb90336264599aeedbef869a812c5",
     "private_key": "0x67e11ca341e5da2147aad7149510fe6bb276ad8145b8e9c33ac4a262478adc7b",
-    "eth_node_url": "http://10.5.99.99:21001",
+    "eth_node_url": "http://10.5.99.99:21004",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {
