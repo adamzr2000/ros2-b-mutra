@@ -7,6 +7,7 @@ Dashed gray line shows the idle (no-attestation) baseline.
 """
 
 from pathlib import Path
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -22,13 +23,14 @@ LINEWIDTH  = 1.8
 MARKERSIZE = 7
 COLOR_IDLE = "gray"
 
-# Tab10 — muted, balanced hues; cleaner than Set1 for print
-_t10 = sns.color_palette("tab10")
+# viridis sequential: low ITERQ (dark) → high ITERQ (light)
+# wide spacing to maximise contrast between the 4 lines
+_viridis = plt.cm.viridis([0.10, 0.38, 0.65, 0.88])
 STYLES = {
-    1: {"color": _t10[0], "marker": "o"},   # blue,   circle
-    2: {"color": _t10[1], "marker": "s"},   # orange, square
-    4: {"color": _t10[2], "marker": "^"},   # green,  triangle
-    8: {"color": _t10[3], "marker": "D"},   # red,    diamond
+    1: {"color": _viridis[0], "marker": "o"},
+    2: {"color": _viridis[1], "marker": "s"},
+    4: {"color": _viridis[2], "marker": "^"},
+    8: {"color": _viridis[3], "marker": "D"},
 }
 
 

@@ -28,7 +28,7 @@ ITERQ      = 1
 CPU_LIMIT  = 0.4
 N_VALUES   = [4, 8, 16, 32, 64]
 
-METRIC     = "median"  # "median" → median + IQR (p25/p75)  |  "mean" → mean ± std
+METRIC     = "mean"  # "median" → median + IQR (p25/p75)  |  "mean" → mean ± std
 
 FONT_SCALE = 1.7
 BAR_WIDTH  = 0.42
@@ -60,7 +60,7 @@ def _agg(df, n, group, role, metric):
     ]
     if sub.empty:
         return 0.0, 0.0, 0.0
-    run_vals = sub.groupby("run")["run_mean_s"].mean()
+    run_vals = sub.groupby("run")["run_median_s"].mean()
     if METRIC == "mean":
         c   = float(run_vals.mean())
         err = float(run_vals.std(ddof=1))

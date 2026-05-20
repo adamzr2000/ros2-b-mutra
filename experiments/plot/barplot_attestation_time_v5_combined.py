@@ -51,7 +51,7 @@ def _agg(df, n, group, role, metric):
     ]
     if sub.empty:
         return 0.0, 0.0, 0.0
-    run_vals = sub.groupby("run")["run_mean_s"].mean()
+    run_vals = sub.groupby("run")["run_median_s"].mean()
     if METRIC == "mean":
         c   = float(run_vals.mean())
         err = float(run_vals.std(ddof=1))
@@ -101,7 +101,7 @@ def draw_stack(ax, x, segments, err_lo, err_hi):
             bottom += val
     if err_lo > 0 or err_hi > 0:
         ax.errorbar(x, bottom, yerr=[[err_lo], [err_hi]], fmt="none",
-                    color="black", capsize=2.0, linewidth=0.8, zorder=5)
+                    color="black", capsize=4.0, linewidth=1.4, zorder=5)
     return bottom + err_hi
 
 

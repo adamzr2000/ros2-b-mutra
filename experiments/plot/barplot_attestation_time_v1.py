@@ -65,7 +65,7 @@ def _get_agg(df, n, group, role, metric):
     sub = df[mask]
     if sub.empty:
         return 0.0, 0.0
-    run_means = sub.groupby("run")["run_mean_s"].mean()
+    run_means = sub.groupby("run")["run_median_s"].mean()
     return float(run_means.mean()), float(run_means.std(ddof=1))
 
 

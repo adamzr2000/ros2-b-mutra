@@ -32,8 +32,8 @@ _SECAAS_HOST_PORT = ("localhost", SECAAS_PORT)
 def _read_env_defaults():
     """Read SSP_ms, ITERQ, and CPU_LIMIT defaults from .env (set by start.sh)."""
     ssp_ms    = 20000
-    iterq    = 1
-    cpu_limit = 0.4
+    iterq     = 1
+    cpu_limit = None  # NC (no cap) by default
     env_path  = os.path.join(_SCRIPT_DIR, ".env")
     try:
         with open(env_path) as f:
@@ -49,10 +49,13 @@ def _read_env_defaults():
                     except ValueError:
                         pass
                 elif key == "CPU_LIMIT":
-                    try:
-                        cpu_limit = float(val)
-                    except ValueError:
-                        pass
+                    if val.upper() == "NC":
+                        cpu_limit = None
+                    else:
+                        try:
+                            cpu_limit = float(val)
+                        except ValueError:
+                            pass
                 elif key == "ITERQ_THRESHOLD":
                     try:
                         iterq = int(val)
@@ -249,9 +252,9 @@ def reset_chain():
 
 def _build_run_tag(ssp_ms, iterq, cpu_limit) -> str:
     """Build the param-tag string embedded in output filenames, e.g. 'SSP20000ms-ITERQ1-cpu0p4'."""
-    if ssp_ms is None or iterq is None or cpu_limit is None:
+    if ssp_ms is None or iterq is None:
         return ""
-    cpu_str = f"{cpu_limit:.1f}".replace(".", "p")
+    cpu_str = "NC" if cpu_limit is None else f"{cpu_limit:.1f}".replace(".", "p")
     return f"SSP{ssp_ms}ms-ITERQ{iterq}-cpu{cpu_str}"
 
 
@@ -453,8 +456,11 @@ if __name__ == "__main__":
                         help=f"Attestation interval in milliseconds — SSP (default from .env: {_DEFAULT_SSP})")
     parser.add_argument("--iterq",    type=int,   default=_DEFAULT_ITERQ,
                         help=f"Rolling hash queue depth — ITERQ (default from .env: {_DEFAULT_ITERQ})")
-    parser.add_argument("--cpu-limit", type=float, default=_DEFAULT_CPU_LIMIT,
-                        help=f"Sidecar CPU limit (default from .env: {_DEFAULT_CPU_LIMIT})")
+    def _cpu_type(val):
+        return None if val.upper() == "NC" else float(val)
+    _cpu_default_str = "NC" if _DEFAULT_CPU_LIMIT is None else str(_DEFAULT_CPU_LIMIT)
+    parser.add_argument("--cpu-limit", type=_cpu_type, default=_DEFAULT_CPU_LIMIT,
+                        help=f"Sidecar CPU limit, or 'NC' for no cap (default from .env: {_cpu_default_str})")
     parser.add_argument("--variant",   default="rr",
                         choices=["rr", "lv"],
                         help="Continuous-mode variant subdirectory (default: rr)")

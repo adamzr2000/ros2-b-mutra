@@ -87,7 +87,7 @@ One row per `(n_robots, participant, run, role, metric)`.
 | `run` | Run index |
 | `role` | `prover`, `verifier`, or `oracle` |
 | `metric` | Metric name (see table above) |
-| `run_mean_s` | Mean duration across cycles in this run (seconds) |
+| `run_median_s` | Median duration across cycles in this run (seconds) |
 | `participant_group` | `Robot` or `SECaaS` (for grouped aggregation in plots) |
 
 ### `durations_per_run_rr.csv` / `durations_per_run_lv.csv`

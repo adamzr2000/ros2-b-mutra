@@ -12,7 +12,7 @@ e.g.  results/N4/startup/robot1-run3.json
       results/N4/continuous/rr/robot1-SSP20000ms-ITERQ1-cpu0p4-run2.json
 
 Outputs (written to _summary/):
-  durations_per_run_startup.csv    — startup mode; columns: n_robots, participant, run, role, metric, run_mean_s, participant_group
+  durations_per_run_startup.csv    — startup mode; columns: n_robots, participant, run, role, metric, run_median_s (median across cycles), participant_group
   durations_per_run_rr.csv         — continuous, RR contract; adds: ssp_ms, iterq, cpu_limit
   durations_per_run_lv.csv         — continuous, LV contract (written only if data exists)
 
@@ -166,8 +166,8 @@ def _write_per_run(df: pd.DataFrame, group_keys: list, out_path: Path):
     """Average cycles within each run, add participant_group, write CSV."""
     per_run = (
         df.groupby(group_keys, as_index=False, dropna=False)["duration_s"]
-        .mean()
-        .rename(columns={"duration_s": "run_mean_s"})
+        .median()
+        .rename(columns={"duration_s": "run_median_s"})
     )
     per_run["participant_group"] = per_run["participant"].apply(_participant_group)
     per_run.to_csv(out_path, index=False)
@@ -188,7 +188,7 @@ def _write_summary(per_run: pd.DataFrame, group_keys: list, out_path: Path):
     )
     summary_keys = [k for k in group_keys if k not in ("run",)] + ["participant_group"]
     summary = (
-        per_run.groupby(summary_keys, dropna=False)["run_mean_s"]
+        per_run.groupby(summary_keys, dropna=False)["run_median_s"]
         .agg(**agg)
         .reset_index()
     )

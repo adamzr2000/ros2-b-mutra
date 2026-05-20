@@ -90,10 +90,10 @@ cd blockchain/quorum-test-network
 
 ```bash
 # Local mode (default)
-./start.sh --robots 4 --export --contract rr --ssp 20000 --cpu-limit 0.4 --iterq 1
+./start.sh --robots <N> --export --contract rr --no-cpu-limit
 
 # Remote mode — Blockchain+SECaaS+Monitoring on local host; Robots+Sidecars+Monitoring on remote1 host
-./start.sh --robots 32 --export --remote --contract rr --ssp 20000 --cpu-limit 0.4 --iterq 1
+./start.sh --robots <N> --export --remote --contract rr --no-cpu-limit
 ```
 
 Use `--startup` for one-shot attestation mode, `--robots N` to scale (1–128).
@@ -167,12 +167,8 @@ Restart the the experimental setup for each N
 Keep the experimental setup running at the largest N from Step 3.
 
 ```bash
-python3 run_experiments_and_collect_blockchain_stats.py --robots 64 --ssp 20000 --iterq 2  --duration 300
-python3 run_experiments_and_collect_blockchain_stats.py --robots 64 --ssp 20000 --iterq 4  --duration 300
-python3 run_experiments_and_collect_blockchain_stats.py --robots 64 --ssp 20000 --iterq 8  --duration 300
+for q in 2 4 8; do python3 run_experiments_and_collect_blockchain_stats.py --remote --robots <N> --ssp 20000 --iterq $q --duration 300; sleep 10; done
 ```
-
-Add `--remote` to both `start.sh` and the collection script when robots are on a remote host.
 
 5. Stop
 
@@ -200,11 +196,11 @@ cap is a cgroup set at container start and requires a stack restart to change.
 1. Start the experimental setup:
 
 ```bash
-# SSP sweep: no CPU cap (tagged cpuNC)
+# No CPU cap (tagged cpuNC)
 ./start.sh --robots 4 --contract rr --no-cpu-limit --no-wait-result
 
 # CPU sweep: restart once per CPU limit value
-./start.sh --robots 4 --contract rr --ssp 10 --cpu-limit <0.5|0.25|0.1> --no-wait-result
+./start.sh --robots 4 --contract rr --cpu-limit <1.0|0.5|0.1> --no-wait-result
 ```
 
 2. Start the topic collector
@@ -220,27 +216,16 @@ COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/tf MSG_TYPE=tf2_msgs.msg/TFMessage \
 
 ```bash
 # Baseline (run once, no sidecars)
-python3 run_robot_benchmark.py --condition no_sidecar --topic tf --duration 300
+python3 run_experiments_and_collect_robot_stats.py --condition no_sidecar --topic tf --duration 300
 
-# SSP sweep (no CPU cap)
-python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 5000
-python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 1000
-python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 100
-python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10
-
-# CPU sweep — stop stack, restart with new cpu-limit, restart collector, then run:
-docker compose -f docker-compose.benchmark-collector.yml down && ./stop.sh
-./start.sh --robots 4 --contract rr --ssp 10 --cpu-limit <X> --no-wait-result
-# (restart collector as above)
-python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10 --cpu-limit 0.5
-python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10 --cpu-limit 0.25
-python3 run_robot_benchmark.py --condition with_sidecar --topic tf --duration 300 --ssp 10 --cpu-limit 0.1
+# SSP/CPU sweep
+for ssp in 5000 1000 100 10; do python3 run_experiments_and_collect_robot_stats.py --condition with_sidecar --topic tf --duration 300 --ssp "$ssp" --cpu-limit <1.0|0.5|0.1>; sleep 10; done
 ```
 
-### Step 4 — Stop
+4. Stop
 
 ```bash
-./stop.sh
+docker compose -f docker-compose.benchmark-collector.yml down && ./stop.sh
 ```
 
 ---
