@@ -34,10 +34,6 @@ services:
     pid: "container:robot1"
     cap_add:
       - SYS_PTRACE
-    deploy:
-      resources:
-        limits:
-          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -73,10 +69,6 @@ services:
     pid: "container:robot2"
     cap_add:
       - SYS_PTRACE
-    deploy:
-      resources:
-        limits:
-          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -112,10 +104,6 @@ services:
     pid: "container:robot3"
     cap_add:
       - SYS_PTRACE
-    deploy:
-      resources:
-        limits:
-          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -151,10 +139,6 @@ services:
     pid: "container:robot4"
     cap_add:
       - SYS_PTRACE
-    deploy:
-      resources:
-        limits:
-          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

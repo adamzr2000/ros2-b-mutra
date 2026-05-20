@@ -102,14 +102,14 @@ Use `--startup` for one-shot attestation mode, `--robots N` to scale (1–128).
 
 ```bash
 # Local — continuous mode (--variant must match contract deployed by start.sh: rr or lv)
-python3 run_experiments_and_collect_results.py --robots 4 --runs 5 --duration 120 --variant lv
+python3 run_experiments_and_collect_results.py --robots <N> --runs 5 --duration 120 --variant lv
 
 # Local — startup (one-shot) mode (no variant needed)
-python3 run_experiments_and_collect_results.py --robots 4 --runs 10 --startup
+python3 run_experiments_and_collect_results.py --robots <N> --runs 10 --startup
 
 # Remote — add --remote (must match --remote used in start.sh)
-python3 run_experiments_and_collect_results.py --robots 32 --runs 5 --duration 120 --variant lv --remote
-python3 run_experiments_and_collect_results.py --robots 32 --runs 10 --startup --remote
+python3 run_experiments_and_collect_results.py --robots <N> --runs 5 --duration 120 --variant lv --remote
+python3 run_experiments_and_collect_results.py --robots <N> --runs 10 --startup --remote
 ```
 
 `--robots N` must match the value used in `start.sh`. `--variant` sets the results subdirectory (`rr` or `lv`) and must match the contract deployed.
