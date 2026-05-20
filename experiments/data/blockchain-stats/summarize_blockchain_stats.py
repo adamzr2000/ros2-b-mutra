@@ -1,49 +1,34 @@
 #!/usr/bin/env python3
 """
-Per-N summary of blockchain stats for continuous-mode experiments.
+Per-condition summary of blockchain stats for continuous-mode experiments.
 
 Expected file layout:
-    results/N{n}/continuous/{variant}/blockchain-SSP{ssp}s-ITERQ{iterq}-cpu{cpu}-run{k}.csv
+    results/N{n}/blockchain-SSP{ssp_ms}ms-ITERQ{iterq}-run{k}.csv
+    results/idle/blockchain-idle-*.csv          (baseline, no N/SSP/ITERQ)
 e.g.
-    results/N4/continuous/rr/blockchain-SSP20s-ITERQ1-cpu0p4-run1.csv
-
-Aggregation pipeline:
-  blocks (per run CSV) → per-run stats → mean ± std across (N, ssp_s, iterq, cpu_limit) groups
+    results/N64/blockchain-SSP20000ms-ITERQ1-run1.csv
+    results/idle/blockchain-idle-300s.csv
 """
-import argparse
 import glob
 import os
 import re
 
 import pandas as pd
 
-RESULTS_ROOT    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
-N_VALUES        = [4, 8, 16, 24, 32, 40, 50, 64, 100]
-_KNOWN_VARIANTS = {"rr", "lv"}
+RESULTS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+N_VALUES     = [4, 8, 16, 24, 32, 40, 50, 64, 100]
 
-SUMMARY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_summary")
+SUMMARY_DIR  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_summary")
 
 _FILE_RE   = re.compile(r"^(?P<base>.+)-run(?P<run>\d+)\.csv$", re.IGNORECASE)
-_PARAMS_RE = re.compile(
-    r"-SSP(?P<ssp>\d+)s-ITERQ(?P<iterq>\d+)-cpu(?P<cpu>[\dp]+)$",
-    re.IGNORECASE,
-)
+_PARAMS_RE = re.compile(r"-SSP(?P<ssp>\d+)ms-ITERQ(?P<iterq>\d+)$", re.IGNORECASE)
 
 
 def _extract_params(base: str):
-    """Return (ssp_s, iterq, cpu_limit) parsed from the base stem, or (None, None, None)."""
     m = _PARAMS_RE.search(base)
     if m:
-        return int(m.group("ssp")), int(m.group("iterq")), float(m.group("cpu").replace("p", "."))
-    return None, None, None
-
-
-def parse_args():
-    p = argparse.ArgumentParser(description="Summarize blockchain stats per N.")
-    p.add_argument("--variant", default="rr",
-                   choices=sorted(_KNOWN_VARIANTS),
-                   help="Contract variant to summarize (default: rr).")
-    return p.parse_args()
+        return int(m.group("ssp")), int(m.group("iterq"))
+    return None, None
 
 
 def per_run_stats(df: pd.DataFrame) -> dict:
@@ -56,66 +41,78 @@ def per_run_stats(df: pd.DataFrame) -> dict:
     bt        = df["block_time_s"].dropna()
 
     return {
-        "tx_per_block":    df["tx_count"].mean(),
-        "total_tx":        float(total_tx),
-        "gas_used_pct":    df["gas_used_pct"].mean(),
-        "avg_gas_per_tx":  total_gas / total_tx if total_tx > 0 else 0.0,
-        "block_time_s":    bt.mean(),
-        "block_time_std":  bt.std(),
-        "total_bytes":     df["size_bytes"].sum(),
-        "bytes_per_s":     df["size_bytes"].sum() / duration_s,
+        "tx_per_block":   df["tx_count"].mean(),
+        "total_tx":       float(total_tx),
+        "gas_used_pct":   df["gas_used_pct"].mean(),
+        "avg_gas_per_tx": total_gas / total_tx if total_tx > 0 else 0.0,
+        "block_time_s":   bt.mean(),
+        "block_time_std": bt.std(),
+        "total_bytes":    df["size_bytes"].sum(),
+        "bytes_per_s":    df["size_bytes"].sum() / duration_s,
     }
 
 
-def summarize_variant(variant: str) -> list[dict]:
-    """Scan all blockchain CSVs under variant dir; return one row per (N, ssp_s, iterq, cpu_limit)."""
-    rows = []
+def collect_rows() -> list[dict]:
+    # Group files by (N, ssp_ms, iterq); keep only the highest-indexed run.
+    best: dict[tuple, tuple[int, str]] = {}  # key → (run_index, path)
     for n in N_VALUES:
-        dir_path = os.path.join(RESULTS_ROOT, f"N{n}", "continuous", variant)
-        files    = sorted(glob.glob(os.path.join(dir_path, "blockchain-*.csv")))
-        if not files:
-            continue
-
-        # Group files by (ssp_s, iterq, cpu_limit)
-        groups: dict[tuple, list] = {}
-        for f in files:
+        dir_path = os.path.join(RESULTS_ROOT, f"N{n}")
+        for f in sorted(glob.glob(os.path.join(dir_path, "blockchain-*.csv"))):
             m = _FILE_RE.match(os.path.basename(f))
             if not m:
                 continue
-            ssp_s, iterq, cpu_limit = _extract_params(m.group("base"))
-            groups.setdefault((ssp_s, iterq, cpu_limit), []).append(f)
-
-        for (ssp_s, iterq, cpu_limit), group_files in sorted(groups.items()):
-            run_stats = []
-            for f in group_files:
-                try:
-                    run_stats.append(per_run_stats(pd.read_csv(f)))
-                except Exception as e:
-                    print(f"[WARN] Skipping {f}: {e}")
-            if not run_stats:
+            ssp_ms, iterq = _extract_params(m.group("base"))
+            if ssp_ms is None:
                 continue
-            runs_df = pd.DataFrame(run_stats)
-            row = {"N": n, "ssp_s": ssp_s, "iterq": iterq, "cpu_limit": cpu_limit, "runs": len(run_stats)}
-            for col in runs_df.columns:
-                row[f"{col}_mean"] = runs_df[col].mean()
-                row[f"{col}_std"]  = runs_df[col].std()
-            rows.append(row)
+            key = (n, ssp_ms, iterq)
+            run = int(m.group("run"))
+            if run > best.get(key, (-1, ""))[0]:
+                best[key] = (run, f)
+
+    rows = []
+    for (n, ssp_ms, iterq), (run, f) in sorted(best.items()):
+        try:
+            stats = per_run_stats(pd.read_csv(f))
+        except Exception as e:
+            print(f"[WARN] Skipping {f}: {e}")
+            continue
+        rows.append({"N": n, "ssp_ms": ssp_ms, "iterq": iterq, "run": run, **stats})
     return rows
 
 
+def collect_idle() -> dict | None:
+    """Return stats for the most recent idle baseline CSV, or None if absent."""
+    files = sorted(glob.glob(os.path.join(RESULTS_ROOT, "idle", "blockchain-idle-*.csv")))
+    if not files:
+        return None
+    f = files[-1]   # latest alphabetically (longer duration wins ties)
+    try:
+        return {"file": os.path.basename(f), **per_run_stats(pd.read_csv(f))}
+    except Exception as e:
+        print(f"[WARN] Skipping idle file {f}: {e}")
+        return None
+
+
+def _fmt_key(val) -> str:
+    try:
+        return str(int(val))
+    except (ValueError, TypeError):
+        return str(val)
+
+
+def print_table(df: pd.DataFrame, metrics: list[tuple], key_cols: list[str], col_w: int = 18):
+    header = "  ".join(f"{c:>{col_w}}" for c in key_cols)
+    header += "".join(f"  {lbl:>{col_w}}" for _, lbl in metrics)
+    print(header)
+    print("-" * len(header))
+    for _, row in df.iterrows():
+        line = "  ".join(f"{_fmt_key(row[c]):>{col_w}}" for c in key_cols)
+        for key, _ in metrics:
+            line += f"  {row[key]:>{col_w}.2f}"
+        print(line)
+
+
 def main():
-    args    = parse_args()
-    variant = args.variant
-
-    rows = summarize_variant(variant)
-    if not rows:
-        print(f"No data found for variant '{variant}'.")
-        return
-
-    df = pd.DataFrame(rows)
-
-    # ---- console table ----
-    COL_W = 22
     metrics = [
         ("tx_per_block",   "tx/block"),
         ("total_tx",       "total_tx"),
@@ -127,27 +124,35 @@ def main():
         ("bytes_per_s",    "growth (B/s)"),
     ]
 
-    print(f"\nVariant: {variant}")
-    header = (f"{'N':>5}  {'ssp_s':>5}  {'iterq':>6}  {'cpu':>5}  {'runs':>4}"
-              + "".join(f"  {lbl:>{COL_W}}" for _, lbl in metrics))
-    print(header)
-    print("-" * len(header))
+    os.makedirs(SUMMARY_DIR, exist_ok=True)
 
-    for _, row in df.iterrows():
-        line = (f"{int(row['N']):>5}  {str(row['ssp_s']):>5}  "
-                f"{str(row['iterq']):>6}  {str(row['cpu_limit']):>5}  {int(row['runs']):>4}")
-        for key, _ in metrics:
-            mean = row[f"{key}_mean"]
-            std  = row[f"{key}_std"]
-            val  = f"{mean:.2f} ± {std:.2f}"
-            line += f"  {val:>{COL_W}}"
-        print(line)
+    # ── Idle baseline ──────────────────────────────────────────────────────────
+    idle = collect_idle()
+    if idle:
+        print("\n=== Idle baseline ===")
+        print(f"File: {idle['file']}")
+        idle_df = pd.DataFrame([idle])
+        for key, lbl in metrics:
+            print(f"  {lbl:<20} {idle_df[key].iloc[0]:.2f}")
+        out_idle = os.path.join(SUMMARY_DIR, "blockchain_stats_idle.csv")
+        idle_df.to_csv(out_idle, index=False)
+        print(f"Saved to {out_idle}")
+    else:
+        print("\n[INFO] No idle baseline found in results/idle/")
 
+    # ── Continuous runs ────────────────────────────────────────────────────────
+    rows = collect_rows()
+    if not rows:
+        print("\nNo continuous-run data found.")
+        return
+
+    df = pd.DataFrame(rows)
+
+    print("\n=== Continuous runs ===")
+    print_table(df, metrics, key_cols=["N", "ssp_ms", "iterq", "run"])
     print()
 
-    # ---- save CSV ----
-    os.makedirs(SUMMARY_DIR, exist_ok=True)
-    out = os.path.join(SUMMARY_DIR, f"blockchain_stats_summary_{variant}.csv")
+    out = os.path.join(SUMMARY_DIR, "blockchain_stats_summary.csv")
     df.to_csv(out, index=False)
     print(f"Summary saved to {out}")
 

@@ -1,0 +1,2 @@
+file,tx_per_block,total_tx,gas_used_pct,avg_gas_per_tx,block_time_s,block_time_std,total_bytes,bytes_per_s
+blockchain-idle-300s.csv,0.0,0.0,0.0,0.0,2.0,0.0,126731,422.43666666666667

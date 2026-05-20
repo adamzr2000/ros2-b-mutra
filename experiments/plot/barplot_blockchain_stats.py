@@ -8,8 +8,7 @@ Four subplots:
   3. Blockchain growth rate (KB/s)
   4. Total transactions per run
 
-Bars show mean ± std across runs. Footprint and growth-rate panels
-include a dashed idle reference line.
+Footprint and growth-rate panels include a dashed idle reference line.
 """
 
 from pathlib import Path
@@ -18,39 +17,35 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-VARIANT    = "rr"   # ← continuous-mode variant to plot
-SSP_MS      = 20000           # sidecar sleep period (ms)
-ITERQ     = 1            # rolling-hash queue depth
-CPU_LIMIT  = 0.4          # sidecar CPU limit
-INPUT_FILE = f"../data/blockchain-stats/_summary/blockchain_stats_summary_{VARIANT}.csv"
-IDLE_CSV   = "../data/blockchain-stats/results/idle/blockchain-idle-120s.csv"
+SSP_MS     = 20000   # filter: sidecar sleep period (ms)
+ITERQ      = 1       # filter: rolling-hash queue depth
 
-FONT_SCALE  = 1.6
-COLOR       = "#2E7D52"   # forest green
-COLOR_IDLE  = "gray"
-BAR_WIDTH   = 0.55
-SHOW_ERRORS = False
+INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
+IDLE_FILE  = "../data/blockchain-stats/_summary/blockchain_stats_idle.csv"
+
+FONT_SCALE = 1.6
+COLOR      = "#2E7D52"   # forest green
+COLOR_IDLE = "gray"
+BAR_WIDTH  = 0.55
 
 
 def main():
     script_dir = Path(__file__).parent.resolve()
-    csv_path   = (script_dir / INPUT_FILE.format(VARIANT=VARIANT)).resolve()
+
+    csv_path = (script_dir / INPUT_FILE).resolve()
     if not csv_path.exists():
         raise SystemExit(f"Summary CSV not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
-    df = df[(df["ssp_ms"] == SSP_MS) & (df["iterq"] == ITERQ) & (df["cpu_limit"] == CPU_LIMIT)]
+    df = df[(df["ssp_ms"] == SSP_MS) & (df["iterq"] == ITERQ)]
     df = df.set_index("N").sort_index()
 
-    idle_path = (script_dir / IDLE_CSV).resolve()
+    idle_path = (script_dir / IDLE_FILE).resolve()
     if not idle_path.exists():
-        raise SystemExit(f"Idle CSV not found: {idle_path}")
-    idle_df          = pd.read_csv(idle_path)
-    idle_total_bytes = idle_df["size_bytes"].sum()
-    idle_duration_s  = idle_df["block_timestamp"].max() - idle_df["block_timestamp"].min()
-    if idle_duration_s <= 0:
-        idle_duration_s = 120.0
-    idle_bytes_per_s = idle_total_bytes / idle_duration_s
+        raise SystemExit(f"Idle summary CSV not found: {idle_path}")
+    idle = pd.read_csv(idle_path).iloc[0]
+    idle_total_bytes = idle["total_bytes"]
+    idle_bytes_per_s = idle["bytes_per_s"]
 
     n_vals = df.index.to_numpy()
     x      = np.arange(len(n_vals))
@@ -70,25 +65,18 @@ def main():
     fig, axes = plt.subplots(1, 4, figsize=(18, 5))
 
     for ax, (key, ylabel, scale) in zip(axes, metrics):
-        means = df[f"{key}_mean"].to_numpy() * scale
-        stds  = df[f"{key}_std"].to_numpy()  * scale
+        vals = df[key].to_numpy() * scale
 
-        yerr = stds if SHOW_ERRORS else None
-        ax.bar(x, means, width=BAR_WIDTH, color=COLOR,
-               yerr=yerr, capsize=4,
-               error_kw={"linewidth": 1.2, "zorder": 5},
-               zorder=3)
+        ax.bar(x, vals, width=BAR_WIDTH, color=COLOR, zorder=3)
 
         if key == "total_bytes":
             ax.axhline(idle_total_bytes * scale, color=COLOR_IDLE,
                        linewidth=1.5, linestyle="--", zorder=4, label="Idle")
-            ax.legend(loc="upper left", frameon=True, framealpha=0.9,
-                      fancybox=True)
+            ax.legend(loc="upper left", frameon=True, framealpha=0.9, fancybox=True)
         if key == "bytes_per_s":
             ax.axhline(idle_bytes_per_s * scale, color=COLOR_IDLE,
                        linewidth=1.5, linestyle="--", zorder=4, label="Idle")
-            ax.legend(loc="upper left", frameon=True, framealpha=0.9,
-                      fancybox=True)
+            ax.legend(loc="upper left", frameon=True, framealpha=0.9, fancybox=True)
 
         ax.set_xlabel("Number of robots (N)")
         ax.set_ylabel(ylabel)
@@ -99,7 +87,7 @@ def main():
         ax.set_axisbelow(True)
 
     fig.suptitle(
-        "Blockchain load vs. fleet size  (window 120 s, block period 2 s, attestation interval 20 s)",
+        f"Blockchain load vs. fleet size  (block period 2 s, SSP {SSP_MS} ms, ITERQ {ITERQ})",
         fontsize=plt.rcParams.get("axes.titlesize", 11),
         y=1.02,
     )

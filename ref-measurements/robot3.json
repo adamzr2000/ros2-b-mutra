@@ -3,6 +3,6 @@
     "eth_address": "0xd58df39bc1ea89717dfb2c68fe80423dc953b55e",
     "private_key": "0xeb3826ffc81d095f798df53a20279915c7af6f3e36f0a47b38cc63859a539c8e",
     "robot_hash": "ea18c14df70d116224cf6b0b225cf00c5fd9311bf28405c77bdec520227d1657",
-    "attestation_sidecar_hash": "f21e9a731c4e0a3d891f892d617049902794f23b8c74ea327fafb34e4e5768fc",
-    "combined_hash": "3a30b0cf062710087b92932e913905c46dc26beac8af711a9c596f29e10743b4"
+    "attestation_sidecar_hash": "dfca3ff007f843d93ef3374895d526baea3f08eadc53ce5e5323e76bcdd0d877",
+    "combined_hash": "72e68938b0dfe61d5cf6d165cc62dfaa66775bbb3fd158f8fc11b0fd3075b616"
 }
