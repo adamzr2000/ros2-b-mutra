@@ -2,7 +2,7 @@
     "name": "robot32",
     "eth_address": "0xf93329cc08fe105ae59027063a75637ef4bbb501",
     "private_key": "0x53820d1e253209f9ba4205495e49103bf88c0c7b55ded491483d6fd7d84ab81f",
-    "robot_hash": "ea18c14df70d116224cf6b0b225cf00c5fd9311bf28405c77bdec520227d1657",
-    "attestation_sidecar_hash": "2ae1efa7daa36a6941cca3463abe986cdadc73b9f1cc9cc20d9041fc8209bd91",
-    "combined_hash": "99541dcd075a855e12574e70b6e03094cec673a58ab9b65e57922dda26b64aa4"
+    "robot_hash": "6305090c4cf258d012de1cdd64ea80eb7e10cafbc5a1185d6c50ce8f17e0e44b",
+    "attestation_sidecar_hash": "6305090c4cf258d012de1cdd64ea80eb7e10cafbc5a1185d6c50ce8f17e0e44b",
+    "combined_hash": "6305090c4cf258d012de1cdd64ea80eb7e10cafbc5a1185d6c50ce8f17e0e44b"
 }

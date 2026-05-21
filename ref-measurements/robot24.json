@@ -2,7 +2,7 @@
     "name": "robot24",
     "eth_address": "0x1b76070f757e1f1716b8370d192b4ffd06c34f8b",
     "private_key": "0xcf8ceb3edbff00581a3b7426c8d879e3f7400f92687d645f34d353f5af04e625",
-    "robot_hash": "ea18c14df70d116224cf6b0b225cf00c5fd9311bf28405c77bdec520227d1657",
-    "attestation_sidecar_hash": "2ae1efa7daa36a6941cca3463abe986cdadc73b9f1cc9cc20d9041fc8209bd91",
-    "combined_hash": "99541dcd075a855e12574e70b6e03094cec673a58ab9b65e57922dda26b64aa4"
+    "robot_hash": "1509176d49c565a41ef314d07b6af751c457ece64f60677ddee4825f4f4f155d",
+    "attestation_sidecar_hash": "1509176d49c565a41ef314d07b6af751c457ece64f60677ddee4825f4f4f155d",
+    "combined_hash": "1509176d49c565a41ef314d07b6af751c457ece64f60677ddee4825f4f4f155d"
 }
