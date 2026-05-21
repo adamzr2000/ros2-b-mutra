@@ -145,7 +145,7 @@ func ProcessProverAttestation(
 			logger.Error("%s Timeout while waiting to become prover.", logPrefix)
 			return
 		}
-		time.Sleep(15 * time.Millisecond)
+		time.Sleep(proverPollInterval())
 	}
 
 	logger.Info("%s Waiting for verification result...", logPrefix)
@@ -169,7 +169,7 @@ func ProcessProverAttestation(
 			logger.Error("%s Timeout while waiting for attestation to close.", logPrefix)
 			return
 		}
-		time.Sleep(15 * time.Millisecond)
+		time.Sleep(proverPollInterval())
 	}
 
 	timestamps["p_result_received"] = utils.PerfNs()
@@ -458,6 +458,19 @@ func attestationInterval() time.Duration {
 	ms := utils.GetEnvInt("ATTESTATION_INTERVAL_MS", 0)
 	if ms < 0 {
 		ms = 0
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
+// proverPollInterval is the sleep between successive RPC state-check calls
+// while waiting for IsProver / AttestationClosed. Keeping this at 200ms caps
+// the fleet-wide RPC load to ~640 calls/s at N=64 (vs ~8500 at 15ms), which
+// prevents Besu JSON-RPC saturation that causes prover timeouts at large N.
+// Tunable via PROVER_POLL_INTERVAL_MS; defaults to 200ms.
+func proverPollInterval() time.Duration {
+	ms := utils.GetEnvInt("PROVER_POLL_INTERVAL_MS", 200)
+	if ms < 10 {
+		ms = 10
 	}
 	return time.Duration(ms) * time.Millisecond
 }

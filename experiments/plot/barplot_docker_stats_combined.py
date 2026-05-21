@@ -13,7 +13,7 @@ import seaborn as sns
 
 INPUT_FILE = "../data/docker-stats/_summary/overall_resource_usage_{VARIANT}.csv"
 MODE      = "continuous"
-VARIANT    = "rr"   # ← continuous-mode variant to plot
+VARIANT    = "lv"   # ← continuous-mode variant to plot
 SSP_MS     = 20000           # sidecar sleep period (ms)
 ITERQ    = 1            # rolling-hash queue depth
 CPU_LIMIT = None         # None = no cap (cpuNC)
@@ -160,7 +160,7 @@ def main():
                edgecolor="black", borderpad=0.5, handlelength=1.4,
                columnspacing=1.2)
 
-    out_path = script_dir / f"barplot_docker_stats_combined_{MODE}.pdf"
+    out_path = script_dir / f"barplot_docker_stats_combined_{MODE}_{VARIANT}.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"\n[OK] Saved: {out_path}")
     plt.close(fig)

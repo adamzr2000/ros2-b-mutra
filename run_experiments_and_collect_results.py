@@ -391,7 +391,9 @@ def sync_remote_results(remote_hosts: list):
             print(f"\n📥 Syncing {remote_src} → {local_dst}")
             os.makedirs(local_dst, exist_ok=True)
             subprocess.run(
-                ["rsync", "-av", "--ignore-existing", remote_src, local_dst],
+                ["rsync", "-av", "--ignore-existing",
+                 "--no-owner", "--no-group", "--no-perms",
+                 remote_src, local_dst],
                 check=True,
             )
     print("✅ Remote results synced.")

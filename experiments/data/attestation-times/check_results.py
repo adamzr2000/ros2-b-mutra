@@ -239,7 +239,7 @@ def check_startup(directory, N, robots, runs):
     return errors, warnings
 
 
-def check_continuous(directory, N, robots, runs, tag=""):
+def check_continuous(directory, N, robots, runs, tag="", contract=""):
     errors = warnings = 0
     all_samples = []
 
@@ -261,9 +261,16 @@ def check_continuous(directory, N, robots, runs, tag=""):
                 errors += 1
             verifier_count = role_count(secaas_data, "verifier")
             if verifier_count > 0:
-                warn(f"run{run}: secaas was elected verifier {verifier_count}× "
-                     f"(expected 0 in continuous steady-state)")
-                warnings += 1
+                if contract == "lv":
+                    # LV design: the current root-of-trust robot falls back to SECaaS
+                    # for its own attestation (can't self-verify). Expected ~1 per SSP
+                    # cycle. Informational only.
+                    info(f"run{run}: secaas elected verifier {verifier_count}× "
+                         f"(LV self-verification fallback — expected)")
+                else:
+                    warn(f"run{run}: secaas was elected verifier {verifier_count}× "
+                         f"(expected 0 in RR steady-state)")
+                    warnings += 1
 
         for ri in robots:
             rdata = load_json(_robot_path(directory, ri, run, tag))
@@ -296,10 +303,15 @@ def check_continuous(directory, N, robots, runs, tag=""):
             fail(f"run{run}: total robot verifier entries=0 (no peer verification happened)")
             errors += 1
 
-        oracle_n = role_count(secaas_data, "oracle") if secaas_data else "?"
+        oracle_n = role_count(secaas_data, "oracle") if secaas_data else 0
+        timed_out = oracle_n - robot_prover_total if isinstance(oracle_n, int) else 0
         info(f"run{run}: prover_entries={robot_prover_total}  "
              f"peer_verifier_entries={robot_verifier_total}  "
              f"secaas_oracle={oracle_n}")
+        if timed_out > 0:
+            warn(f"run{run}: {timed_out} prover(s) timed out waiting for AttestationCompleted "
+                 f"(oracle processed {oracle_n}, prover received {robot_prover_total})")
+            warnings += 1
 
     _report_cycle_stats(all_samples)
     return errors, warnings
@@ -375,7 +387,7 @@ def main():
 
                 _print_header(f"{n_label} / CONTINUOUS / {contract}{tag_label}",
                               N, len(robots), len(runs))
-                e, w = check_continuous(contract_dir, N, robots, runs, tag)
+                e, w = check_continuous(contract_dir, N, robots, runs, tag, contract=contract)
                 total_errors += e; total_warnings += w
                 _report(e, w)
 

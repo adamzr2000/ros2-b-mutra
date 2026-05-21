@@ -14,7 +14,7 @@ import seaborn as sns
 
 INPUT_STARTUP    = "../data/attestation-times/_summary/durations_per_run_startup.csv"
 INPUT_CONTINUOUS = "../data/attestation-times/_summary/durations_per_run_{VARIANT}.csv"
-VARIANT    = "rr"
+VARIANT    = "lv"
 SSP_MS     = 20000
 ITERQ      = 1
 CPU_LIMIT  = None   # None = no cap (cpuNC)
@@ -249,7 +249,7 @@ def main():
                edgecolor="black", borderpad=0.5, handlelength=1.4,
                columnspacing=1.2)
 
-    out_path = script_dir / "barplot_attestation_time_v5_combined.pdf"
+    out_path = script_dir / f"barplot_attestation_time_v5_combined_{VARIANT}.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"[OK] Saved: {out_path}")

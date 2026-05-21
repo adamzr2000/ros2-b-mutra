@@ -180,7 +180,7 @@ def generate_plot(df, n_robots, mode, script_dir):
                fancybox=False, edgecolor="black",
                borderpad=0.5, handlelength=1.4, columnspacing=1.2)
     
-    out_path = script_dir / f"timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}.pdf"
+    out_path = script_dir / f"timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}_{VARIANT}.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"[OK] Saved plot to: {out_path}")
     plt.close(fig)
