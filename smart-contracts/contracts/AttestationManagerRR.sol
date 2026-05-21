@@ -39,6 +39,8 @@ contract AttestationManagerRR {
     uint256 public rrIndex;
 
     // Define mappings to store data
+    bool private secaasOnly = false;
+
     mapping(address => uint256) private lastSuccess;
     mapping(address => Agent) private agent;
     mapping(bytes32 => MutualAttestation) private attestation;
@@ -64,12 +66,18 @@ contract AttestationManagerRR {
 
         delete attestationChain;
         rrIndex = 0;
+        secaasOnly = true;
 
         for (uint i = 0; i < participants.length; i++) {
             lastSuccess[participants[i]] = 0;
         }
-        
+
         emit ChainReset();
+    }
+
+    function SetSecaasOnly(bool mode) public {
+        require(msg.sender == secaas, "Only SECaaS can call this");
+        secaasOnly = mode;
     }    
 
     function RegisterAgent(string memory name) public {
@@ -100,6 +108,7 @@ contract AttestationManagerRR {
     }
 
     function ElectVerifier(address prover) internal returns (address) {
+        if (secaasOnly) return secaas;
         address[] memory freshList = new address[](participants.length);
         uint count = 0;
         for (uint i = 0; i < participants.length; i++) {

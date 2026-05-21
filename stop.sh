@@ -24,6 +24,37 @@ ENV_FILE="$SCRIPT_DIR/.env"
 N_ROBOTS_VAL=4
 DEPLOY_MODE="local"
 
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [--password VALUE]
+
+Options:
+  --password VALUE  Password piped into sudo for local teardown and checkpoint reset (default: netcom;)
+  -h|--help         Show this help
+
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --password)
+      if [[ -z "${2-}" ]]; then
+        echo "❌ --password requires a value"
+        exit 1
+      fi
+      PASSWORD="$2"
+      shift 2 ;;
+    -h|--help)
+      usage
+      exit 0 ;;
+    *)
+      echo "❌ Unknown arg: $1"
+      echo
+      usage
+      exit 1 ;;
+  esac
+done
+
 if [[ -f "$ENV_FILE" ]]; then
   _n=$(grep -oP '(?<=^N_ROBOTS=)\d+' "$ENV_FILE" || true)
   [[ -n "$_n" ]] && N_ROBOTS_VAL="$_n"

@@ -6,7 +6,7 @@
     "text_section_prefix": "",
     "eth_address": "0xef3a3c6739cd5252837f58fccbb06b7c04a6f435",
     "private_key": "0xef79e3f2895ecdf5b119bd1d0ccda572d8033e18a0ef4cbe1f346edf83869ac2",
-    "eth_node_url": "http://10.5.99.99:21001",
+    "eth_node_url": "http://host.docker.internal:21004",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {
@@ -442,6 +442,19 @@
                     "type": "bool"
                 }
             ],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bool",
+                    "name": "mode",
+                    "type": "bool"
+                }
+            ],
+            "name": "SetSecaasOnly",
+            "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
         },

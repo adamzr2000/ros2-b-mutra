@@ -183,7 +183,7 @@ async def startup():
     app.state.event_poll_interval = helpers.get_env_float("EVENT_POLL_INTERVAL", default=1)
     app.state.event_lookback_blocks = helpers.get_env_int("EVENT_LOOKBACK_BLOCKS", default=0)
     app.state.event_checkpoint_dir = helpers.get_env_str("EVENT_CHECKPOINT_DIR", default="/checkpoints")
-        
+
     # Thread tracking
     app.state.stop_event = threading.Event()
     app.state.threads = []

@@ -1,95 +1,84 @@
 # docker-compose.robots.yml
-# AUTO-GENERATED for 4 robot(s) [Gazebo mode] — edit generate_compose.py, not this file.
+# AUTO-GENERATED for 8 robot(s) [dummy mode] — edit generate_compose.py, not this file.
 
 services:
-  gazebo-server:
-    image: turtlebot3-gazebo
-    container_name: gazebo-server
-    hostname: gazebo-server
-    environment:
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
-      - GAZEBO_AUDIO_DEVICE=none
-    ports:
-      - "127.0.0.1:11345:11345"
-    tty: true
-    stdin_open: true
-    command: bash -c "./start_gazebo_server.sh"
-    networks:
-      - ros-net
 
   robot1:
     image: turtlebot3-gazebo
     container_name: robot1
     hostname: robot1
     environment:
-        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
-        - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot1
-        - X_POSE=0
-        - Y_POSE=0
-    command: bash -c "./start_turtlebot.sh"
-    depends_on:
-      - gazebo-server
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot1"
     stdin_open: true
     tty: true
-    networks:
-      - ros-net
 
   robot2:
     image: turtlebot3-gazebo
     container_name: robot2
     hostname: robot2
     environment:
-        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
-        - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot2
-        - X_POSE=5
-        - Y_POSE=0
-    command: bash -c "./start_turtlebot.sh"
-    depends_on:
-      - gazebo-server
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot2"
     stdin_open: true
     tty: true
-    networks:
-      - ros-net
 
   robot3:
     image: turtlebot3-gazebo
     container_name: robot3
     hostname: robot3
     environment:
-        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
-        - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot3
-        - X_POSE=10
-        - Y_POSE=0
-    command: bash -c "./start_turtlebot.sh"
-    depends_on:
-      - gazebo-server
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot3"
     stdin_open: true
     tty: true
-    networks:
-      - ros-net
 
   robot4:
     image: turtlebot3-gazebo
     container_name: robot4
     hostname: robot4
     environment:
-        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
-        - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot4
-        - X_POSE=15
-        - Y_POSE=0
-    command: bash -c "./start_turtlebot.sh"
-    depends_on:
-      - gazebo-server
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot4"
     stdin_open: true
     tty: true
-    networks:
-      - ros-net
 
-networks:
-  ros-net:
-    driver: bridge
-    name: ros-net
+  robot5:
+    image: turtlebot3-gazebo
+    container_name: robot5
+    hostname: robot5
+    environment:
+        - NAMESPACE=robot5
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot5"
+    stdin_open: true
+    tty: true
+
+  robot6:
+    image: turtlebot3-gazebo
+    container_name: robot6
+    hostname: robot6
+    environment:
+        - NAMESPACE=robot6
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot6"
+    stdin_open: true
+    tty: true
+
+  robot7:
+    image: turtlebot3-gazebo
+    container_name: robot7
+    hostname: robot7
+    environment:
+        - NAMESPACE=robot7
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot7"
+    stdin_open: true
+    tty: true
+
+  robot8:
+    image: turtlebot3-gazebo
+    container_name: robot8
+    hostname: robot8
+    environment:
+        - NAMESPACE=robot8
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot8"
+    stdin_open: true
+    tty: true
