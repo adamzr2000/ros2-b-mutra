@@ -410,6 +410,11 @@ def run_experiments(runs, duration, stats_dir, attestation_dir, sidecars, robot_
 
     if not startup_mode:
         run_continuous_warmup(sidecars, robot_sidecars, startup_timeout=startup_timeout)
+        try:
+            requests.post(f"{SECAAS_URL}/secaas-only?enabled=false", timeout=10)
+            print("   [Chain] SECaaS-only mode disabled. RR verifier election active.")
+        except Exception as e:
+            print(f"   [Chain] ⚠️ Warning: Failed to disable secaas-only: {e}")
         set_config_all(robot_sidecars, {"export_enabled": True})
         set_config("secaas", _SECAAS_HOST_PORT, {"export_enabled": True})
         print("   [System] Cooling down for 5s after warmup...")
@@ -501,6 +506,12 @@ if __name__ == "__main__":
         variant  = args.variant
         stats_dir       = f"/experiments/data/docker-stats/results/{robot_label}/continuous/{variant}"
         attestation_dir = f"/experiments/data/attestation-times/results/{robot_label}/continuous/{variant}"
+
+    # Pre-create local result directories so Docker volume mounts don't create
+    # them as root (which would block the post-run rsync with Permission Denied).
+    for container_path in [stats_dir, attestation_dir]:
+        local_path = os.path.join(_SCRIPT_DIR, container_path.lstrip("/"))
+        os.makedirs(local_path, exist_ok=True)
 
     sidecars = build_sidecars(args.robots, remote1_host=remote1_host, remote2_host=remote2_host,
                               remote1_limit=remote1_limit)

@@ -17,7 +17,7 @@ INPUT_CONTINUOUS = "../data/attestation-times/_summary/durations_per_run_{VARIAN
 VARIANT    = "rr"
 SSP_MS     = 20000
 ITERQ      = 1
-CPU_LIMIT  = 0.4
+CPU_LIMIT  = None   # None = no cap (cpuNC)
 N_VALUES   = [4, 8, 16, 32, 64]
 
 METRIC     = "median"  # "median" → median + IQR  |  "mean" → mean ± std
@@ -97,7 +97,7 @@ def draw_stack(ax, x, segments, err_lo, err_hi):
     for _, val, color in segments:
         if val > EPS:
             ax.bar(x, val, bottom=bottom, width=BAR_WIDTH,
-                   color=color, edgecolor="black", linewidth=0.8, zorder=3)
+                   color=color, edgecolor="none", zorder=3)
             bottom += val
     if err_lo > 0 or err_hi > 0:
         ax.errorbar(x, bottom, yerr=[[err_lo], [err_hi]], fmt="none",
@@ -147,7 +147,7 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
             val_ms = val * 1000.0
             if val_ms > EPS:
                 ax_z.bar(i, val_ms, bottom=bottom, width=BAR_WIDTH,
-                         color=color, edgecolor="black", linewidth=0.8, zorder=3)
+                         color=color, edgecolor="none", zorder=3)
                 bottom += val_ms
         max_top_z = max(max_top_z, bottom)
 
@@ -207,11 +207,12 @@ def main():
     df_s = df_s[df_s["n_robots"].isin(N_VALUES)]
 
     df_c = pd.read_csv(continuous_path)
+    cpu_mask = df_c["cpu_limit"].isna() if CPU_LIMIT is None else (df_c["cpu_limit"] == CPU_LIMIT)
     df_c = df_c[
         (df_c["n_robots"].isin(N_VALUES)) &
-        (df_c["ssp_ms"]    == SSP_MS) &
-        (df_c["iterq"]     == ITERQ) &
-        (df_c["cpu_limit"] == CPU_LIMIT)
+        (df_c["ssp_ms"]  == SSP_MS) &
+        (df_c["iterq"]   == ITERQ) &
+        cpu_mask
     ].copy()
 
     if df_s.empty or df_c.empty:
@@ -240,7 +241,7 @@ def main():
 
     # Shared legend at top — continuous mode covers all segments
     legend_handles = [
-        mpatches.Patch(facecolor=COLORS[k], edgecolor="black", label=LABELS[k])
+        mpatches.Patch(facecolor=COLORS[k], edgecolor="none", label=LABELS[k])
         for k in ORDER
     ]
     fig.legend(handles=legend_handles, loc="upper center", bbox_to_anchor=(0.5, 0.99),

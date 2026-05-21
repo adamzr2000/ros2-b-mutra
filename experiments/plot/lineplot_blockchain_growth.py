@@ -68,7 +68,7 @@ def main():
         y = sub["bytes_per_s"].to_numpy() / 1e3
         st = STYLES[iterq]
         ax.plot(x, y, color=st["color"], marker=st["marker"], markersize=MARKERSIZE,
-                markeredgecolor="black", markeredgewidth=0.8,
+                markeredgecolor="none",
                 linewidth=LINEWIDTH, zorder=3, label=f"ITERQ = {iterq}")
 
     ax.axhline(idle_kbps, color=COLOR_IDLE, linewidth=1.4, linestyle="--",

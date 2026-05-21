@@ -236,6 +236,20 @@ def reset_attestation_chain():
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.post("/secaas-only")
+async def set_secaas_only(enabled: bool):
+    """
+    Toggle secaasOnly mode on the contract.
+    POST /secaas-only?enabled=true  → SECaaS is sole verifier (startup mode)
+    POST /secaas-only?enabled=false → normal RR verifier election (mutual attestation)
+    ResetChain() sets this to true automatically; call with enabled=false to enable mutual attestation.
+    """
+    try:
+        tx_hash = app.state.blockchain_client.set_secaas_only(enabled, wait=True, timeout=30)
+        return {"secaas_only": enabled, "tx_hash": tx_hash}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/config")
 async def config_endpoint(body: dict):
     """Partial runtime config update. Accepted fields: results_dir, results_file, export_enabled.

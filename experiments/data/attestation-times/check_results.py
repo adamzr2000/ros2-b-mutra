@@ -149,10 +149,49 @@ def max_prover_duration(data):
     return max(e.get("dur_prover_e2e_ms", 0.0) for e in entries)
 
 
+def _prover_total_ms(entry):
+    """Extract total-lifecycle duration (ms) from a prover entry."""
+    ns = entry.get("dur_prover_total_ns")
+    if ns is not None:
+        return float(ns) / 1_000_000.0
+    ms = entry.get("dur_prover_total_ms")
+    if ms is not None:
+        return float(ms)
+    t_s = entry.get("t_prover_start")
+    t_e = entry.get("t_prover_finished")
+    if t_s is not None and t_e is not None:
+        return float(t_e) - float(t_s)
+    return None
+
+
+def prover_total_durations(data, label):
+    """Return list of (duration_ms, label) for all prover total-lifecycle entries."""
+    entries = data.get("prover", [])
+    if not isinstance(entries, list):
+        return []
+    result = []
+    for e in entries:
+        d = _prover_total_ms(e)
+        if d is not None and d >= 0:
+            result.append((d, label))
+    return result
+
+
+def _report_cycle_stats(samples):
+    """Print min/max total-lifecycle cycle time from (ms, label) samples."""
+    if not samples:
+        return
+    mn_ms, mn_lbl = min(samples, key=lambda x: x[0])
+    mx_ms, mx_lbl = max(samples, key=lambda x: x[0])
+    info(f"cycle total_lifecycle — min: {mn_ms/1000:.3f}s ({mn_lbl})  "
+         f"max: {mx_ms/1000:.3f}s ({mx_lbl})")
+
+
 # ── Per-mode checks ───────────────────────────────────────────────────────────
 
 def check_startup(directory, N, robots, runs):
     errors = warnings = 0
+    all_samples = []
 
     for run in runs:
         secaas_data = load_json(_secaas_path(directory, run))
@@ -194,11 +233,15 @@ def check_startup(directory, N, robots, runs):
                      f"(≥{TIMEOUT_WARN_MS}ms — possible timeout)")
                 warnings += 1
 
+            all_samples.extend(prover_total_durations(rdata, f"robot{ri}-run{run}"))
+
+    _report_cycle_stats(all_samples)
     return errors, warnings
 
 
 def check_continuous(directory, N, robots, runs, tag=""):
     errors = warnings = 0
+    all_samples = []
 
     for run in runs:
         secaas_data = load_json(_secaas_path(directory, run, tag))
@@ -247,6 +290,7 @@ def check_continuous(directory, N, robots, runs, tag=""):
                 warnings += 1
 
             robot_verifier_total += role_count(rdata, "verifier")
+            all_samples.extend(prover_total_durations(rdata, f"robot{ri}-run{run}"))
 
         if robot_verifier_total == 0:
             fail(f"run{run}: total robot verifier entries=0 (no peer verification happened)")
@@ -257,6 +301,7 @@ def check_continuous(directory, N, robots, runs, tag=""):
              f"peer_verifier_entries={robot_verifier_total}  "
              f"secaas_oracle={oracle_n}")
 
+    _report_cycle_stats(all_samples)
     return errors, warnings
 
 

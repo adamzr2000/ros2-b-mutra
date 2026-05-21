@@ -154,7 +154,7 @@ def main():
                 medianprops=dict(color="black", linewidth=1.5),
                 whiskerprops=dict(linewidth=1.0, linestyle="-"),
                 capprops=dict(linewidth=1.0),
-                boxprops=dict(linewidth=0.7),
+                boxprops=dict(linewidth=0),
             )
             for patch in bp["boxes"]:
                 patch.set_facecolor(CPU_COLORS[cpu_label])
@@ -182,8 +182,7 @@ def main():
         mpatches.Patch(facecolor=COLOR_BASELINE, alpha=0.4, edgecolor="none",
                        label="No attestation"),
     ] + [
-        mpatches.Patch(facecolor=CPU_COLORS[lbl], alpha=0.85, edgecolor="black",
-                       linewidth=0.7,
+        mpatches.Patch(facecolor=CPU_COLORS[lbl], alpha=0.85, edgecolor="none",
                        label=f"CPU limit = {lbl} core" if lbl != "NC" else "No CPU limit")
         for lbl, _ in CPU_CONFIGS
     ]

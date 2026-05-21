@@ -9,17 +9,15 @@ import re
 from pathlib import Path
 from functools import reduce
 
-INPUT_FILE_TEMPLATE = "../data/docker-stats/_summary/timeline_resource_usage_per_container_run{run}.csv"
+INPUT_STARTUP_TEMPLATE    = "../data/docker-stats/_summary/timeline_resource_usage_startup_run{run}.csv"
+INPUT_CONTINUOUS_TEMPLATE = "../data/docker-stats/_summary/timeline_resource_usage_{variant}_run{run}.csv"
 TARGET_RUN = 1
 N_ROBOTS   = 4
-MODES      = ["startup", "continuous"]
+MODES      = ["continuous"]
 VARIANT    = "rr"   # ← continuous-mode variant to plot
-SSP_MS      = 20000           # sidecar sleep period (ms)
-ITERQ     = 1            # rolling-hash queue depth
-CPU_LIMIT  = 0.4          # sidecar CPU limit
 
-LINE_WIDTH   = 2.0
-FONT_SCALE   = 1.6
+LINE_WIDTH   = 2.6
+FONT_SCALE   = 2.0
 WINDOW_S     = 1      # rolling-mean smoothing window (seconds)
 BAND_ALPHA   = 0.25   # opacity of ±std shaded band
 
@@ -53,31 +51,26 @@ def _rolling(series: pd.Series, t_rel: pd.Series) -> pd.Series:
 
 def main():
     script_dir = Path(__file__).parent.resolve()
-    csv_path   = (script_dir / INPUT_FILE_TEMPLATE.format(run=TARGET_RUN)).resolve()
-    if not csv_path.exists():
-        raise SystemExit(f"CSV not found: {csv_path}")
-
-    df = pd.read_csv(csv_path)
 
     needed = {"n_robots", "mode", "container", "t_rel_s",
-              "cpu_percent", "net_rx_mb", "net_tx_mb"}
-    missing = needed - set(df.columns)
-    if missing:
-        raise SystemExit(f"Timeline CSV missing columns: {missing}. "
-                         "Run summarize_docker_stats.py first.")
+              "cpu_percent", "net_tx_mb"}
 
     for mode in MODES:
-        if mode == "continuous":
-            subset = df[
-                (df["n_robots"]  == N_ROBOTS) &
-                (df["ssp_ms"]     == SSP_MS) &
-                (df["iterq"]    == ITERQ) &
-                (df["cpu_limit"] == CPU_LIMIT)
-            ].copy()
-        else:
-            subset = df[(df["n_robots"] == N_ROBOTS) & (df["mode"] == mode)].copy()
+        tmpl = INPUT_STARTUP_TEMPLATE if mode == "startup" else INPUT_CONTINUOUS_TEMPLATE
+        csv_path = (script_dir / tmpl.format(run=TARGET_RUN, variant=VARIANT)).resolve()
+        if not csv_path.exists():
+            print(f"[WARN] CSV not found for mode={mode}: {csv_path}")
+            continue
+
+        df = pd.read_csv(csv_path)
+        missing = needed - set(df.columns)
+        if missing:
+            print(f"[WARN] Timeline CSV missing columns: {missing}. Run summarize_docker_stats.py first.")
+            continue
+
+        subset = df[df["n_robots"] == N_ROBOTS].copy()
         if subset.empty:
-            print(f"[WARN] No data for N={N_ROBOTS} mode={mode} variant='{VARIANT}' SSP={SSP_MS}s ITERQ={ITERQ} cpu={CPU_LIMIT}, skipping.")
+            print(f"[WARN] No data for N={N_ROBOTS} mode={mode}, skipping.")
             continue
         generate_plot(subset, N_ROBOTS, mode, script_dir)
 
@@ -89,17 +82,16 @@ def generate_plot(df, n_robots, mode, script_dir):
     # CPU % → vCPUs
     df["cpu_vcpus"] = df["cpu_percent"] / 100.0
 
-    # Cumulative net MB → throughput kbit/s (per container)
+    # Cumulative net TX MB → throughput kbit/s (per container)
     for container, idx in df.groupby("Container").groups.items():
         g  = df.loc[idx].sort_values("t_rel_s")
         dt = g["t_rel_s"].diff()
-        for src, dst in [("net_rx_mb", "net_rx_kbps"), ("net_tx_mb", "net_tx_kbps")]:
-            rate = (df.loc[g.index, src].diff() / dt * 8000)
-            df.loc[g.index, dst] = (
-                rate.where(dt > 0, 0.0)
-                    .replace([float("inf"), -float("inf")], 0.0)
-                    .fillna(0.0).clip(lower=0.0)
-            )
+        rate = (df.loc[g.index, "net_tx_mb"].diff() / dt * 8000)
+        df.loc[g.index, "net_tx_kbps"] = (
+            rate.where(dt > 0, 0.0)
+                .replace([float("inf"), -float("inf")], 0.0)
+                .fillna(0.0).clip(lower=0.0)
+        )
 
     containers       = sorted(df["Container"].unique(), key=_label_order)
     robot_containers = [c for c in containers if c.startswith("Robot")]
@@ -109,18 +101,17 @@ def generate_plot(df, n_robots, mode, script_dir):
                   rc={"xtick.direction": "out", "ytick.direction": "out"},
                   font_scale=FONT_SCALE)
     plt.rcParams.update({"font.family": "serif"})
-    color_robot  = "#2C7873"   # deep teal
-    color_secaas = "#E07B39"   # amber orange
+    color_robot  = "#993333"
+    color_secaas = "#336699"
 
-    fig = plt.figure(figsize=(10, 8.5), constrained_layout=False)
-    gs  = fig.add_gridspec(3, 1, height_ratios=[1.0, 1.0, 1.0], hspace=0.10)
+    fig = plt.figure(figsize=(10, 5.5))
+    gs  = fig.add_gridspec(2, 1, height_ratios=[1.0, 1.0], hspace=0.12,
+                           left=0.10, right=0.97, top=0.87, bottom=0.12)
     ax_cpu = fig.add_subplot(gs[0])
-    ax_rx  = fig.add_subplot(gs[1], sharex=ax_cpu)
-    ax_tx  = fig.add_subplot(gs[2], sharex=ax_cpu)
+    ax_tx  = fig.add_subplot(gs[1], sharex=ax_cpu)
 
     panels = [
         (ax_cpu, "cpu_vcpus",   "CPU (vCPUs)"),
-        (ax_rx,  "net_rx_kbps", "Net RX (kbit/s)"),
         (ax_tx,  "net_tx_kbps", "Net TX (kbit/s)"),
     ]
 
@@ -168,7 +159,6 @@ def generate_plot(df, n_robots, mode, script_dir):
 
     ax_cpu.set_xlim(left=0)
     ax_cpu.tick_params(axis="x", labelbottom=False)
-    ax_rx.tick_params(axis="x", labelbottom=False)
     ax_tx.set_xlabel("Time (s)")
 
     # ── Figure legend (top centre) ────────────────────────────────────────────
@@ -185,16 +175,11 @@ def generate_plot(df, n_robots, mode, script_dir):
         )
 
     fig.legend(handles=legend_handles,
-               loc="upper center", bbox_to_anchor=(0.5, 0.995),
-               ncol=len(legend_handles), frameon=True, framealpha=0.9,
-               fancybox=True,
-               fontsize=plt.rcParams.get("legend.fontsize", 9))
-
-    # fig.suptitle(f"N={n_robots}  mode={mode}  rolling mean={WINDOW_S}s",
-    #              y=-0.02, fontsize=plt.rcParams.get("axes.titlesize", 11))
-
-    plt.subplots_adjust(top=0.90)
-
+               loc="upper center", bbox_to_anchor=(0.5, 1.0),
+               ncol=len(legend_handles), framealpha=0.9,
+               fancybox=False, edgecolor="black",
+               borderpad=0.5, handlelength=1.4, columnspacing=1.2)
+    
     out_path = script_dir / f"timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"[OK] Saved plot to: {out_path}")

@@ -55,8 +55,11 @@ def _extract_params(base: str):
         return ssp_ms, iterq, cpu, base[: m.start()]
     return None, None, None, base
 
-OUT_OVERALL_FILE  = "overall_resource_usage_per_container.csv"
-OUT_TIMELINE_FILE = "timeline_resource_usage_per_container.csv"
+def _out_suffix(mode: str, variant: str) -> str:
+    """Return file suffix matching attestation-durations convention: startup / rr / lv."""
+    if mode == "startup":
+        return "startup"
+    return variant  # "rr" or "lv"
 
 
 def parse_args():
@@ -199,18 +202,21 @@ def main():
               .reset_index()
     )
     per_run = per_run_mean.merge(per_run_total, on=GROUP_KEYS, how="outer")
-    overall = (
-        per_run.groupby(["n_robots", "mode", "variant", "ssp_ms", "iterq", "cpu_limit", "container"], dropna=False)
-               .agg({m: ["mean", "std"] for m in METRICS})
-    )
-    overall.columns = [f"{m}_{stat}" for m, stat in overall.columns]
-    overall = overall.reset_index().sort_values(
-        ["n_robots", "mode", "variant", "ssp_ms", "iterq", "cpu_limit", "container"]
-    ).reset_index(drop=True)
 
-    out_csv_overall = out_dir / OUT_OVERALL_FILE
-    overall.to_csv(out_csv_overall, index=False)
-    print(f"[OK] Wrote overall summary:          {out_csv_overall}")
+    # ── One file per mode/variant (startup / rr / lv) ────────────────────────
+    for (mode, variant), grp in per_run.groupby(["mode", "variant"], dropna=False):
+        suffix = _out_suffix(mode, variant)
+        overall = (
+            grp.groupby(["n_robots", "mode", "variant", "ssp_ms", "iterq", "cpu_limit", "container"], dropna=False)
+               .agg({m: ["mean", "std"] for m in METRICS})
+        )
+        overall.columns = [f"{m}_{stat}" for m, stat in overall.columns]
+        overall = overall.reset_index().sort_values(
+            ["n_robots", "mode", "variant", "ssp_ms", "iterq", "cpu_limit", "container"]
+        ).reset_index(drop=True)
+        out_csv = out_dir / f"overall_resource_usage_{suffix}.csv"
+        overall.to_csv(out_csv, index=False)
+        print(f"[OK] {out_csv.name}")
 
     # ----------------------------------------
     # TIMELINE PREP (relative t)
@@ -233,41 +239,38 @@ def main():
           .reset_index()
     )
 
-    # ----------------------------------------
-    # A) AVERAGED TIMELINE (all runs)
-    # ----------------------------------------
-    timeline = (
-        per_run_sec.groupby(
-            ["n_robots", "mode", "variant", "ssp_ms", "iterq", "cpu_limit", "container", "t_rel_s"],
-            dropna=False,
-        )[METRICS]
-                   .mean(numeric_only=True)
-                   .reset_index()
-                   .sort_values(["n_robots", "mode", "variant", "ssp_ms", "iterq", "cpu_limit", "container", "t_rel_s"])
-                   .reset_index(drop=True)
-    )
-
-    out_csv_timeline = out_dir / OUT_TIMELINE_FILE
-    timeline.to_csv(out_csv_timeline, index=False)
-    print(f"[OK] Wrote averaged timeline summary: {out_csv_timeline}")
-
-    # ----------------------------------------
-    # B) SPECIFIC RUN TIMELINE (Run X only)
-    # ----------------------------------------
+    # ── One timeline file per mode/variant ────────────────────────────────────
     target_run = args.export_run
-    run_df = per_run_sec[per_run_sec["run"] == target_run].copy()
+    for (mode, variant), grp in per_run_sec.groupby(["mode", "variant"], dropna=False):
+        suffix = _out_suffix(mode, variant)
 
-    if not run_df.empty:
-        run_df = (
-            run_df.drop(columns=["run"], errors="ignore")
-                  .sort_values(["n_robots", "mode", "variant", "container", "t_rel_s"])
-                  .reset_index(drop=True)
+        # A) Averaged timeline (all runs)
+        timeline = (
+            grp.groupby(
+                ["n_robots", "mode", "variant", "ssp_ms", "iterq", "cpu_limit", "container", "t_rel_s"],
+                dropna=False,
+            )[METRICS]
+               .mean(numeric_only=True)
+               .reset_index()
+               .sort_values(["n_robots", "mode", "variant", "ssp_ms", "iterq", "cpu_limit", "container", "t_rel_s"])
+               .reset_index(drop=True)
         )
-        out_csv_run = out_dir / f"timeline_resource_usage_per_container_run{target_run}.csv"
-        run_df.to_csv(out_csv_run, index=False)
-        print(f"[OK] Wrote timeline for Run {target_run}:        {out_csv_run}")
-    else:
-        print(f"[WARN] No data for Run {target_run}. Available: {sorted(per_run_sec['run'].unique())}")
+        out_tl = out_dir / f"timeline_resource_usage_{suffix}.csv"
+        timeline.to_csv(out_tl, index=False)
+        print(f"[OK] {out_tl.name}")
+
+        # B) Specific run timeline
+        run_df = grp[grp["run"] == target_run].drop(columns=["run"], errors="ignore").copy()
+        if not run_df.empty:
+            run_df = (
+                run_df.sort_values(["n_robots", "mode", "variant", "container", "t_rel_s"])
+                      .reset_index(drop=True)
+            )
+            out_run = out_dir / f"timeline_resource_usage_{suffix}_run{target_run}.csv"
+            run_df.to_csv(out_run, index=False)
+            print(f"[OK] {out_run.name}")
+        else:
+            print(f"[WARN] No data for Run {target_run} in {suffix}. Available: {sorted(grp['run'].unique())}")
 
 
 if __name__ == "__main__":

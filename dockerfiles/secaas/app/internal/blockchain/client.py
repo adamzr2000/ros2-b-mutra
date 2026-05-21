@@ -259,6 +259,13 @@ class BlockchainClient:
         except Exception as e:
             raise Exception(f"An error occurred while calling the function: {str(e)}")
 
+    def set_secaas_only(self, enabled: bool, wait: bool = True, timeout: int = 60):
+        try:
+            tx_data = self.contract.functions.SetSecaasOnly(enabled).build_transaction({'from': self.eth_address})
+            return self._send_tx(tx_data, wait=wait, timeout=timeout)
+        except Exception as e:
+            raise Exception(f"An error occurred while calling SetSecaasOnly: {str(e)}")
+
     def send_evidence(self, attestation_id, fresh_signature, iter_count: int = 1, wait: bool = False, timeout: int = 60):
         """Submit an attestation request with IterQ depth K (iter_count).
         Contract enforces 1 <= K <= MAX_ITER_COUNT (10000).

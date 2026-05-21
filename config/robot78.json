@@ -6,7 +6,7 @@
     "text_section_prefix": "",
     "eth_address": "0xd1ad21c56e11aeec3e3429d421004b485d7d866f",
     "private_key": "0xd2c924df1e9b0b072c200842f957c16401c41fbe1d83c698ba15f1a270069f2c",
-    "eth_node_url": "http://host.docker.internal:21002",
+    "eth_node_url": "http://10.5.99.99:21003",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {
@@ -159,7 +159,7 @@
                     "type": "bytes32[]"
                 }
             ],
-            "stateMutability": "view",
+            "stateMutability": "pure",
             "type": "function"
         },
         {
@@ -183,7 +183,7 @@
                     "type": "address"
                 },
                 {
-                    "internalType": "enum AttestationManagerRR.AttestationResult",
+                    "internalType": "enum AttestationManagerLV.AttestationResult",
                     "name": "",
                     "type": "uint8"
                 },
@@ -241,9 +241,22 @@
             "name": "GetAttestationState",
             "outputs": [
                 {
-                    "internalType": "enum AttestationManagerRR.AttestationState",
+                    "internalType": "enum AttestationManagerLV.AttestationState",
                     "name": "",
                     "type": "uint8"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "GetCurrentVerifier",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
                 }
             ],
             "stateMutability": "view",
@@ -443,45 +456,6 @@
                 }
             ],
             "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "bool",
-                    "name": "mode",
-                    "type": "bool"
-                }
-            ],
-            "name": "SetSecaasOnly",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "freshnessWindow",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "rrIndex",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
             "type": "function"
         }
     ]
