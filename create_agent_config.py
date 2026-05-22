@@ -105,6 +105,27 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir, blockchain_ho
     )
 
 
+def pick_agent_params(
+    agent_index: int,
+    cmd_name: str,
+    text_section_size: int,
+    offset: int,
+    text_section_prefix: str,
+    first_cmd_name: str,
+    first_text_section_size: int,
+    first_offset: int,
+    first_text_section_prefix: str,
+):
+    if agent_index == 1 and first_cmd_name:
+        return (
+            first_cmd_name,
+            first_text_section_size,
+            first_offset,
+            first_text_section_prefix,
+        )
+    return (cmd_name, text_section_size, offset, text_section_prefix)
+
+
 def create_secaas_config(config_dir: str, blockchain_host: str,
                          contract_address: str, contract_abi: list):
     # MUST read keys from validator1
@@ -149,6 +170,14 @@ if __name__ == "__main__":
                         help="ELF .text section offset (default: 0)")
     parser.add_argument("--text-section-prefix", default="",
                         help="ELF .text section prefix (default: empty)")
+    parser.add_argument("--first-cmd-name", default="",
+                        help="Override cmd_name for agent1 only")
+    parser.add_argument("--first-text-section-size", type=int, default=0,
+                        help="Override .text section size for agent1 only")
+    parser.add_argument("--first-offset", type=int, default=0,
+                        help="Override .text section offset for agent1 only")
+    parser.add_argument("--first-text-section-prefix", default="",
+                        help="Override .text section prefix for agent1 only")
     args = parser.parse_args()
 
     # Load contract deployment info and ABI based on selected contract
@@ -172,8 +201,19 @@ if __name__ == "__main__":
                          contract_data["address"], contract_abi)
 
     for i in range(1, args.num_agents + 1):
+        agent_cmd_name, agent_text_size, agent_offset, agent_text_prefix = pick_agent_params(
+            i,
+            args.cmd_name,
+            args.text_section_size,
+            args.offset,
+            args.text_section_prefix,
+            args.first_cmd_name,
+            args.first_text_section_size,
+            args.first_offset,
+            args.first_text_section_prefix,
+        )
         create_agent_files(i, args.config_output, args.ref_output, args.blockchain_host,
-                           args.cmd_name, args.text_section_size, args.offset, args.text_section_prefix,
+                           agent_cmd_name, agent_text_size, agent_offset, agent_text_prefix,
                            contract_data["address"], contract_abi)
 
     msg = f"Successfully created {args.num_agents} robot configs in {args.config_output}"

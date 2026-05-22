@@ -32,8 +32,7 @@ COLLECTOR_URL    = "http://localhost:7001"
 SECAAS_URL       = "http://localhost:8000"
 SECAAS_PORT      = 8000
 ROBOTS_BASE_PORT = 8001
-N_ROBOTS         = 4   # total sidecars to manage (all robots still attest)
-COLLECTOR_ROBOT  = 1   # single robot whose /tf is recorded
+COLLECTOR_ROBOT  = 1   # single robot whose topic is recorded and attested
 DEFAULT_DURATION_S = 300
 
 BASE_RESULTS_DIR      = Path(__file__).parent / "experiments/data/robot-stats/results"
@@ -82,10 +81,10 @@ def _build_run_tag(ssp_ms, iterq, cpu_limit):
 # ── Sidecar helpers (mirrors run_experiments_and_collect_results.py) ───────────
 
 def build_sidecars():
-    s = {"secaas": SECAAS_PORT}
-    for i in range(1, N_ROBOTS + 1):
-        s[f"robot{i}"] = ROBOTS_BASE_PORT + i - 1
-    return s
+    return {
+        "secaas":  SECAAS_PORT,
+        "robot1":  ROBOTS_BASE_PORT,
+    }
 
 
 def wait_for_http(url, timeout=30):

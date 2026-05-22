@@ -176,7 +176,8 @@ def generate_robots_remote_yml(n_start: int, n_end: int) -> str:
 
 def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config",
                              sidecar_image: str = "attestation-sidecar:latest",
-                             no_cpu_limit: bool = False) -> str:
+                             no_cpu_limit: bool = False,
+                             attest_gzserver: bool = False) -> str:
     """Sidecars start..n on a single host. Reaches Besu via host-exposed ports."""
     lines = [
         "# docker-compose.attestation.yml",
@@ -187,6 +188,7 @@ def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config
 
     for i in range(start, n + 1):
         port = 8000 + i
+        pid_target = "gazebo-server" if attest_gzserver and i == 1 else f"robot{i}"
         sidecar_lines = [
             f"  robot{i}-sidecar:",
             f"    container_name: robot{i}-sidecar",
@@ -217,7 +219,7 @@ def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config
             f"      - /var/run/docker.sock:/var/run/docker.sock",
             f"      - ./measurements/:/measurements:rw",
             f"      - ./checkpoints/robot{i}-sidecar:/checkpoints",
-            f'    pid: "container:robot{i}"',
+            f'    pid: "container:{pid_target}"',
             f"    cap_add:",
             f"      - SYS_PTRACE",
         ]
@@ -341,10 +343,18 @@ if __name__ == "__main__":
         "--no-cpu-limit", action="store_true", default=False,
         help="Omit the deploy.resources.limits.cpus block from sidecar services (uncapped).",
     )
+    parser.add_argument(
+        "--attest-gzserver", action="store_true", default=False,
+        help="Test-only local Gazebo mode: make robot1 sidecar attach to gazebo-server PID namespace.",
+    )
     args = parser.parse_args()
 
     if not 1 <= args.robots <= MAX_ROBOTS:
         print(f"❌ --robots must be between 1 and {MAX_ROBOTS} (got {args.robots})")
+        sys.exit(1)
+
+    if args.attest_gzserver and (args.mode != "local" or args.robots != GAZEBO_LIMIT):
+        print("❌ --attest-gzserver is only valid for local mode with --robots 4")
         sys.exit(1)
 
     n = args.robots
@@ -412,5 +422,6 @@ if __name__ == "__main__":
         cfg_dir = "./config" if n <= GAZEBO_LIMIT else "./config-dummy"
         with open(attestation_path, "w") as f:
             f.write(generate_attestation_yml(n, config_dir=cfg_dir, sidecar_image=sidecar_image,
-                                             no_cpu_limit=no_cpu_limit))
+                                             no_cpu_limit=no_cpu_limit,
+                                             attest_gzserver=args.attest_gzserver))
         print(f"✅ {attestation_path}  ({n} sidecars, image: {sidecar_image}, ports 8001–{8000 + n})")

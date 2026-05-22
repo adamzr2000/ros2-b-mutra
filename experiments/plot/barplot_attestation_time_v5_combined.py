@@ -226,7 +226,7 @@ def main():
     gs  = fig.add_gridspec(
         2, 2,
         width_ratios=[3, 2],
-        hspace=0.08,
+        hspace=0.12,
         wspace=0.30,
         left=0.08, right=0.97, top=0.84, bottom=0.07,
     )

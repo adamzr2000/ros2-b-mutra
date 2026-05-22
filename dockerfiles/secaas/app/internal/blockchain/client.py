@@ -324,11 +324,9 @@ class BlockchainClient:
 
     def is_verifier_agent(self, attestation_id):
         att_id = text_to_bytes32(attestation_id)
-
-        state = self.contract.functions.GetAttestationState(att_id).call()
-        if state == AttestationState.Closed:
-            return False
-
+        # IsVerifier reverts with ContractLogicError when state==Closed;
+        # the except below handles that identically to a pre-check, without
+        # the extra GetAttestationState round-trip.
         try:
             return self.contract.functions.IsVerifier(att_id, self.eth_address).call()
         except ContractLogicError as e:

@@ -62,6 +62,7 @@ Usage: $(basename "$0") [--robots N] [--remote] [--auto] [--export] [--startup] 
                         [--ssp N] [--cpu-limit X] [--contract rr|lv]
                         [--password VALUE]
                         [--iterq K] [--no-bootstrap]
+                        [--attest-gzserver]
                         [--no-wait-result]
 
 Options:
@@ -89,6 +90,8 @@ Options:
                  via /digest, syncs them to the SECaaS DB, and resets the on-chain chain
                  so attestations close as SUCCESS rather than FAILURE on placeholder refs.
                  Pass this flag if you deliberately want the placeholder behaviour.
+  --attest-gzserver  Test-only mode for local 4-robot Gazebo runs: make robot1's sidecar
+                 attest the gazebo-server process instead of robot_state_publisher.
   --no-wait-result  Set WAIT_FOR_VERIFICATION_RESULT=FALSE (fire-and-forget mode)
   -h|--help      Show this help
 
@@ -112,6 +115,10 @@ ITERQ_VAL="1"
 PASSWORD_VAL="netcom;"
 BOOTSTRAP_REFS="TRUE"
 WAIT_RESULT_VAL="TRUE"
+ATTEST_GZSERVER_VAL="FALSE"
+
+GZSERVER_TEXT_SECTION_SIZE="85412"
+GZSERVER_TEXT_SECTION_OFFSET="35552"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -166,6 +173,7 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2 ;;
     --no-bootstrap)  BOOTSTRAP_REFS="FALSE"; shift ;;
+    --attest-gzserver) ATTEST_GZSERVER_VAL="TRUE"; shift ;;
     --no-wait-result) WAIT_RESULT_VAL="FALSE"; shift ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "❌ Unknown arg: $1"; echo; usage; exit 1 ;;
@@ -175,6 +183,11 @@ done
 # --no-cpu-limit and --cpu-limit are mutually exclusive
 if [[ "$NO_CPU_LIMIT_VAL" == "TRUE" && "$CPU_LIMIT_EXPLICIT" == "TRUE" ]]; then
   echo "❌ --no-cpu-limit and --cpu-limit are mutually exclusive"
+  exit 1
+fi
+
+if [[ "$ATTEST_GZSERVER_VAL" == "TRUE" ]] && { [[ "$DEPLOY_MODE" != "local" ]] || [[ "$N_ROBOTS_VAL" != "4" ]]; }; then
+  echo "❌ --attest-gzserver is only valid with --robots 4 in local mode"
   exit 1
 fi
 
@@ -253,6 +266,7 @@ else
 fi
 COMPOSE_FLAGS=(--robots "$N_ROBOTS_VAL" --blockchain-host "$COMPOSE_BLOCKCHAIN_HOST" --mode "$DEPLOY_MODE" --contract "$CONTRACT_VAL")
 [[ "$NO_CPU_LIMIT_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--no-cpu-limit)
+[[ "$ATTEST_GZSERVER_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--attest-gzserver)
 python3 "$SCRIPT_DIR/generate_compose.py" "${COMPOSE_FLAGS[@]}"
 echo
 
@@ -307,16 +321,25 @@ fi
 
 echo "🔧 Generating agent configs (contract: $CONTRACT_VAL, blockchain-host: $CFG_BLOCKCHAIN_HOST)..."
 
-python3 "$SCRIPT_DIR/create_agent_config.py" \
-  --num-agents 100 \
-  --contract "$CONTRACT_VAL" \
-  --config-output "$SCRIPT_DIR/config" \
-  --ref-output "$SCRIPT_DIR/ref-measurements" \
-  --blockchain-host "$CFG_BLOCKCHAIN_HOST" \
-  --secaas-host "host.docker.internal" \
-  --cmd-name robot_state_publisher \
-  --text-section-size 42223 \
+CONFIG_ARGS=(
+  --num-agents 100
+  --contract "$CONTRACT_VAL"
+  --config-output "$SCRIPT_DIR/config"
+  --ref-output "$SCRIPT_DIR/ref-measurements"
+  --blockchain-host "$CFG_BLOCKCHAIN_HOST"
+  --secaas-host "host.docker.internal"
+  --cmd-name robot_state_publisher
+  --text-section-size 42223
   --offset 0
+)
+if [[ "$ATTEST_GZSERVER_VAL" == "TRUE" ]]; then
+  CONFIG_ARGS+=(
+    --first-cmd-name gzserver
+    --first-text-section-size "$GZSERVER_TEXT_SECTION_SIZE"
+    --first-offset "$GZSERVER_TEXT_SECTION_OFFSET"
+  )
+fi
+python3 "$SCRIPT_DIR/create_agent_config.py" "${CONFIG_ARGS[@]}"
 
 python3 "$SCRIPT_DIR/create_agent_config.py" \
   --num-agents 100 \

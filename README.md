@@ -180,11 +180,15 @@ for q in 2 4 8; do python3 run_experiments_and_collect_blockchain_stats.py --rem
 
 ## Data collection (robot app performance)
 
-Measures wall-clock inter-arrival intervals of `/robotX/tf` with and without attestation
-sidecars. The topic is published by `robot_state_publisher` — the exact process being
-attested — so any sidecar-induced CPU interference shows up directly as delivery jitter.
+Two topic variants are measured, each attesting the process that publishes it:
 
-Results: `experiments/data/robot-stats/results/tf/<condition>/<mode>/run*.csv`
+| Topic | Attested process | `--topic` | `start.sh` flag |
+|-------|-----------------|-----------|-----------------|
+| `/robotX/tf` | `robot_state_publisher` | `tf` | *(default)* |
+| `/robotX/scan` | `gzserver` | `scan` | `--attest-gzserver` |
+
+Only robot1 + SECaaS attest; other robots run normally.
+Results: `experiments/data/robot-stats/results/<topic>/<condition>/<mode>/`
 Tagged: `SSP{N}ms-ITERQ{N}-cpu{N|NC}-run{N}.csv` (`NC` = no CPU cap).
 
 Two sweeps are collected. SSP is pushed to sidecars at runtime via `/config`; the CPU
@@ -196,17 +200,27 @@ cap is a cgroup set at container start and requires a stack restart to change.
 1. Start the experimental setup:
 
 ```bash
-# No CPU cap (tagged cpuNC)
+# /tf variant (robot_state_publisher) — no CPU cap
 ./start.sh --robots 4 --contract rr --no-cpu-limit --no-wait-result
 
-# CPU sweep: restart once per CPU limit value
-./start.sh --robots 4 --contract rr --cpu-limit <1.0|0.5|0.1> --no-wait-result
+# /scan variant (gzserver)
+./start.sh --robots 4 --contract rr --no-cpu-limit --no-wait-result --attest-gzserver
+
+# CPU sweep: restart once per CPU limit value (add --attest-gzserver for scan)
+./start.sh --robots 4 --contract rr --cpu-limit <0.5|0.25|0.1> --no-wait-result
 ```
 
 2. Start the topic collector
 
 ```bash
+# /tf
 COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/tf MSG_TYPE=tf2_msgs.msg/TFMessage \
+  docker compose -f docker-compose.robots.yml \
+                 -f docker-compose.benchmark-collector.yml \
+                 up -d --force-recreate topic-collector
+
+# /scan
+COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/scan MSG_TYPE=sensor_msgs.msg/LaserScan \
   docker compose -f docker-compose.robots.yml \
                  -f docker-compose.benchmark-collector.yml \
                  up -d --force-recreate topic-collector
@@ -215,11 +229,12 @@ COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/tf MSG_TYPE=tf2_msgs.msg/TFMessage \
 3. Run conditions
 
 ```bash
-# Baseline (run once, no sidecars)
+# Baseline (run once per topic variant, no sidecars)
 python3 run_experiments_and_collect_robot_stats.py --condition no_sidecar --topic tf --duration 300
+python3 run_experiments_and_collect_robot_stats.py --condition no_sidecar --topic scan --duration 300
 
-# SSP/CPU sweep
-for ssp in 5000 1000 100 10; do python3 run_experiments_and_collect_robot_stats.py --condition with_sidecar --topic tf --duration 300 --ssp "$ssp" --cpu-limit <1.0|0.5|0.1>; sleep 10; done
+# SSP/CPU sweep (replace --topic tf with --topic scan for the gzserver variant)
+for ssp in 5000 1000 100 10; do python3 run_experiments_and_collect_robot_stats.py --condition with_sidecar --topic tf --duration 300 --ssp "$ssp" --cpu-limit <0.5|0.25|0.1>; sleep 10; done
 ```
 
 4. Stop
