@@ -1,6 +1,10 @@
 # tools/
 
-Single-shot snapshot of the running B-MuTRA stack.
+Operational helpers that don't need to be on the critical path of the
+stack itself. Read-only or self-contained.
+
+- `observe.sh` — single-shot snapshot of stack state and chain counters
+- `tamper.sh`  — inject in-memory binary tampering for failure-detection tests
 
 ## observe.sh
 
@@ -85,3 +89,41 @@ while sleep 30; do ./tools/observe.sh; done >> snapshots.jsonl 2>/dev/null
   word appears for non-attestation reasons. Treat them as
   approximations; the on-chain `completed_*` numbers are the source
   of truth.
+
+## tamper.sh
+
+In-memory tampering of a binary's `.text` segment. Writes a single
+NOP byte at a configurable offset via `/proc/<pid>/mem` from inside
+the sidecar container, which has CAP_SYS_PTRACE and shares the PID
+namespace with its robot. The change is in-memory only; restart the
+affected container to undo.
+
+The script is pure injection: it writes the byte and exits. To see
+whether the framework detects the corruption as a FAILURE attestation,
+watch `./tools/observe.sh` (chain.completed_failure) or container
+logs separately.
+
+```bash
+# tamper robot_state_publisher in robot1 (default target)
+./tools/tamper.sh robot1
+
+# tamper the sidecar itself (self-integrity check, needs SELF_INTEGRITY_ENABLED)
+./tools/tamper.sh robot1 --target sidecar
+
+# tamper dummy_publisher in dummy-mode robot
+./tools/tamper.sh robot2 --target dummy
+
+# custom offset
+./tools/tamper.sh robot1 --target sidecar --offset 0x80000
+```
+
+To observe the verdict, run an observe.sh snapshot before and after:
+
+```bash
+pre=$(./tools/observe.sh 2>/dev/null | jq -r .chain.completed_failure)
+./tools/tamper.sh robot1
+sleep 60
+post=$(./tools/observe.sh 2>/dev/null | jq -r .chain.completed_failure)
+echo "new failures: $(( post - pre ))"
+```
+
