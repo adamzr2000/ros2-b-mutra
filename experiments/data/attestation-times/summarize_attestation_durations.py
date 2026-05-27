@@ -12,9 +12,13 @@ e.g.  results/N4/startup/robot1-run3.json
       results/N4/continuous/rr/robot1-SSP20000ms-ITERQ1-cpu0p4-run2.json
 
 Outputs (written to _summary/):
-  durations_per_run_startup.csv    — startup mode; columns: n_robots, participant, run, role, metric, run_median_s (median across cycles), participant_group
-  durations_per_run_rr.csv         — continuous, RR contract; adds: ssp_ms, iterq, cpu_limit
-  durations_per_run_lv.csv         — continuous, LV contract (written only if data exists)
+    durations_per_run_startup.csv    — startup mode; columns: n_robots, participant, run, role, metric, run_median_s, run_mean_s, participant_group
+    durations_per_run_rr.csv         — continuous, RR contract; adds: ssp_ms, iterq, cpu_limit
+    durations_per_run_lv.csv         — continuous, LV contract (written only if data exists)
+
+Summary files (when EXPORT_SUMMARY=True) report both:
+    - median and IQR of per-run medians
+    - mean and std of per-run means
 
 EXPORT_RAW=True also writes durations_raw_startup.csv / durations_raw_{contract}.csv.
 """
@@ -163,11 +167,10 @@ def _safe_get(d, key):
 
 
 def _write_per_run(df: pd.DataFrame, group_keys: list, out_path: Path):
-    """Average cycles within each run, add participant_group, write CSV."""
+    """Aggregate cycles within each run, add participant_group, write CSV."""
     per_run = (
         df.groupby(group_keys, as_index=False, dropna=False)["duration_s"]
-        .median()
-        .rename(columns={"duration_s": "run_median_s"})
+        .agg(run_median_s="median", run_mean_s="mean")
     )
     per_run["participant_group"] = per_run["participant"].apply(_participant_group)
     per_run.to_csv(out_path, index=False)
@@ -176,22 +179,23 @@ def _write_per_run(df: pd.DataFrame, group_keys: list, out_path: Path):
 
 
 def _write_summary(per_run: pd.DataFrame, group_keys: list, out_path: Path):
-    agg = dict(
-        run_count="count",
-        mean_s="mean",
-        std_s="std",
-        min_s="min",
-        max_s="max",
-        median_s="median",
-        p25_s=lambda x: x.quantile(0.25),
-        p75_s=lambda x: x.quantile(0.75),
-    )
     summary_keys = [k for k in group_keys if k not in ("run",)] + ["participant_group"]
     summary = (
-        per_run.groupby(summary_keys, dropna=False)["run_median_s"]
-        .agg(**agg)
+        per_run.groupby(summary_keys, dropna=False)
+        .agg(
+            run_count=("run", "count"),
+            median_of_medians_s=("run_median_s", "median"),
+            median_p25_s=("run_median_s", lambda x: x.quantile(0.25)),
+            median_p75_s=("run_median_s", lambda x: x.quantile(0.75)),
+            mean_of_means_s=("run_mean_s", "mean"),
+            std_of_means_s=("run_mean_s", "std"),
+            min_median_s=("run_median_s", "min"),
+            max_median_s=("run_median_s", "max"),
+        )
         .reset_index()
     )
+    summary["median_iqr_s"] = summary["median_p75_s"] - summary["median_p25_s"]
+    summary["std_of_means_s"] = summary["std_of_means_s"].fillna(0.0)
     summary.to_csv(out_path, index=False)
     print(f"[OK] {out_path.name} (summary)")
 

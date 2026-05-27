@@ -19,7 +19,7 @@ ITERQ    = 1            # rolling-hash queue depth
 CPU_LIMIT = None         # None = no cap (cpuNC)
 N_VALUES  = [4, 8, 16, 32, 64]
 
-FONT_SCALE    = 1.6
+FONT_SCALE    = 2.0
 BAR_WIDTH     = 0.32
 GROUP_SPACING = 1.0
 HEADROOM      = 1.15
@@ -91,13 +91,13 @@ def main():
     groups  = ["Robot sidecar", "SECaaS"]
     colors  = {"Robot sidecar": COLOR_ROBOT, "SECaaS": COLOR_SECAAS}
 
-    fig = plt.figure(figsize=(8, 6.2))
+    fig = plt.figure(figsize=(12, 5.5))
     gs  = fig.add_gridspec(
-        2, 1, hspace=0.12,
-        left=0.12, right=0.97, top=0.86, bottom=0.10,
+        1, 2, wspace=0.25,
+        left=0.08, right=0.97, top=0.86, bottom=0.13,
     )
-    ax_cpu = fig.add_subplot(gs[0])
-    ax_ram = fig.add_subplot(gs[1], sharex=ax_cpu)
+    ax_cpu = fig.add_subplot(gs[0, 0])
+    ax_ram = fig.add_subplot(gs[0, 1])
 
     cpu_tops, ram_tops = [], []
 
@@ -131,17 +131,19 @@ def main():
                   f"ram={ram_mean:.2f}±{ram_std:.2f} MB")
 
     # ── Top panel (CPU) ────────────────────────────────────────────────────────
-    ax_cpu.set_ylabel("CPU usage (vCPUs)")
+    ax_cpu.set_ylabel("CPU (vCPUs)")
     ax_cpu.set_ylim(0, max(cpu_tops) * HEADROOM)
     ax_cpu.set_xlim(group_xs[0]  - GROUP_SPACING * 0.55,
                     group_xs[-1] + GROUP_SPACING * 0.55)
+    ax_cpu.set_xticks(group_xs)
+    ax_cpu.set_xticklabels([str(n) for n in n_values])
+    ax_cpu.set_xlabel("Number of robots (N)")
     ax_cpu.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
-    ax_cpu.tick_params(labelbottom=False)
     ax_cpu.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
     ax_cpu.set_axisbelow(True)
 
     # ── Bottom panel (RAM) ─────────────────────────────────────────────────────
-    ax_ram.set_ylabel("RAM usage (MB)")
+    ax_ram.set_ylabel("RAM (MB)")
     ax_ram.set_ylim(0, max(ram_tops) * HEADROOM)
     ax_ram.set_xticks(group_xs)
     ax_ram.set_xticklabels([str(n) for n in n_values])
@@ -155,7 +157,7 @@ def main():
         mpatches.Patch(facecolor=COLOR_ROBOT,  edgecolor="none", label="Robot sidecar"),
         mpatches.Patch(facecolor=COLOR_SECAAS, edgecolor="none", label="SECaaS"),
     ]
-    fig.legend(handles=patches, loc="upper center", bbox_to_anchor=(0.5, 0.99),
+    fig.legend(handles=patches, loc="upper center", bbox_to_anchor=(0.5, 1.01),
                ncol=2, frameon=True, framealpha=0.9, fancybox=False,
                edgecolor="black", borderpad=0.5, handlelength=1.4,
                columnspacing=1.2)

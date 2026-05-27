@@ -20,9 +20,9 @@ ITERQ      = 1
 CPU_LIMIT  = None   # None = no cap (cpuNC)
 N_VALUES   = [4, 8, 16, 32, 64]
 
-METRIC     = "median"  # "median" → median + IQR  |  "mean" → mean ± std
+METRIC     = "mean"  # "median" → median + IQR  |  "mean" → mean ± std
 
-FONT_SCALE = 2.4
+FONT_SCALE = 2.0
 BAR_WIDTH  = 0.42
 HEADROOM   = 1.10
 EPS        = 1e-4
@@ -33,8 +33,8 @@ C_VERIFIER = "#228888"
 C_BC       = "#336699"
 
 LABELS = {
-    "oracle":     "Oracle phase",
-    "verifier":   "Verifier phase",
+    "oracle":     "Oracle retrieval",
+    "verifier":   "Verification",
     "sha256":     "SHA-256 computation",
     "blockchain": "Blockchain confirmation",
 }
@@ -51,7 +51,8 @@ def _agg(df, n, group, role, metric):
     ]
     if sub.empty:
         return 0.0, 0.0, 0.0
-    run_vals = sub.groupby("run")["run_median_s"].mean()
+    value_col = "run_mean_s" if METRIC == "mean" else "run_median_s"
+    run_vals = sub.groupby("run")[value_col].mean()
     if METRIC == "mean":
         c   = float(run_vals.mean())
         err = float(run_vals.std(ddof=1))
@@ -115,6 +116,11 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
     for i, n in enumerate(n_values):
         segs, err_lo, err_hi = build_segments(sub, n, mode)
         all_segs[n] = (segs, err_lo, err_hi)
+        sec_parts = [f"{key}={val:.6f}s" for key, val, _ in segs]
+        total_s = sum(val for _, val, _ in segs)
+        sec_parts.append(f"total={total_s:.6f}s")
+        sec_parts.append(f"err=-{err_lo:.6f}s/+{err_hi:.6f}s")
+        print(f"[DEBUG] {panel_label} | mode={mode} | N={n} | seconds: " + ", ".join(sec_parts))
         top = draw_stack(ax, i, segs, err_lo, err_hi)
         max_top = max(max_top, top)
         used.update(k for k, v, _ in segs if v > EPS)
@@ -139,25 +145,35 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
     # ── zoom panel ────────────────────────────────────────────────────────────
     max_top_z = 0.0
     for i, n in enumerate(n_values):
-        segs, _, _ = all_segs[n]
+        segs, err_lo, err_hi = all_segs[n]
         bottom = 0.0
+        ms_parts = []
         for key, val, color in segs:
             if key not in zoom_keys:
                 continue
             val_ms = val * 1000.0
+            ms_parts.append(f"{key}={val_ms:.6f}ms")
             if val_ms > EPS:
                 ax_z.bar(i, val_ms, bottom=bottom, width=BAR_WIDTH,
                          color=color, edgecolor="none", zorder=3)
                 bottom += val_ms
+        ms_parts.append(f"total={bottom:.6f}ms")
+        err_lo_ms = err_lo * 1000.0
+        err_hi_ms = err_hi * 1000.0
+        ms_parts.append(f"err=-{err_lo_ms:.3f}ms/+{err_hi_ms:.3f}ms")
+        print(f"[DEBUG] {panel_label} | mode={mode} | N={n} | milliseconds: " + ", ".join(ms_parts))
         max_top_z = max(max_top_z, bottom)
 
     ax_z.set_xticks(range(len(n_values)))
     ax_z.set_xlim(-0.6, len(n_values) - 0.4)
-    ax_z.set_ylim(0, max_top_z * HEADROOM)
+    zoom_headroom = max(max_top_z * 0.04, 1e-6)
+    ax_z.set_ylim(0, max_top_z + zoom_headroom)
+    ax_z.margins(y=0)
     ax_z.set_ylabel("Time (ms)")
     ax_z.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
     ax_z.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
     ax_z.set_axisbelow(True)
+    ax_z.ticklabel_format(axis="y", style="plain", useOffset=False)
 
     if is_bottom:
         ax_z.set_xticklabels([str(n) for n in n_values])

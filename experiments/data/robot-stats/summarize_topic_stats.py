@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Summarize /tf publish-rate and jitter across benchmark conditions.
+Summarize publish-rate and jitter across benchmark conditions for all topics.
 
-Only the attested topic (/tf, stored under results/tf/) is analysed; any
-other topic directory (e.g. scan) is silently ignored.
-
-Each result file captures one robot's /tf stream over a single long run (~300 s).
+Each topic directory under results/ (e.g. tf, scan) is analysed independently.
+Each result file captures one robot's message stream over a single long run (~300 s).
 Inter-message intervals are computed per robot (wall clock, within each robot's own
 message sequence) and the following per-run stats are computed:
   - median_hz       : 1000 / median(interval_ms)
@@ -16,8 +14,8 @@ If multiple runs exist for the same parameter combination they are averaged
 (mean ± std across runs).
 
 Expected layout:
-  results/tf/no_sidecar/baseline/run{N}.csv
-  results/tf/with_sidecar/continuous/SSP{ssp}ms-ITERQ{iterq}-cpu{cpu}-run{N}.csv
+  results/{topic}/no_sidecar/baseline/run{N}.csv
+  results/{topic}/with_sidecar/continuous/SSP{ssp}ms-ITERQ{iterq}-cpu{cpu}-run{N}.csv
   columns: robot, topic, ros_stamp_ns, wall_stamp_ns
 """
 
@@ -117,7 +115,6 @@ def main():
         return
 
     raw = pd.DataFrame(records)
-    raw = raw[raw["topic"] != "scan"]
     if raw.empty:
         print("[WARN] No data after filtering out non-attested topics.")
         return

@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
-Grouped boxplot: /tf inter-message interval — SSP × CPU parameter sweep.
+Grouped boxplot: ROS topic inter-message interval — SSP × CPU parameter sweep.
+
+Usage:
+  python3 boxplot_ros_topic_latency.py [--topic TOPIC]
+
+  --topic TOPIC   Topic subfolder name under results/ (default: tf)
 
 X-groups : SSP ∈ {5, 1, 0.1, 0.01} s
 Within each group: CPU ∈ {NC, 1.0, 0.5, 0.1} — one box per CPU config.
@@ -12,6 +17,7 @@ Whiskers : Q1 − 1.5×IQR  to  Q3 + 1.5×IQR  (Tukey standard)
 Fliers   : hidden
 """
 
+import argparse
 import re
 from pathlib import Path
 
@@ -21,7 +27,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-RESULTS_DIR = Path(__file__).parent.parent / "data/robot-stats/results/tf"
+RESULTS_BASE = Path(__file__).parent.parent / "data/robot-stats/results"
 FONT_SCALE  = 1.7
 
 SSP_MS_LIST = [5000, 1000, 100, 10]          # 5 s, 1 s, 0.1 s, 0.01 s
@@ -90,12 +96,18 @@ def _print_stats(label: str, iv: np.ndarray) -> None:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Boxplot ROS topic inter-message interval.")
+    parser.add_argument("--topic", default="tf", help="Topic subfolder under results/ (default: tf)")
+    args = parser.parse_args()
+
+    topic = args.topic
+    results_dir = RESULTS_BASE / topic
     script_dir = Path(__file__).parent.resolve()
 
-    if not RESULTS_DIR.exists():
-        raise SystemExit(f"Results dir not found: {RESULTS_DIR}")
+    if not results_dir.exists():
+        raise SystemExit(f"Results dir not found: {results_dir}")
 
-    iv_baseline = _collect_baseline(RESULTS_DIR)
+    iv_baseline = _collect_baseline(results_dir)
     _print_stats("baseline", iv_baseline)
 
     # ── collect all data ────────────────────────────────────────────────────────
@@ -104,7 +116,7 @@ def main():
     for ssp_ms in SSP_MS_LIST:
         data[ssp_ms] = {}
         for cpu_label, cpu_val in CPU_CONFIGS:
-            iv = _collect_sidecar(RESULTS_DIR, ssp_ms=ssp_ms, cpu=cpu_val)
+            iv = _collect_sidecar(results_dir, ssp_ms=ssp_ms, cpu=cpu_val)
             data[ssp_ms][cpu_label] = iv
             _print_stats(f"SSP={ssp_ms}ms  CPU={cpu_label}", iv)
 
@@ -190,7 +202,7 @@ def main():
               framealpha=0.9, fancybox=False, edgecolor="black",
               borderpad=0.4, handlelength=1.2, ncol=3)
 
-    out_path = script_dir / "boxplot_ros_topic_latency.pdf"
+    out_path = script_dir / f"boxplot_ros_topic_latency_{topic}.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"\n[OK] Saved: {out_path}")
     plt.close(fig)

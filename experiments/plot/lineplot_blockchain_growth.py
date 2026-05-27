@@ -18,13 +18,11 @@ ITERQ_VALS = [1, 2, 4, 8]
 INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
 IDLE_FILE  = "../data/blockchain-stats/_summary/blockchain_stats_idle.csv"
 
-FONT_SCALE = 1.8
+FONT_SCALE = 1.6
 LINEWIDTH  = 1.8
 MARKERSIZE = 7
 COLOR_IDLE = "gray"
 
-# viridis sequential: low ITERQ (dark) → high ITERQ (light)
-# wide spacing to maximise contrast between the 4 lines
 _viridis = plt.cm.viridis([0.10, 0.38, 0.65, 0.88])
 STYLES = {
     1: {"color": _viridis[0], "marker": "o"},
@@ -51,7 +49,7 @@ def main():
     df = df[df["ssp_ms"] == SSP_MS].sort_values(["iterq", "N"])
 
     sns.set_theme(context="paper", style="ticks",
-                  rc={"xtick.direction": "in", "ytick.direction": "in"},
+                  rc={"xtick.direction": "out", "ytick.direction": "out"},
                   font_scale=FONT_SCALE)
     plt.rcParams.update({"font.family": "serif"})
 
@@ -60,6 +58,8 @@ def main():
 
     n_vals = sorted(df["N"].unique())
 
+    print(f"{'IterQ':<8} {'N':<6} {'KB/s':>10}")
+    print("-" * 26)
     for iterq in ITERQ_VALS:
         sub = df[df["iterq"] == iterq].sort_values("N")
         if sub.empty:
@@ -69,7 +69,12 @@ def main():
         st = STYLES[iterq]
         ax.plot(x, y, color=st["color"], marker=st["marker"], markersize=MARKERSIZE,
                 markeredgecolor="none",
-                linewidth=LINEWIDTH, zorder=3, label=f"ITERQ = {iterq}")
+                linewidth=LINEWIDTH, zorder=3, label=f"IterQ = {iterq}")
+        for n, kbps in zip(x, y):
+            print(f"{iterq:<8} {n:<6} {kbps:>10.4f}")
+
+    print("-" * 26)
+    print(f"{'Idle':<8} {'—':<6} {idle_kbps:>10.4f}")
 
     ax.axhline(idle_kbps, color=COLOR_IDLE, linewidth=1.4, linestyle="--",
                zorder=2, label="Idle")
@@ -79,7 +84,7 @@ def main():
     ax.set_xticks(n_vals)
     ax.set_xticklabels([str(n) for n in n_vals])
     ax.set_ylim(bottom=0)
-    ax.tick_params(axis="both", which="major", length=6, width=1.0, direction="in")
+    ax.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
     ax.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
     ax.set_axisbelow(True)
 

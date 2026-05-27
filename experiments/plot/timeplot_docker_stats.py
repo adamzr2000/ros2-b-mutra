@@ -6,6 +6,7 @@ import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import seaborn as sns
 import re
+import numpy as np
 from pathlib import Path
 from functools import reduce
 
@@ -15,9 +16,10 @@ TARGET_RUN = 1
 N_ROBOTS   = 4
 MODES      = ["continuous"]
 VARIANT    = "rr"   # ← continuous-mode variant to plot
+SHOW       = "cpu"  # "cpu" | "net" | "both"
 
 LINE_WIDTH   = 2.6
-FONT_SCALE   = 2.0
+FONT_SCALE   = 1.6
 WINDOW_S     = 1      # rolling-mean smoothing window (seconds)
 BAND_ALPHA   = 0.25   # opacity of ±std shaded band
 
@@ -104,16 +106,26 @@ def generate_plot(df, n_robots, mode, script_dir):
     color_robot  = "#993333"
     color_secaas = "#336699"
 
-    fig = plt.figure(figsize=(10, 5.5))
-    gs  = fig.add_gridspec(2, 1, height_ratios=[1.0, 1.0], hspace=0.12,
-                           left=0.10, right=0.97, top=0.87, bottom=0.12)
-    ax_cpu = fig.add_subplot(gs[0])
-    ax_tx  = fig.add_subplot(gs[1], sharex=ax_cpu)
-
-    panels = [
-        (ax_cpu, "cpu_vcpus",   "CPU (vCPUs)"),
-        (ax_tx,  "net_tx_kbps", "Net TX (kbit/s)"),
+    _all_panels = [
+        ("cpu", "cpu_vcpus",   "CPU (vCPUs)"),
+        ("net", "net_tx_kbps", "Net TX (kbit/s)"),
     ]
+    panel_defs = [(col, ylabel) for key, col, ylabel in _all_panels
+                  if SHOW in (key, "both")]
+    n_panels   = len(panel_defs)
+
+    fig_h      = 3.5 if n_panels == 1 else 5.5
+    bot_margin = 0.20 if n_panels == 1 else 0.12
+    top_margin = 0.80 if n_panels == 1 else 0.87
+    fig = plt.figure(figsize=(10, fig_h))
+    gs  = fig.add_gridspec(n_panels, 1, height_ratios=[1.0] * n_panels,
+                           hspace=0.12, left=0.10, right=0.97,
+                           top=top_margin, bottom=bot_margin)
+    axes = [fig.add_subplot(gs[0])]
+    for i in range(1, n_panels):
+        axes.append(fig.add_subplot(gs[i], sharex=axes[0]))
+
+    panels = [(axes[i], col, ylabel) for i, (col, ylabel) in enumerate(panel_defs)]
 
     def _robot_band(col):
         """Return (t, mean, std) arrays aggregated across robot containers."""
@@ -157,9 +169,42 @@ def generate_plot(df, n_robots, mode, script_dir):
         y_max = y_max if not pd.isna(y_max) and y_max > 0 else 1.0
         ax.set_ylim(0, y_max * 1.10)
 
-    ax_cpu.set_xlim(left=0)
-    ax_cpu.tick_params(axis="x", labelbottom=False)
-    ax_tx.set_xlabel("Time (s)")
+        # ── Console print of time series (sampled) ───────────────────────────
+        rows = []
+        # robot band
+        if robot_containers:
+            t_r, mean_r, std_r = _robot_band(col)
+        else:
+            t_r = mean_r = std_r = np.array([])
+
+        # secaas smoothed
+        if has_secaas:
+            sub = df[df["Container"] == "SECaaS"].sort_values("t_rel_s").copy()
+            sm_s = _rolling(sub[col], sub["t_rel_s"]) if len(sub) else np.array([])
+            t_s = sub["t_rel_s"].values
+        else:
+            t_s = sm_s = np.array([])
+
+        # unified time grid
+        grid = np.unique(np.concatenate([t_r, t_s])) if len(t_r) + len(t_s) > 0 else np.array([])
+        if grid.size:
+            step = max(1, int(len(grid) / 50))
+            print(f"[TS] {ylabel} (sample every {step}):")
+            for idx in range(0, len(grid), step):
+                tt = grid[idx]
+                r_mean = float(np.interp(tt, t_r, mean_r)) if t_r.size else float('nan')
+                r_std  = float(np.interp(tt, t_r, std_r))  if t_r.size else 0.0
+                s_val  = float(np.interp(tt, t_s, sm_s))   if t_s.size else float('nan')
+                # format depending on column
+                if col == 'cpu_vcpus':
+                    print(f"  t={tt:.1f}s  robot={r_mean:.4f}±{r_std:.4f} vCPU  secaas={s_val:.4f} vCPU")
+                else:
+                    print(f"  t={tt:.1f}s  robot={r_mean:.1f}±{r_std:.1f} kbit/s  secaas={s_val:.1f} kbit/s")
+
+    axes[0].set_xlim(left=0)
+    for ax in axes[:-1]:
+        ax.tick_params(axis="x", labelbottom=False)
+    axes[-1].set_xlabel("Time (s)")
 
     # ── Figure legend (top centre) ────────────────────────────────────────────
     legend_handles = []
@@ -174,13 +219,20 @@ def generate_plot(df, n_robots, mode, script_dir):
                           label="SECaaS")
         )
 
-    fig.legend(handles=legend_handles,
-               loc="upper center", bbox_to_anchor=(0.5, 1.0),
-               ncol=len(legend_handles), framealpha=0.9,
-               fancybox=False, edgecolor="black",
-               borderpad=0.5, handlelength=1.4, columnspacing=1.2)
+    if n_panels == 1:
+        axes[0].legend(handles=legend_handles,
+                       loc="upper right", ncol=2, framealpha=0.9,
+                       fancybox=False, edgecolor="black",
+                       borderpad=0.5, handlelength=1.4, columnspacing=1.2)
+    else:
+        fig.legend(handles=legend_handles,
+                   loc="upper center", bbox_to_anchor=(0.5, 1.0),
+                   ncol=len(legend_handles), framealpha=0.9,
+                   fancybox=False, edgecolor="black",
+                   borderpad=0.5, handlelength=1.4, columnspacing=1.2)
     
-    out_path = script_dir / f"timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}_{VARIANT}.pdf"
+    panel_tag = f"_{SHOW}" if SHOW != "both" else ""
+    out_path = script_dir / f"timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}_{VARIANT}{panel_tag}.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"[OK] Saved plot to: {out_path}")
     plt.close(fig)
