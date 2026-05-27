@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python3 -c ' *)",
       "Bash(grep -v \"^$\")",
-      "Bash(xargs sed *)"
+      "Bash(xargs sed *)",
+      "Bash(python3 experiments/plot/boxplot_tamper_detection.py)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('cmd_name:', d.get\\('cmd_name'\\)\\); print\\('text_section_size:', d.get\\('text_section_size'\\)\\); print\\('offset:', d.get\\('offset'\\)\\)\")"
     ]
   }
 }

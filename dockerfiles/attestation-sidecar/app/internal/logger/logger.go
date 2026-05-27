@@ -56,7 +56,7 @@ func parseLevel(envValue string) LogLevel {
 
 // Format logic matching YYYY-MM-DD HH:MM:SS
 func format(levelStr, color, msg string) string {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	timestamp := time.Now().Format("2006-01-02 15:04:05.000")
 	return fmt.Sprintf("%s - %s%s%s - %s", timestamp, color, levelStr, Reset, msg)
 }
 

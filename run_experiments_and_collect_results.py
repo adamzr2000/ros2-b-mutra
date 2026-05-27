@@ -308,7 +308,7 @@ def run_experiment_loop(run_id, duration, stats_dir, attestation_dir, sidecars, 
     if startup_mode:
         wait_for_all_finished(robot_sidecars, timeout=startup_timeout)
         stop_all_agents(sidecars)
-        time.sleep(3)
+        time.sleep(5)
         reset_chain()
     else:
         print(f"   ⏳ Running for {duration}s...")

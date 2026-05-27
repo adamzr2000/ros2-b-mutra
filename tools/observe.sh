@@ -22,15 +22,12 @@ ADDR_FILE="$REPO/smart-contracts/deployments/besu-AttestationManagerLV.json"
 #   docker run --rm --network quorum-dev-quickstart hardhat:latest bash -c "node -e \"
 #     const e = require('ethers');
 #     console.log(e.id('AttestationStarted(bytes32,uint32)'));
-#     console.log(e.id('AttestationCompleted(bytes32,bool)'));
-#     console.log(e.id('VerifierRotated(address)'));
-#     console.log(e.id('GetVRP()').slice(0,10));
-#     console.log(e.id('GetCurrentVerifier()').slice(0,10));
+#     console.log(e.id('AttestationCompleted(bytes32)'));
 #   \""
+# NOTE: AttestationCompleted(bytes32) — no bool result field in the event.
+# Success vs failure cannot be split from chain events; use logs.success/failure instead.
 TOPIC_STARTED="0x6aa34f034d08ce6962560c4805f8d0ea14020343310408c935a7354c772f2d38"
-TOPIC_COMPLETED="0x02d0717bc91617bee67bd08dfacab8f3b5e93100bd242984d1e60ce2758ea475"
-TOPIC_ROTATED="0xfcc2be04bc026cce0c24562eefa6383157a6bed7617873597fdd1bbcdeb2b763"
-SEL_GET_VRP="0xbb7b8c0c"
+TOPIC_COMPLETED="0x31a3cf273cd0e82f8ddb4be15d4b954d7fcd18a4c5d4591cce32edd1a4bc417d"
 SEL_GET_VERIFIER="0x7cb98689"
 
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
@@ -77,9 +74,6 @@ ssp_ms=$(docker exec robot1-sidecar printenv ATTESTATION_INTERVAL_MS 2>/dev/null
 cpu_limit=$(docker inspect robot1-sidecar --format '{{.HostConfig.NanoCpus}}' 2>/dev/null | awk '{printf "%.2f", $1/1e9}')
 
 ADDR=$(jq -r .address "$ADDR_FILE" 2>/dev/null || echo "")
-vrp_raw=$(rpc eth_call "[{\"to\":\"$ADDR\",\"data\":\"$SEL_GET_VRP\"},\"latest\"]" | jq -r 'try .result // ""')
-vrp=$([[ -n "$vrp_raw" && "$vrp_raw" != "0x" ]] && printf '%d' "$vrp_raw" 2>/dev/null || echo "")
-
 cv_raw=$(rpc eth_call "[{\"to\":\"$ADDR\",\"data\":\"$SEL_GET_VERIFIER\"},\"latest\"]" | jq -r 'try .result // ""')
 current_verifier=""
 if [[ -n "$cv_raw" && "$cv_raw" != "0x" ]]; then
@@ -114,22 +108,16 @@ get_logs_paginated
 # blockNumbers of pending Started events (their ID is not in any Completed).
 # Hashtable lookup (object key) is O(1), the whole pipeline is one read.
 metrics=$(jq -s "
-  ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | {(.topics[1]): true}] | add // {}) as \$done |
+  ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | {(.data[0:66]): true}] | add // {}) as \$done |
   {
-    n_started:       ([.[] | select(.topics[0]==\"$TOPIC_STARTED\")] | length),
-    n_completed:     ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\")] | length),
-    n_rotated:       ([.[] | select(.topics[0]==\"$TOPIC_ROTATED\")] | length),
-    n_success:       ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | select(.data[-1:]==\"1\")] | length),
-    n_failure:       ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | select(.data[-1:]==\"0\")] | length),
-    pending_blocks:  [.[] | select(.topics[0]==\"$TOPIC_STARTED\") | select(\$done[.data[0:66]] | not) | .blockNumber]
+    n_started:      ([.[] | select(.topics[0]==\"$TOPIC_STARTED\")] | length),
+    n_completed:    ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\")] | length),
+    pending_blocks: [.[] | select(.topics[0]==\"$TOPIC_STARTED\") | select(\$done[.data[0:66]] | not) | .blockNumber]
   }
 " "$LOG_TMP")
 
 n_started=$(echo   "$metrics" | jq -r '.n_started')
 n_completed=$(echo "$metrics" | jq -r '.n_completed')
-n_rotated=$(echo   "$metrics" | jq -r '.n_rotated')
-n_success=$(echo   "$metrics" | jq -r '.n_success')
-n_failure=$(echo   "$metrics" | jq -r '.n_failure')
 in_flight=$((n_started - n_completed))
 
 # Age (in seconds) of the oldest unclosed attestation — the wall-clock
@@ -180,11 +168,10 @@ snapshot=$(jq -n \
   --arg secaas_state "$secaas_state" \
   --argjson workers "$worker_json" \
   --arg itq "${itq:-null}" --arg ssp_ms "${ssp_ms:-null}" --arg cpu_limit "${cpu_limit:-null}" \
-  --arg vrp "${vrp:-null}" --arg cv "${current_verifier:-null}" \
+  --arg cv "${current_verifier:-null}" \
   --argjson block "$block" \
   --argjson n_started "$n_started" --argjson n_completed "$n_completed" \
-  --argjson n_success "$n_success" --argjson n_failure "$n_failure" \
-  --argjson n_rotated "$n_rotated" --argjson in_flight "$in_flight" \
+  --argjson in_flight "$in_flight" \
   --arg oldest_age_s "${oldest_age_s:-null}" \
   --arg oldest_pending_block "${oldest_pending_block:-null}" \
   --argjson log_success "$log_success" --argjson log_failure "$log_failure" \
@@ -196,14 +183,12 @@ snapshot=$(jq -n \
       iterq:   ($itq       | if . == "null" or . == "" then null else tonumber end),
       ssp_ms:  ($ssp_ms    | if . == "null" or . == "" then null else tonumber end),
       cpu_limit: ($cpu_limit | if . == "null" or . == "" then null else tonumber end),
-      vrp_onchain: ($vrp   | if . == "null" or . == "" then null else tonumber end),
       current_verifier: ($cv | if . == "null" or . == "" then null else . end)
     },
     chain: {
       block: $block,
       events_started: $n_started, events_completed: $n_completed,
-      completed_success: $n_success, completed_failure: $n_failure,
-      in_flight: $in_flight, verifier_rotations: $n_rotated,
+      in_flight: $in_flight,
       oldest_pending_block: ($oldest_pending_block | if . == "null" or . == "" then null else tonumber end),
       oldest_pending_age_s: ($oldest_age_s | if . == "null" or . == "" then null else tonumber end)
     },
@@ -221,10 +206,10 @@ echo "$snapshot" | jq -c .  # stdout: one JSON line
   printf '  workers:    secaas=%s   ' "$secaas_state"
   echo "$worker_json" | jq -r 'to_entries[] | "\(.key)=\(.value)"' | tr '\n' ' '
   echo
-  printf '  config:     K=%s   SSP=%sms   CPU=%s   VRP=%s   verifier=%s\n' \
-    "${itq:-?}" "${ssp_ms:-?}" "${cpu_limit:-?}" "${vrp:-?}" "${current_verifier:0:14}…"
-  printf '  chain:      block=%d   started=%d   completed=%d   success=%d   failure=%d   in_flight=%d   rotations=%d\n' \
-    "$block" "$n_started" "$n_completed" "$n_success" "$n_failure" "$in_flight" "$n_rotated"
+  printf '  config:     K=%s   SSP=%sms   CPU=%s   verifier=%s\n' \
+    "${itq:-?}" "${ssp_ms:-?}" "${cpu_limit:-?}" "${current_verifier:0:14}…"
+  printf '  chain:      block=%d   started=%d   completed=%d   in_flight=%d\n' \
+    "$block" "$n_started" "$n_completed" "$in_flight"
   if [[ -n "$oldest_age_s" ]]; then
     h=$(( oldest_age_s / 3600 )); m=$(( (oldest_age_s % 3600) / 60 )); s=$(( oldest_age_s % 60 ))
     printf '  backlog:    oldest pending = block %d, %dh%02dm%02ds old\n' \

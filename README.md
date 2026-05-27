@@ -245,6 +245,47 @@ docker compose -f docker-compose.benchmark-collector.yml down && ./stop.sh
 
 ---
 
+## Data collection (tamper detection latency)
+
+Measures the wall-clock time between in-memory binary tampering and the first
+❌ FAILURE attestation verdict logged by the prover sidecar. SSP is the main
+independent variable.
+
+Results: `experiments/data/tamper-detection/results/<target>/`
+Tagged: `SSP{N}ms-batch{B}.csv`. Batch index is auto-incremented.
+
+1. Start the experimental setup:
+
+```bash
+./start.sh --robots 4 --contract lv --ssp 20000 --iterq 1 --auto
+```
+
+No `--export`, no `--no-wait-result` — normal continuous attestation mode.
+`WAIT_FOR_VERIFICATION_RESULT=TRUE` (default) is required so the prover logs the verdict.
+
+2. Run tamper detection collection:
+
+```bash
+# Single SSP, robot binary target (default)
+python3 run_experiments_and_collect_tamper_detection.py --ssp 20000 --trials 15
+
+# Full SSP sweep, robot binary
+python3 run_experiments_and_collect_tamper_detection.py --ssp 1000,5000,10000,20000 --trials 15
+
+# Both targets (robot binary + sidecar self-integrity)
+python3 run_experiments_and_collect_tamper_detection.py --ssp 1000,5000,10000,20000 --trials 15 --target both
+```
+
+The script handles injection, detection waiting, container recovery, and CSV export automatically.
+
+3. Stop the experimental setup:
+
+```bash
+./stop.sh
+```
+
+---
+
 ## Agent configuration files
 
 ```bash

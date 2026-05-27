@@ -33,36 +33,34 @@ while sleep 30; do ./tools/observe.sh; done >> snapshots.jsonl 2>/dev/null
   "containers": { "sidecars": 4, "robots": 4, "secaas": true, "validators": 4 },
   "workers": { "secaas": "running", "robot1": "running", ... },
   "config": {
-    "iterq": 500, "ssp_ms": 0, "cpu_limit": 0.4,
-    "vrp_onchain": 100, "current_verifier": "0x0ba0690b..."
+    "iterq": 1, "ssp_ms": 20000, "cpu_limit": 0.4,
+    "current_verifier": "0x0ba0690b..."
   },
   "chain": {
     "block": 7669,
-    "events_started": 1100, "events_completed": 366,
-    "completed_success": 366, "completed_failure": 0,
-    "in_flight": 734, "verifier_rotations": 3,
+    "events_started": 100, "events_completed": 96,
+    "in_flight": 4,
     "oldest_pending_block": 7012,
-    "oldest_pending_age_s": 4570
+    "oldest_pending_age_s": 42
   },
-  "logs": { "success": 629, "failure": 0 }
+  "logs": { "success": 192, "failure": 0 }
 }
 ```
 
 ## Reading the numbers
 
-- **`config.iterq` / `config.vrp_onchain`** — sanity check that what you
-  asked for on the CLI actually made it into the running stack.
+- **`config.iterq`** — sanity check that what you asked for on the CLI
+  actually made it into the running stack.
 - **`chain.events_started` vs `events_completed`** — should track. The
   diff (`in_flight`) is the backlog of attestations submitted but not
   yet closed. If it grows monotonically across snapshots, the
   verifier or oracle is stuck.
-- **`chain.completed_success` / `completed_failure`** — the ground
-  truth. `completed_failure > 0` means refs and measurements don't
-  match (you forgot to bootstrap, or you rebuilt a sidecar without
-  re-bootstrapping).
-- **`chain.verifier_rotations`** — should equal
-  `completed_success ÷ vrp_onchain` (modulo failure stores). With
-  `vrp_onchain=100`, you get 1 rotation per 100 successes.
+- **`logs.success` / `logs.failure`** — the ground truth for tamper
+  detection. Note: each attestation produces one log entry in the
+  prover container AND one in the verifier container, so the raw counts
+  are ~2× the actual number of attestations. `failure > 0` means at
+  least one measurement didn't match the reference (tamper detected, or
+  bootstrap was skipped).
 - **`chain.oldest_pending_age_s`** — direct measurement of the longest
   wait an attestation currently has, in seconds. Computed as
   `block.timestamp(latest) - block.timestamp(oldest_pending_started)`.

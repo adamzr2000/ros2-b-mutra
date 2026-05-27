@@ -67,7 +67,7 @@ case "$TARGET" in
     DEFAULT_OFFSET="0x4e20"        # 5744 + 14256, ~20 KB into the .text window
     ;;
   sidecar)
-    PROC_GREP=""                   # the sidecar binary is PID 1 in its container
+    PROC_GREP=""                   # located via pgrep, not PID 1 (PID 1 is the shell entrypoint)
     DEFAULT_OFFSET="0x100000"      # 1 MB into the ~14 MB .text
     ;;
   *) echo "unknown target: $TARGET" >&2; exit 1 ;;
@@ -83,11 +83,13 @@ echo
 
 if [[ "$TARGET" == "sidecar" ]]; then
   docker exec -e TAMPER_OFFSET="$OFFSET" "$SIDECAR" sh -c '
-    ADDR=$(grep "r-xp.*attestation-sidecar$" /proc/1/maps | head -1 | cut -d- -f1)
-    [ -z "$ADDR" ] && { echo "no r-xp mapping for attestation-sidecar in /proc/1/maps"; exit 1; }
-    printf "\220" | dd of=/proc/1/mem bs=1 count=1 \
+    PID=$(pgrep -f "attestation-sidecar" | head -1)
+    [ -z "$PID" ] && { echo "attestation-sidecar process not found in PID namespace"; exit 1; }
+    ADDR=$(grep "r-xp.*attestation-sidecar" /proc/$PID/maps | head -1 | cut -d- -f1)
+    [ -z "$ADDR" ] && { echo "no r-xp mapping for attestation-sidecar in /proc/$PID/maps"; exit 1; }
+    printf "\220" | dd of=/proc/$PID/mem bs=1 count=1 \
       seek=$(( 0x$ADDR + TAMPER_OFFSET )) conv=notrunc 2>/dev/null
-    echo "  tampered PID=1 (self) at 0x$ADDR + $TAMPER_OFFSET"
+    echo "  tampered PID=$PID (attestation-sidecar) at 0x$ADDR + $TAMPER_OFFSET"
   ' || { echo "tampering failed" >&2; exit 1; }
 else
   docker exec -e TAMPER_OFFSET="$OFFSET" -e TAMPER_PROC="$PROC_GREP" "$SIDECAR" sh -c '
