@@ -313,9 +313,14 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
     if not detected:
         recover(robot, sidecar, target)
         sidecar_alive(sidecar_port)
-        push_ssp(sidecar_port, ssp_ms)   # container restart wipes env var SSP
-        if target == "sidecar":
-            time.sleep(min(ssp_ms / 1000.0, 5.0))   # flush pre-push goroutine
+        # state_publisher: robot container restart wipes ATTESTATION_INTERVAL_MS env var
+        # → must push new SSP.
+        # sidecar: env var persists from docker-compose (set by start.sh --ssp).
+        # Calling push_ssp would create a new cycle at an offset from the container
+        # start, distorting the injection timing.  Skip it; the sidecar already
+        # has the right SSP and will auto-start cleanly.
+        if target != "sidecar":
+            push_ssp(sidecar_port, ssp_ms)
         return False
 
     # 5. Recover for the next trial.
@@ -330,19 +335,14 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
         return False
     print("ok")
 
-    # 6. Re-push SSP — config does not persist across container restarts.
-    push_ssp(sidecar_port, ssp_ms)
-    # For the sidecar target, the sidecar container auto-restarts with its
-    # original ATTESTATION_INTERVAL_MS (SSP=20000ms from docker-compose).
-    # It submits a goroutine immediately before push_ssp stops the loop.
-    # That goroutine logs SUCCESS ~3.8s after restart (blockchain floor) —
-    # BEFORE any new-SSP cycle goroutine exists — so the next trial's baseline
-    # check would find it and inject too early in the correct SSP cycle,
-    # inflating latency by ~(SSP_new - 2.3)s.  Sleeping ≥blockchain_floor here
-    # ensures the stale goroutine's result is logged before baseline_since is
-    # set, so the next trial only sees post-push successes.
-    if target == "sidecar":
-        time.sleep(min(ssp_ms / 1000.0, 5.0))
+    # 6. Re-push SSP for state_publisher (robot restart wipes the env var).
+    #    For sidecar: env var survives docker restart — the container already has
+    #    the right SSP from start.sh --ssp, so no push is needed or wanted.
+    #    Pushing would shift the cycle start relative to the auto-start goroutine
+    #    and re-introduce the injection-timing artifact we fixed by using per-SSP
+    #    start.sh / stop.sh runs.
+    if target != "sidecar":
+        push_ssp(sidecar_port, ssp_ms)
     return True
 
 
