@@ -7,9 +7,14 @@ Two groups per N: Robot sidecar (avg per node) and SECaaS.
 
 from pathlib import Path
 import pandas as pd
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
+
+
+def _darken(color, factor=0.65):
+    return tuple(c * factor for c in mcolors.to_rgb(color))
 
 INPUT_FILE = "../data/docker-stats/_summary/overall_resource_usage_{VARIANT}.csv"
 MODE      = "continuous"
@@ -19,13 +24,16 @@ ITERQ    = 1            # rolling-hash queue depth
 CPU_LIMIT = None         # None = no cap (cpuNC)
 N_VALUES  = [4, 8, 16, 32, 64]
 
-FONT_SCALE    = 2.0
+FONT_SCALE    = 2.6
 BAR_WIDTH     = 0.32
 GROUP_SPACING = 1.0
 HEADROOM      = 1.15
 
-COLOR_ROBOT  = "#993333"
-COLOR_SECAAS = "#336699"
+# COLOR_ROBOT  = "#993333"
+# COLOR_SECAAS = "#336699"
+
+COLOR_ROBOT  = "#59c396"
+COLOR_SECAAS = "#6a5d99"
 
 
 def _clean_label(raw: str) -> str:
@@ -94,7 +102,7 @@ def main():
     fig = plt.figure(figsize=(12, 5.5))
     gs  = fig.add_gridspec(
         1, 2, wspace=0.25,
-        left=0.08, right=0.97, top=0.86, bottom=0.13,
+        left=0.08, right=0.97, top=0.84, bottom=0.13,
     )
     ax_cpu = fig.add_subplot(gs[0, 0])
     ax_ram = fig.add_subplot(gs[0, 1])
@@ -119,7 +127,7 @@ def main():
                 (ax_ram, ram_mean, ram_std, ram_tops),
             ]:
                 ax.bar(x, mean, width=BAR_WIDTH,
-                       color=color, edgecolor="none", zorder=3)
+                       color=color, edgecolor=_darken(color), linewidth=0.8, zorder=3)
                 if std > 0:
                     ax.errorbar(x, mean, yerr=std,
                                 fmt="none", color="black",
@@ -154,8 +162,8 @@ def main():
 
     # ── Shared legend ──────────────────────────────────────────────────────────
     patches = [
-        mpatches.Patch(facecolor=COLOR_ROBOT,  edgecolor="none", label="Robot sidecar"),
-        mpatches.Patch(facecolor=COLOR_SECAAS, edgecolor="none", label="SECaaS"),
+        mpatches.Patch(facecolor=COLOR_ROBOT,  edgecolor=_darken(COLOR_ROBOT),  linewidth=0.8, label="Robot sidecar"),
+        mpatches.Patch(facecolor=COLOR_SECAAS, edgecolor=_darken(COLOR_SECAAS), linewidth=0.8, label="SECaaS"),
     ]
     fig.legend(handles=patches, loc="upper center", bbox_to_anchor=(0.5, 1.01),
                ncol=2, frameon=True, framealpha=0.9, fancybox=False,

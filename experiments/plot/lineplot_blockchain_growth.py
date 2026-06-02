@@ -23,14 +23,13 @@ LINEWIDTH  = 1.8
 MARKERSIZE = 7
 COLOR_IDLE = "gray"
 
-_viridis = plt.cm.viridis([0.10, 0.38, 0.65, 0.88])
+_PALETTE = ["#b0a2d8", "#8e7dbb", "#6a5d99", "#3d3460"]  # light→dark: IterQ 1→2→4→8
 STYLES = {
-    1: {"color": _viridis[0], "marker": "o"},
-    2: {"color": _viridis[1], "marker": "s"},
-    4: {"color": _viridis[2], "marker": "^"},
-    8: {"color": _viridis[3], "marker": "D"},
+    1: {"color": _PALETTE[0], "marker": "o"},
+    2: {"color": _PALETTE[1], "marker": "s"},
+    4: {"color": _PALETTE[2], "marker": "^"},
+    8: {"color": _PALETTE[3], "marker": "D"},
 }
-
 
 def main():
     script_dir = Path(__file__).parent.resolve()
@@ -85,7 +84,7 @@ def main():
     ax.set_xticklabels([str(n) for n in n_vals])
     ax.set_ylim(bottom=0)
     ax.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
-    ax.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
+    ax.grid(axis="both", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
     ax.set_axisbelow(True)
 
     ax.legend(loc="upper left", frameon=True, framealpha=0.9, fancybox=False,

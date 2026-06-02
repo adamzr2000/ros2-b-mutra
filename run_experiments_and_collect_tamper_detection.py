@@ -7,7 +7,12 @@ tools/tamper.sh) and the first ❌ FAILURE attestation result logged
 by the prover sidecar.
 
 For each trial:
-  1. Wait for a clean baseline (≥1 ✅ SUCCESS observed after recovery).
+  1. Wait for TWO consecutive ✅ SUCCESS attestations before injecting.
+     The first confirms the loop is healthy; the second normalises the
+     injection phase so T0 is always set right after a completed attestation
+     cycle (goroutine done, inter-cycle sleep about to begin). This gives
+     identical conditions for both state_publisher and sidecar targets
+     regardless of recovery duration.
   2. Capture T0 (host clock) and run tamper.sh.
   3. Tail the prover sidecar's log; record T1 from the first
      "[Prover-...] Result: ❌ FAILURE" line with timestamp > T0.
@@ -17,7 +22,15 @@ Latency = T1 − T0. Lower bound is set by the prover's sleep until the
 next measurement cycle (the SSP window) plus one block confirmation.
 
 Prerequisites:
-  - Stack started with --auto (continuous attestation) and ITERQ_THRESHOLD=1.
+  - Stack started WITHOUT --auto. This script owns the sidecar lifecycle:
+    it calls push_ssp (wait_for_digest + /stop + /config + /start) before
+    the first trial and after every recovery for BOTH target types, so all
+    trials run under identical, script-controlled conditions.
+  - ITERQ_THRESHOLD=1 in .env (or start.sh --iterq 1).
+  - AttestationManagerLV contract (default). The script calls /reset before
+    each (target, SSP) block, resetting currentVerifier to SECaaS, then waits
+    for the full fleet to pass a baseline cycle so currentVerifier is a real
+    robot before tamper injection begins.
   - WAIT_FOR_VERIFICATION_RESULT=TRUE (default) so the prover sidecar
     logs the verifier's verdict; otherwise we can't read T1 from its log.
   - Attestation-sidecar image rebuilt with millisecond log timestamps
@@ -31,7 +44,7 @@ Usage:
 
 Output:
   experiments/data/tamper-detection/results/<target>/SSP{N}ms-batch{B}.csv
-  Columns: trial, t0_iso, t1_iso, latency_s, ssp_ms, target, robot
+  Columns: trial, t0_iso, t1_iso, latency_s, detected, ssp_ms, n_robots, target, robot
 """
 
 import argparse
@@ -53,6 +66,8 @@ TAMPER_SCRIPT   = REPO_ROOT / "tools" / "tamper.sh"
 BASE_RESULTS    = REPO_ROOT / "experiments" / "data" / "tamper-detection" / "results"
 
 ROBOTS_BASE_PORT = 8001   # robot1 = 8001, robot2 = 8002, ...
+SECAAS_PORT      = 8000
+SECAAS_URL       = "http://localhost:8000"
 
 # Log line timestamp prefix produced by logger.go after the ms patch:
 #   "2026-05-27 10:24:12.347 - INFO - ..."
@@ -169,6 +184,76 @@ def sidecar_alive(port: int, timeout: float = 30.0) -> bool:
     return False
 
 
+def warmup_fleet(n_robots: int, ssp_ms: int) -> None:
+    """Reset chain and run one-shot warmup cycle (export disabled) so that
+    currentVerifier in the LV contract is a real robot before trials begin.
+    Mirrors run_continuous_warmup() in run_experiments_and_collect_results.py.
+    """
+    print("   🔥 Fleet warmup: resetting chain and seeding currentVerifier…")
+
+    try:
+        requests.post(f"{SECAAS_URL}/reset", timeout=10)
+    except requests.RequestException as e:
+        sys.exit(f"❌ SECaaS /reset failed: {e}")
+
+    # Start SECaaS event listener — required to process AttestationStarted events
+    # and send reference signatures. Without this, robot sidecars time out waiting
+    # for ReadyForEvaluation. Idempotent if already running.
+    try:
+        requests.post(f"{SECAAS_URL}/start", timeout=10).raise_for_status()
+    except requests.RequestException as e:
+        sys.exit(f"❌ SECaaS /start failed: {e}")
+
+    warmup_since = time.time()
+    for i in range(1, n_robots + 1):
+        port = ROBOTS_BASE_PORT + (i - 1)
+        stop_attestation(port)
+        time.sleep(0.1)
+        try:
+            requests.post(f"http://localhost:{port}/config",
+                          json={"one_shot": True, "export_enabled": False,
+                                "attestation_interval_ms": ssp_ms},
+                          timeout=5)
+        except requests.RequestException as e:
+            print(f"   ⚠️  robot{i} config failed: {e}", file=sys.stderr)
+        start_attestation(port)
+
+    print(f"   ⏳ Waiting for {n_robots} robot(s) to complete warmup cycle…")
+    for i in range(1, n_robots + 1):
+        cname = f"robot{i}-sidecar"
+        if not wait_for_clean_baseline(cname, warmup_since, ssp_ms):
+            sys.exit(f"❌ {cname} failed warmup — aborting")
+        print(f"      ✅ robot{i} warmed up")
+
+    # Restore continuous mode — loops are stopped, push_ssp will restart them
+    for i in range(1, n_robots + 1):
+        try:
+            requests.post(f"http://localhost:{ROBOTS_BASE_PORT + (i - 1)}/config",
+                          json={"one_shot": False}, timeout=5)
+        except requests.RequestException:
+            pass
+
+    print("   ✅ Warmup done. currentVerifier is a real robot.\n")
+
+
+def wait_for_digest(port: int, timeout: float = 60.0) -> bool:
+    """Poll /digest until the sidecar reports a valid combined_hash.
+
+    This confirms the target process (robot_state_publisher / sidecar binary)
+    is running and has been located by the sidecar — safe to start attestation.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            r = requests.get(f"http://localhost:{port}/digest", timeout=3)
+            if r.status_code == 200 and "combined_hash" in r.json():
+                return True
+        except (requests.RequestException, ValueError):
+            pass
+        time.sleep(1.0)
+    return False
+
+
 # ── Wait helpers ──────────────────────────────────────────────────────────────
 
 def wait_for_prover_event(container: str, pattern: re.Pattern, since: float,
@@ -258,15 +343,31 @@ def append_row(csv_path: Path, row: dict) -> None:
 # ── Trial loop ────────────────────────────────────────────────────────────────
 
 def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
-              target: str, ssp_ms: int, csv_path: Path) -> bool:
+              target: str, ssp_ms: int, n_robots: int, csv_path: Path) -> bool:
     """One injection + detection + recovery cycle. Returns True if measured."""
     print(f"   [{trial_idx}] ", end="", flush=True)
 
-    # 1. Baseline check — at least one ✅ SUCCESS since we entered the trial.
+    # 1. Baseline — wait for TWO consecutive SUCCESSes before injecting.
+    #
+    #    The first SUCCESS confirms the loop is healthy after recovery.
+    #    The second SUCCESS normalises the injection phase: T0 is always set
+    #    right after a completed attestation cycle (blockchain goroutine just
+    #    finished, inter-cycle sleep about to begin), so the time remaining
+    #    until the next detection measurement is ~SSP for BOTH targets.
+    #    Without this, the different recovery durations (6 s sidecar vs 18 s
+    #    robot) cause T0 to land at different cycle phases, producing a
+    #    systematic ~4 s latency gap at SSP=5 s that is an artefact of
+    #    recovery, not of detection speed.
+    timeout_base = max(30.0, ssp_ms * 3.0 / 1000.0)
     baseline_since = time.time()
     print("baseline…", end=" ", flush=True)
-    if not wait_for_clean_baseline(sidecar, baseline_since, ssp_ms):
-        print("\n      ⚠️  no clean SUCCESS observed before tamper — skipping trial")
+    t_s1 = wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, baseline_since, timeout_base)
+    if t_s1 is None:
+        print("\n      ⚠️  no first SUCCESS observed — skipping trial")
+        return False
+    t_s2 = wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, t_s1 + 0.001, timeout_base)
+    if t_s2 is None:
+        print("\n      ⚠️  no second SUCCESS observed — skipping trial")
         return False
 
     # 2. Inject.
@@ -306,6 +407,7 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
         "latency_s": f"{latency:.3f}" if detected else "",
         "detected":  int(detected),
         "ssp_ms":    ssp_ms,
+        "n_robots":  n_robots,
         "target":    target,
         "robot":     robot,
     })
@@ -313,14 +415,9 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
     if not detected:
         recover(robot, sidecar, target)
         sidecar_alive(sidecar_port)
-        # state_publisher: robot container restart wipes ATTESTATION_INTERVAL_MS env var
-        # → must push new SSP.
-        # sidecar: env var persists from docker-compose (set by start.sh --ssp).
-        # Calling push_ssp would create a new cycle at an offset from the container
-        # start, distorting the injection timing.  Skip it; the sidecar already
-        # has the right SSP and will auto-start cleanly.
-        if target != "sidecar":
-            push_ssp(sidecar_port, ssp_ms)
+        if not wait_for_digest(sidecar_port):
+            print("\n      ⚠️  /digest never returned combined_hash after recovery")
+        push_ssp(sidecar_port, ssp_ms)
         return False
 
     # 5. Recover for the next trial.
@@ -335,14 +432,13 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
         return False
     print("ok")
 
-    # 6. Re-push SSP for state_publisher (robot restart wipes the env var).
-    #    For sidecar: env var survives docker restart — the container already has
-    #    the right SSP from start.sh --ssp, so no push is needed or wanted.
-    #    Pushing would shift the cycle start relative to the auto-start goroutine
-    #    and re-introduce the injection-timing artifact we fixed by using per-SSP
-    #    start.sh / stop.sh runs.
-    if target != "sidecar":
-        push_ssp(sidecar_port, ssp_ms)
+    # 6. Uniform restart for both targets: wait_for_digest confirms the
+    #    measurement target is locatable, then push_ssp sets the SSP and
+    #    starts the loop. Using the same sequence for state_publisher and
+    #    sidecar ensures identical post-recovery state entering the next trial.
+    if not wait_for_digest(sidecar_port):
+        print("\n      ⚠️  /digest never returned combined_hash after recovery")
+    push_ssp(sidecar_port, ssp_ms)
     return True
 
 
@@ -377,6 +473,11 @@ def main():
                    help="Tamper target. 'both' runs state_publisher then sidecar.")
     p.add_argument("--robot", default="robot1",
                    help="Which robot to target. Default: robot1")
+    p.add_argument("--robots", type=int, default=4,
+                   help="Total fleet size. All robot sidecars are started and must "
+                        "each pass a baseline attestation cycle (so they are "
+                        "registered in the on-chain verifier pool) before trials "
+                        "begin. Default: 4")
     args = p.parse_args()
 
     if not TAMPER_SCRIPT.exists():
@@ -397,8 +498,11 @@ def main():
 
     targets = ["state_publisher", "sidecar"] if args.target == "both" else [args.target]
 
+    if args.robots < idx:
+        sys.exit(f"❌ --robots {args.robots} is less than target robot index {idx}")
+
     print(f"📋 robot={args.robot}  sidecar={sidecar}:{sidecar_port}")
-    print(f"📋 targets={targets}  ssps={args.ssp}ms  trials={args.trials} each")
+    print(f"📋 fleet={args.robots} robot(s)  targets={targets}  ssps={args.ssp}ms  trials={args.trials} each")
     print(f"📁 results → {BASE_RESULTS}/<target>/SSPNms-batchN.csv")
 
     total_attempted = 0
@@ -412,14 +516,26 @@ def main():
             print(f"   output → {csv_path.relative_to(REPO_ROOT)}")
             print(f"{'='*60}")
 
-            push_ssp(sidecar_port, ssp_ms)
-            # Give the sidecar one cycle to switch to the new SSP.
-            time.sleep(min(ssp_ms / 1000.0, 5.0))
+            # Verify all fleet sidecars are reachable before starting.
+            for i in range(1, args.robots + 1):
+                port = ROBOTS_BASE_PORT + (i - 1)
+                if not sidecar_alive(port, timeout=10):
+                    sys.exit(f"❌ robot{i}-sidecar not reachable on port {port} — start the stack first")
+
+            # Reset chain + one-shot warmup: seeds currentVerifier to a real robot
+            # (not SECaaS) before any tamper injection. Mirrors run_continuous_warmup()
+            # in run_experiments_and_collect_results.py.
+            warmup_fleet(args.robots, ssp_ms)
+
+            # Switch all sidecars to continuous mode at the chosen SSP.
+            print(f"   🚀 Starting continuous mode at SSP={ssp_ms}ms…")
+            for i in range(1, args.robots + 1):
+                push_ssp(ROBOTS_BASE_PORT + (i - 1), ssp_ms)
 
             for i in range(1, args.trials + 1):
                 total_attempted += 1
                 if run_trial(i, args.robot, sidecar, sidecar_port,
-                             target, ssp_ms, csv_path):
+                             target, ssp_ms, args.robots, csv_path):
                     total_succeeded += 1
 
     print(f"\n🎉 Done. {total_succeeded}/{total_attempted} trials recorded.")

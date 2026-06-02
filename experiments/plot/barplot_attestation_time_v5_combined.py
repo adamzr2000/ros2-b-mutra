@@ -6,12 +6,14 @@ Rows share a common x-axis (N values).
 """
 
 from pathlib import Path
+import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 from matplotlib.patches import ConnectionPatch
 import pandas as pd
 import seaborn as sns
 
+# INPUT_STARTUP    = "../data/attestation-times/_summary/durations_per_run_startup_v1.csv"
 INPUT_STARTUP    = "../data/attestation-times/_summary/durations_per_run_startup.csv"
 INPUT_CONTINUOUS = "../data/attestation-times/_summary/durations_per_run_{VARIANT}.csv"
 VARIANT    = "lv"
@@ -22,15 +24,23 @@ N_VALUES   = [4, 8, 16, 32, 64]
 
 METRIC     = "mean"  # "median" → median + IQR  |  "mean" → mean ± std
 
-FONT_SCALE = 2.0
+FONT_SCALE = 2.2
 BAR_WIDTH  = 0.42
 HEADROOM   = 1.10
 EPS        = 1e-4
 
-C_SHA256   = "#993333"
-C_ORACLE   = "#DDAA33"
-C_VERIFIER = "#228888"
-C_BC       = "#336699"
+PALETTE = "C"
+
+_PALETTES = {
+    "A": dict(sha256="#336699", oracle="#9A7B3F", verifier="#228888", blockchain="#993333"),
+    "B": dict(sha256="#4C72B0", oracle="#55A868", verifier="#C8A83E", blockchain="#C44E52"),
+    "C": dict(sha256="#4B9FCC", oracle="#E8883A", verifier="#59c396", blockchain="#6a5d99"),
+}
+
+C_SHA256   = _PALETTES[PALETTE]["sha256"]
+C_ORACLE   = _PALETTES[PALETTE]["oracle"]
+C_VERIFIER = _PALETTES[PALETTE]["verifier"]
+C_BC       = _PALETTES[PALETTE]["blockchain"]
 
 LABELS = {
     "oracle":     "Oracle retrieval",
@@ -39,7 +49,11 @@ LABELS = {
     "blockchain": "Blockchain confirmation",
 }
 COLORS = {"oracle": C_ORACLE, "verifier": C_VERIFIER, "sha256": C_SHA256, "blockchain": C_BC}
-ORDER  = ["sha256", "oracle", "verifier", "blockchain"]
+ORDER  = ["sha256", "verifier", "oracle", "blockchain"]
+
+
+def _darken(color, factor=0.65):
+    return tuple(c * factor for c in mcolors.to_rgb(color))
 
 
 def _agg(df, n, group, role, metric):
@@ -98,7 +112,7 @@ def draw_stack(ax, x, segments, err_lo, err_hi):
     for _, val, color in segments:
         if val > EPS:
             ax.bar(x, val, bottom=bottom, width=BAR_WIDTH,
-                   color=color, edgecolor="none", zorder=3)
+                   color=color, edgecolor=_darken(color), linewidth=0.8, zorder=3)
             bottom += val
     if err_lo > 0 or err_hi > 0:
         ax.errorbar(x, bottom, yerr=[[err_lo], [err_hi]], fmt="none",
@@ -155,7 +169,7 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
             ms_parts.append(f"{key}={val_ms:.6f}ms")
             if val_ms > EPS:
                 ax_z.bar(i, val_ms, bottom=bottom, width=BAR_WIDTH,
-                         color=color, edgecolor="none", zorder=3)
+                         color=color, edgecolor=_darken(color), linewidth=0.8, zorder=3)
                 bottom += val_ms
         ms_parts.append(f"total={bottom:.6f}ms")
         err_lo_ms = err_lo * 1000.0
@@ -257,7 +271,7 @@ def main():
 
     # Shared legend at top — continuous mode covers all segments
     legend_handles = [
-        mpatches.Patch(facecolor=COLORS[k], edgecolor="none", label=LABELS[k])
+        mpatches.Patch(facecolor=COLORS[k], edgecolor=_darken(COLORS[k]), linewidth=0.8, label=LABELS[k])
         for k in ORDER
     ]
     fig.legend(handles=legend_handles, loc="upper center", bbox_to_anchor=(0.5, 0.99),

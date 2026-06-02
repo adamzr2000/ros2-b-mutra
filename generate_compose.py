@@ -188,7 +188,7 @@ def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config
 
     for i in range(start, n + 1):
         port = 8000 + i
-        pid_target = "gazebo-server" if attest_gzserver and i == 1 else f"robot{i}"
+        pid_target = "gazebo-server" if attest_gzserver else f"robot{i}"
         sidecar_lines = [
             f"  robot{i}-sidecar:",
             f"    container_name: robot{i}-sidecar",

@@ -45,6 +45,7 @@ def _read_env_defaults():
     ssp_ms    = 20000
     iterq     = 1
     cpu_limit = None   # None = uncapped (no deploy.resources.limits in compose)
+    n_robots  = 4
     try:
         with open(os.path.join(_SCRIPT_DIR, ".env")) as f:
             for line in f:
@@ -65,12 +66,15 @@ def _read_env_defaults():
                 elif key == "ITERQ_THRESHOLD":
                     try: iterq = int(val)
                     except ValueError: pass
+                elif key == "N_ROBOTS":
+                    try: n_robots = int(val)
+                    except ValueError: pass
     except FileNotFoundError:
         pass
-    return ssp_ms, iterq, cpu_limit
+    return ssp_ms, iterq, cpu_limit, n_robots
 
 
-_DEFAULT_SSP, _DEFAULT_ITERQ, _DEFAULT_CPU_LIMIT = _read_env_defaults()
+_DEFAULT_SSP, _DEFAULT_ITERQ, _DEFAULT_CPU_LIMIT, _DEFAULT_N_ROBOTS = _read_env_defaults()
 
 
 def _build_run_tag(ssp_ms, iterq, cpu_limit):
@@ -80,11 +84,11 @@ def _build_run_tag(ssp_ms, iterq, cpu_limit):
 
 # ── Sidecar helpers (mirrors run_experiments_and_collect_results.py) ───────────
 
-def build_sidecars():
-    return {
-        "secaas":  SECAAS_PORT,
-        "robot1":  ROBOTS_BASE_PORT,
-    }
+def build_sidecars(n_robots: int):
+    sidecars = {"secaas": SECAAS_PORT}
+    for i in range(1, n_robots + 1):
+        sidecars[f"robot{i}"] = ROBOTS_BASE_PORT + i - 1
+    return sidecars
 
 
 def wait_for_http(url, timeout=30):
@@ -247,6 +251,9 @@ def main():
                         help=f"Attestation interval in milliseconds (default from .env: {_DEFAULT_SSP})")
     parser.add_argument("--iterq",    type=int,   default=_DEFAULT_ITERQ,
                         help=f"Rolling hash queue depth (default from .env: {_DEFAULT_ITERQ})")
+    parser.add_argument("--robots",    type=int,   default=_DEFAULT_N_ROBOTS,
+                        help=f"Number of robot sidecars to start/stop (default from .env: {_DEFAULT_N_ROBOTS}). "
+                             f"Data is always collected from robot{COLLECTOR_ROBOT} only.")
     parser.add_argument("--cpu-limit", type=float, default=_DEFAULT_CPU_LIMIT,
                         help=f"Sidecar CPU limit (default from .env: {_DEFAULT_CPU_LIMIT!r}; "
                              f"None means uncapped, tagged as cpuNC)")
@@ -260,7 +267,7 @@ def main():
 
     topic_slug = args.topic.lstrip("/").replace("/", "_") or "scan"
 
-    sidecars       = build_sidecars()
+    sidecars       = build_sidecars(args.robots)
     robot_sidecars = {k: v for k, v in sidecars.items() if k != "secaas"}
 
     run_tag = _build_run_tag(args.ssp, args.iterq, args.cpu_limit) if args.condition == "with_sidecar" else None

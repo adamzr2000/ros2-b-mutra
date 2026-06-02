@@ -23,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 import matplotlib.patches as mpatches
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -43,10 +44,14 @@ _TAGGED_RE = re.compile(
 )
 
 COLOR_BASELINE = "#888888"
-# viridis sequential: dark purple (NC=uncapped) → yellow-green (0.1=most restricted)
-# sampled away from the very bright yellow tail so all boxes read clearly on white
-_viridis = plt.cm.viridis([0.15, 0.42, 0.65, 0.88])
-CPU_COLORS = {lbl: _viridis[i] for i, (lbl, _) in enumerate(CPU_CONFIGS)}
+_PALETTE = ["#b8d8f0", "#78b4e0", "#4B9FCC", "#1e6fa8"]  # light→dark: NC→1.0→0.5→0.1 core
+
+CPU_COLORS = {lbl: _PALETTE[i] for i, (lbl, _) in enumerate(CPU_CONFIGS)}
+
+
+def _darken(color, factor=0.65):
+    """Return a darker variant of an RGB(A) color for box borders/lines."""
+    return tuple(c * factor for c in mcolors.to_rgb(color))
 
 
 def _intervals_ms(csv_path: Path) -> np.ndarray:
@@ -155,6 +160,8 @@ def main():
                 continue
             all_iv_parts.append(iv)
             pos = gc + offset
+            color = CPU_COLORS[cpu_label]
+            dark = _darken(color)
             bp = ax.boxplot(
                 [iv],
                 positions=[pos],
@@ -163,20 +170,22 @@ def main():
                 notch=False,
                 whis=1.5,
                 showfliers=False,
-                medianprops=dict(color="black", linewidth=1.5),
-                whiskerprops=dict(linewidth=1.0, linestyle="-"),
-                capprops=dict(linewidth=1.0),
+                medianprops=dict(color=dark, linewidth=1.2),
+                whiskerprops=dict(linewidth=1.0, linestyle="-", color=dark),
+                capprops=dict(linewidth=1.0, color=dark),
                 boxprops=dict(linewidth=0),
             )
             for patch in bp["boxes"]:
-                patch.set_facecolor(CPU_COLORS[cpu_label])
+                patch.set_facecolor(color)
                 patch.set_alpha(0.85)
+                patch.set_edgecolor(dark)
+                patch.set_linewidth(0.8)
 
     # x-axis: one tick per SSP group, labeled in seconds
     ax.set_xticks(group_centers)
     ax.set_xticklabels([f"{ssp / 1000:.4g}" for ssp in SSP_MS_LIST])
     ax.set_xlim(group_centers[0] - 0.55, group_centers[-1] + 0.55)
-    ax.set_xlabel("Sidecar Sleep Period (s)")
+    ax.set_xlabel("SSP (s)")
     ax.set_ylabel("ROS message\ninter-arrival time (ms)")
     ax.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
     ax.grid(axis="y", linestyle="-", linewidth=0.7, alpha=0.75)

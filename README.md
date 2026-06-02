@@ -187,7 +187,7 @@ Two topic variants are measured, each attesting the process that publishes it:
 | `/robotX/tf` | `robot_state_publisher` | `tf` | *(default)* |
 | `/robotX/scan` | `gzserver` | `scan` | `--attest-gzserver` |
 
-Only robot1 + SECaaS attest; other robots run normally.
+All 4 robot sidecars attest the same target process; topic data is collected from robot1 only.
 Results: `experiments/data/robot-stats/results/<topic>/<condition>/<mode>/`
 Tagged: `SSP{N}ms-ITERQ{N}-cpu{N|NC}-run{N}.csv` (`NC` = no CPU cap).
 

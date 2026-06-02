@@ -31,13 +31,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
       - ./checkpoints/robot1-sidecar:/checkpoints
-    pid: "container:robot1"
+    pid: "container:gazebo-server"
     cap_add:
       - SYS_PTRACE
-    deploy:
-      resources:
-        limits:
-          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -70,13 +66,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
       - ./checkpoints/robot2-sidecar:/checkpoints
-    pid: "container:robot2"
+    pid: "container:gazebo-server"
     cap_add:
       - SYS_PTRACE
-    deploy:
-      resources:
-        limits:
-          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -109,13 +101,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
       - ./checkpoints/robot3-sidecar:/checkpoints
-    pid: "container:robot3"
+    pid: "container:gazebo-server"
     cap_add:
       - SYS_PTRACE
-    deploy:
-      resources:
-        limits:
-          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -148,13 +136,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./measurements/:/measurements:rw
       - ./checkpoints/robot4-sidecar:/checkpoints
-    pid: "container:robot4"
+    pid: "container:gazebo-server"
     cap_add:
       - SYS_PTRACE
-    deploy:
-      resources:
-        limits:
-          cpus: '${CPU_LIMIT}'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

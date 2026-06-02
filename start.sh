@@ -90,8 +90,8 @@ Options:
                  via /digest, syncs them to the SECaaS DB, and resets the on-chain chain
                  so attestations close as SUCCESS rather than FAILURE on placeholder refs.
                  Pass this flag if you deliberately want the placeholder behaviour.
-  --attest-gzserver  Test-only mode for local 4-robot Gazebo runs: make robot1's sidecar
-                 attest the gazebo-server process instead of robot_state_publisher.
+  --attest-gzserver  Local 4-robot Gazebo mode: all sidecars attest the gazebo-server
+                 process instead of robot_state_publisher.
   --no-wait-result  Set WAIT_FOR_VERIFICATION_RESULT=FALSE (fire-and-forget mode)
   -h|--help      Show this help
 
@@ -321,6 +321,16 @@ fi
 
 echo "🔧 Generating agent configs (contract: $CONTRACT_VAL, blockchain-host: $CFG_BLOCKCHAIN_HOST)..."
 
+if [[ "$ATTEST_GZSERVER_VAL" == "TRUE" ]]; then
+  _ATTEST_CMD_NAME="gzserver"
+  _ATTEST_TEXT_SIZE="$GZSERVER_TEXT_SECTION_SIZE"
+  _ATTEST_OFFSET="$GZSERVER_TEXT_SECTION_OFFSET"
+else
+  _ATTEST_CMD_NAME="robot_state_publisher"
+  _ATTEST_TEXT_SIZE="42223"
+  _ATTEST_OFFSET="0"
+fi
+
 CONFIG_ARGS=(
   --num-agents 100
   --contract "$CONTRACT_VAL"
@@ -328,17 +338,10 @@ CONFIG_ARGS=(
   --ref-output "$SCRIPT_DIR/ref-measurements"
   --blockchain-host "$CFG_BLOCKCHAIN_HOST"
   --secaas-host "host.docker.internal"
-  --cmd-name robot_state_publisher
-  --text-section-size 42223
-  --offset 0
+  --cmd-name "$_ATTEST_CMD_NAME"
+  --text-section-size "$_ATTEST_TEXT_SIZE"
+  --offset "$_ATTEST_OFFSET"
 )
-if [[ "$ATTEST_GZSERVER_VAL" == "TRUE" ]]; then
-  CONFIG_ARGS+=(
-    --first-cmd-name gzserver
-    --first-text-section-size "$GZSERVER_TEXT_SECTION_SIZE"
-    --first-offset "$GZSERVER_TEXT_SECTION_OFFSET"
-  )
-fi
 python3 "$SCRIPT_DIR/create_agent_config.py" "${CONFIG_ARGS[@]}"
 
 python3 "$SCRIPT_DIR/create_agent_config.py" \

@@ -1,0 +1,442 @@
+nextnet@asus-g815:~/ros2-b-mutra$ python3 run_experiments_and_collect_tamper_detection.py \
+    --ssp 1000,5000,10000,20000 \
+    --trials 20 \
+    --target both
+📋 robot=robot1  sidecar=robot1-sidecar:8001
+📋 fleet=4 robot(s)  targets=['state_publisher', 'sidecar']  ssps=[1000, 5000, 10000, 20000]ms  trials=20 each
+📁 results → /home/nextnet/ros2-b-mutra/experiments/data/tamper-detection/results/<target>/SSPNms-batchN.csv
+
+============================================================
+🏁 target=state_publisher  SSP=1000ms
+   output → experiments/data/tamper-detection/results/state_publisher/SSP1000ms-batch1.csv
+============================================================
+   🔥 Fleet warmup: resetting chain and seeding currentVerifier…
+   ⏳ Waiting for 4 robot(s) to complete warmup cycle…
+      ✅ robot1 warmed up
+      ✅ robot2 warmed up
+      ✅ robot3 warmed up
+      ✅ robot4 warmed up
+   ✅ Warmup done. currentVerifier is a real robot.
+
+   🚀 Starting continuous mode at SSP=1000ms…
+   [1] baseline… tamper… T0=2026-05-29T08:37:04.260Z → FAILURE@2026-05-29T08:37:10.043Z  Δ=5.782s
+      🔄 recovering… ok
+   [2] baseline… tamper… T0=2026-05-29T08:37:28.246Z → FAILURE@2026-05-29T08:37:34.093Z  Δ=5.846s
+      🔄 recovering… ok
+   [3] baseline… tamper… T0=2026-05-29T08:37:52.362Z → FAILURE@2026-05-29T08:37:58.086Z  Δ=5.723s
+      🔄 recovering… ok
+   [4] baseline… tamper… T0=2026-05-29T08:38:16.307Z → FAILURE@2026-05-29T08:38:22.028Z  Δ=5.721s
+      🔄 recovering… ok
+   [5] baseline… tamper… T0=2026-05-29T08:38:40.278Z → FAILURE@2026-05-29T08:38:46.078Z  Δ=5.800s
+      🔄 recovering… ok
+   [6] baseline… tamper… T0=2026-05-29T08:39:04.319Z → FAILURE@2026-05-29T08:39:10.048Z  Δ=5.728s
+      🔄 recovering… ok
+   [7] baseline… tamper… T0=2026-05-29T08:39:28.422Z → FAILURE@2026-05-29T08:39:34.049Z  Δ=5.627s
+      🔄 recovering… ok
+   [8] baseline… tamper… T0=2026-05-29T08:39:52.294Z → FAILURE@2026-05-29T08:39:58.077Z  Δ=5.783s
+      🔄 recovering… ok
+   [9] baseline… tamper… T0=2026-05-29T08:40:16.266Z → FAILURE@2026-05-29T08:40:22.078Z  Δ=5.811s
+      🔄 recovering… ok
+   [10] baseline… tamper… T0=2026-05-29T08:40:40.335Z → FAILURE@2026-05-29T08:40:46.040Z  Δ=5.704s
+      🔄 recovering… ok
+   [11] baseline… tamper… T0=2026-05-29T08:41:04.386Z → FAILURE@2026-05-29T08:41:10.090Z  Δ=5.703s
+      🔄 recovering… ok
+   [12] baseline… tamper… T0=2026-05-29T08:41:28.294Z → FAILURE@2026-05-29T08:41:34.088Z  Δ=5.794s
+      🔄 recovering… ok
+   [13] baseline… tamper… T0=2026-05-29T08:41:52.334Z → FAILURE@2026-05-29T08:41:58.015Z  Δ=5.680s
+      🔄 recovering… ok
+   [14] baseline… tamper… T0=2026-05-29T08:42:16.281Z → FAILURE@2026-05-29T08:42:22.184Z  Δ=5.903s
+      🔄 recovering… ok
+   [15] baseline… tamper… T0=2026-05-29T08:42:40.332Z → FAILURE@2026-05-29T08:42:44.141Z  Δ=3.808s
+      🔄 recovering… ok
+   [16] baseline… tamper… T0=2026-05-29T08:43:02.326Z → FAILURE@2026-05-29T08:43:08.142Z  Δ=5.815s
+      🔄 recovering… ok
+   [17] baseline… tamper… T0=2026-05-29T08:43:28.208Z → FAILURE@2026-05-29T08:43:32.074Z  Δ=3.866s
+      🔄 recovering… ok
+   [18] baseline… tamper… T0=2026-05-29T08:43:50.266Z → FAILURE@2026-05-29T08:43:56.093Z  Δ=5.826s
+      🔄 recovering… ok
+   [19] baseline… tamper… T0=2026-05-29T08:44:14.334Z → FAILURE@2026-05-29T08:44:20.093Z  Δ=5.758s
+      🔄 recovering… ok
+   [20] baseline… tamper… T0=2026-05-29T08:44:38.349Z → FAILURE@2026-05-29T08:44:44.045Z  Δ=5.695s
+      🔄 recovering… ok
+
+============================================================
+🏁 target=state_publisher  SSP=5000ms
+   output → experiments/data/tamper-detection/results/state_publisher/SSP5000ms-batch1.csv
+============================================================
+   🔥 Fleet warmup: resetting chain and seeding currentVerifier…
+   ⏳ Waiting for 4 robot(s) to complete warmup cycle…
+      ✅ robot1 warmed up
+      ✅ robot2 warmed up
+      ✅ robot3 warmed up
+      ✅ robot4 warmed up
+   ✅ Warmup done. currentVerifier is a real robot.
+
+   🚀 Starting continuous mode at SSP=5000ms…
+   [1] baseline… tamper… T0=2026-05-29T08:45:14.215Z → FAILURE@2026-05-29T08:45:20.144Z  Δ=5.928s
+      🔄 recovering… ok
+   [2] baseline… tamper… T0=2026-05-29T08:45:42.376Z → FAILURE@2026-05-29T08:45:48.116Z  Δ=5.740s
+      🔄 recovering… ok
+   [3] baseline… tamper… T0=2026-05-29T08:46:10.354Z → FAILURE@2026-05-29T08:46:16.066Z  Δ=5.711s
+      🔄 recovering… ok
+   [4] baseline… tamper… T0=2026-05-29T08:46:38.191Z → FAILURE@2026-05-29T08:46:42.174Z  Δ=3.983s
+      🔄 recovering… ok
+   [5] baseline… tamper… T0=2026-05-29T08:47:04.337Z → FAILURE@2026-05-29T08:47:10.071Z  Δ=5.733s
+      🔄 recovering… ok
+   [6] baseline… tamper… T0=2026-05-29T08:47:32.260Z → FAILURE@2026-05-29T08:47:38.196Z  Δ=5.935s
+      🔄 recovering… ok
+   [7] baseline… tamper… T0=2026-05-29T08:48:00.233Z → FAILURE@2026-05-29T08:48:06.171Z  Δ=5.937s
+      🔄 recovering… ok
+   [8] baseline… tamper… T0=2026-05-29T08:48:28.409Z → FAILURE@2026-05-29T08:48:32.105Z  Δ=3.696s
+      🔄 recovering… ok
+   [9] baseline… tamper… T0=2026-05-29T08:48:54.182Z → FAILURE@2026-05-29T08:48:58.153Z  Δ=3.970s
+      🔄 recovering… ok
+   [10] baseline… tamper… T0=2026-05-29T08:49:20.202Z → FAILURE@2026-05-29T08:49:26.137Z  Δ=5.934s
+      🔄 recovering… ok
+   [11] baseline… tamper… T0=2026-05-29T08:49:48.328Z → FAILURE@2026-05-29T08:49:54.028Z  Δ=5.699s
+      🔄 recovering… ok
+   [12] baseline… tamper… T0=2026-05-29T08:50:16.311Z → FAILURE@2026-05-29T08:50:22.208Z  Δ=5.897s
+      🔄 recovering… ok
+   [13] baseline… tamper… T0=2026-05-29T08:50:42.178Z → FAILURE@2026-05-29T08:50:50.147Z  Δ=7.969s
+      🔄 recovering… ok
+   [14] baseline… tamper… T0=2026-05-29T08:51:12.354Z → FAILURE@2026-05-29T08:51:18.065Z  Δ=5.711s
+      🔄 recovering… ok
+   [15] baseline… tamper… T0=2026-05-29T08:51:40.262Z → FAILURE@2026-05-29T08:51:46.017Z  Δ=5.754s
+      🔄 recovering… ok
+   [16] baseline… tamper… T0=2026-05-29T08:52:08.424Z → FAILURE@2026-05-29T08:52:14.115Z  Δ=5.690s
+      🔄 recovering… ok
+   [17] baseline… tamper… T0=2026-05-29T08:52:36.343Z → FAILURE@2026-05-29T08:52:40.088Z  Δ=3.744s
+      🔄 recovering… ok
+   [18] baseline… tamper… T0=2026-05-29T08:53:02.261Z → FAILURE@2026-05-29T08:53:06.159Z  Δ=3.898s
+      🔄 recovering… ok
+   [19] baseline… tamper… T0=2026-05-29T08:53:28.261Z → FAILURE@2026-05-29T08:53:34.057Z  Δ=5.796s
+      🔄 recovering… ok
+   [20] baseline… tamper… T0=2026-05-29T08:53:56.236Z → FAILURE@2026-05-29T08:54:02.156Z  Δ=5.919s
+      🔄 recovering… ok
+
+============================================================
+🏁 target=state_publisher  SSP=10000ms
+   output → experiments/data/tamper-detection/results/state_publisher/SSP10000ms-batch1.csv
+============================================================
+   🔥 Fleet warmup: resetting chain and seeding currentVerifier…
+   ⏳ Waiting for 4 robot(s) to complete warmup cycle…
+      ✅ robot1 warmed up
+      ✅ robot2 warmed up
+      ✅ robot3 warmed up
+      ✅ robot4 warmed up
+   ✅ Warmup done. currentVerifier is a real robot.
+
+   🚀 Starting continuous mode at SSP=10000ms…
+   [1] baseline… tamper… T0=2026-05-29T08:54:38.330Z → FAILURE@2026-05-29T08:54:48.110Z  Δ=9.779s
+      🔄 recovering… ok
+   [2] baseline… tamper… T0=2026-05-29T08:55:16.270Z → FAILURE@2026-05-29T08:55:26.180Z  Δ=9.910s
+      🔄 recovering… ok
+   [3] baseline… tamper… T0=2026-05-29T08:55:52.216Z → FAILURE@2026-05-29T08:56:04.124Z  Δ=11.908s
+      🔄 recovering… ok
+   [4] baseline… tamper… T0=2026-05-29T08:56:32.249Z → FAILURE@2026-05-29T08:56:42.030Z  Δ=9.780s
+      🔄 recovering… ok
+   [5] baseline… tamper… T0=2026-05-29T08:57:10.206Z → FAILURE@2026-05-29T08:57:20.194Z  Δ=9.988s
+      🔄 recovering… ok
+   [6] baseline… tamper… T0=2026-05-29T08:57:48.269Z → FAILURE@2026-05-29T08:57:58.165Z  Δ=9.895s
+      🔄 recovering… ok
+   [7] baseline… tamper… T0=2026-05-29T08:58:26.291Z → FAILURE@2026-05-29T08:58:36.082Z  Δ=9.791s
+      🔄 recovering… ok
+   [8] baseline… tamper… T0=2026-05-29T08:59:02.177Z → FAILURE@2026-05-29T08:59:14.185Z  Δ=12.007s
+      🔄 recovering… ok
+   [9] baseline… tamper… T0=2026-05-29T08:59:42.325Z → FAILURE@2026-05-29T08:59:52.069Z  Δ=9.744s
+      🔄 recovering… ok
+   [10] baseline… tamper… T0=2026-05-29T09:00:20.185Z → FAILURE@2026-05-29T09:00:30.156Z  Δ=9.970s
+      🔄 recovering… ok
+   [11] baseline… tamper… T0=2026-05-29T09:00:56.245Z → FAILURE@2026-05-29T09:01:08.147Z  Δ=11.902s
+      🔄 recovering… ok
+   [12] baseline… tamper… T0=2026-05-29T09:01:36.317Z → FAILURE@2026-05-29T09:01:46.076Z  Δ=9.759s
+      🔄 recovering… ok
+   [13] baseline… tamper… T0=2026-05-29T09:02:14.264Z → FAILURE@2026-05-29T09:02:22.185Z  Δ=7.921s
+      🔄 recovering… ok
+   [14] baseline… tamper… T0=2026-05-29T09:02:50.162Z → FAILURE@2026-05-29T09:03:00.141Z  Δ=9.979s
+      🔄 recovering… ok
+   [15] baseline… tamper… T0=2026-05-29T09:03:28.277Z → FAILURE@2026-05-29T09:03:38.032Z  Δ=9.755s
+      🔄 recovering… ok
+   [16] baseline… tamper… T0=2026-05-29T09:04:04.379Z → FAILURE@2026-05-29T09:04:16.093Z  Δ=11.714s
+      🔄 recovering… ok
+   [17] baseline… tamper… T0=2026-05-29T09:04:44.305Z → FAILURE@2026-05-29T09:04:54.206Z  Δ=9.900s
+      🔄 recovering… ok
+   [18] baseline… tamper… T0=2026-05-29T09:05:20.206Z → FAILURE@2026-05-29T09:05:32.169Z  Δ=11.963s
+      🔄 recovering… ok
+   [19] baseline… tamper… T0=2026-05-29T09:06:00.336Z → FAILURE@2026-05-29T09:06:10.085Z  Δ=9.749s
+      🔄 recovering… ok
+   [20] baseline… tamper… T0=2026-05-29T09:06:38.190Z → FAILURE@2026-05-29T09:06:48.142Z  Δ=9.952s
+      🔄 recovering… ok
+
+============================================================
+🏁 target=state_publisher  SSP=20000ms
+   output → experiments/data/tamper-detection/results/state_publisher/SSP20000ms-batch1.csv
+============================================================
+   🔥 Fleet warmup: resetting chain and seeding currentVerifier…
+   ⏳ Waiting for 4 robot(s) to complete warmup cycle…
+      ✅ robot1 warmed up
+      ✅ robot2 warmed up
+      ✅ robot3 warmed up
+      ✅ robot4 warmed up
+   ✅ Warmup done. currentVerifier is a real robot.
+
+   🚀 Starting continuous mode at SSP=20000ms…
+   [1] baseline… tamper… T0=2026-05-29T09:07:34.288Z → FAILURE@2026-05-29T09:07:54.068Z  Δ=19.779s
+      🔄 recovering… ok
+   [2] baseline… tamper… T0=2026-05-29T09:08:32.234Z → FAILURE@2026-05-29T09:08:52.196Z  Δ=19.961s
+      🔄 recovering… ok
+   [3] baseline… tamper… T0=2026-05-29T09:09:30.185Z → FAILURE@2026-05-29T09:09:50.139Z  Δ=19.954s
+      🔄 recovering… ok
+   [4] baseline… tamper… T0=2026-05-29T09:10:28.324Z → FAILURE@2026-05-29T09:10:48.104Z  Δ=19.779s
+      🔄 recovering… ok
+   [5] baseline… tamper… T0=2026-05-29T09:11:26.319Z → FAILURE@2026-05-29T09:11:46.028Z  Δ=19.709s
+      🔄 recovering… ok
+   [6] baseline… tamper… T0=2026-05-29T09:12:22.143Z → FAILURE@2026-05-29T09:12:44.147Z  Δ=22.003s
+      🔄 recovering… ok
+   [7] baseline… tamper… T0=2026-05-29T09:13:22.304Z → FAILURE@2026-05-29T09:13:42.065Z  Δ=19.761s
+      🔄 recovering… ok
+   [8] baseline… tamper… T0=2026-05-29T09:14:20.237Z → FAILURE@2026-05-29T09:14:40.018Z  Δ=19.781s
+      🔄 recovering… ok
+   [9] baseline… tamper… T0=2026-05-29T09:15:18.164Z → FAILURE@2026-05-29T09:15:38.121Z  Δ=19.956s
+      🔄 recovering… ok
+   [10] baseline… tamper… T0=2026-05-29T09:16:16.339Z → FAILURE@2026-05-29T09:16:36.008Z  Δ=19.669s
+      🔄 recovering… ok
+   [11] baseline… tamper… T0=2026-05-29T09:17:14.227Z → FAILURE@2026-05-29T09:17:34.135Z  Δ=19.908s
+      🔄 recovering… ok
+   [12] baseline… tamper… T0=2026-05-29T09:18:10.275Z → FAILURE@2026-05-29T09:18:32.205Z  Δ=21.930s
+      🔄 recovering… ok
+   [13] baseline… tamper… T0=2026-05-29T09:19:10.238Z → FAILURE@2026-05-29T09:19:30.141Z  Δ=19.902s
+      🔄 recovering… ok
+   [14] baseline… tamper… T0=2026-05-29T09:20:08.231Z → FAILURE@2026-05-29T09:20:28.020Z  Δ=19.788s
+      🔄 recovering… ok
+   [15] baseline… tamper… T0=2026-05-29T09:21:06.177Z → FAILURE@2026-05-29T09:21:26.168Z  Δ=19.990s
+      🔄 recovering… ok
+   [16] baseline… tamper… T0=2026-05-29T09:22:04.352Z → FAILURE@2026-05-29T09:22:24.083Z  Δ=19.731s
+      🔄 recovering… ok
+   [17] baseline… tamper… T0=2026-05-29T09:23:02.299Z → FAILURE@2026-05-29T09:23:22.047Z  Δ=19.748s
+      🔄 recovering… ok
+   [18] baseline… tamper… T0=2026-05-29T09:24:00.291Z → FAILURE@2026-05-29T09:24:20.166Z  Δ=19.874s
+      🔄 recovering… ok
+   [19] baseline… tamper… T0=2026-05-29T09:24:58.213Z → FAILURE@2026-05-29T09:25:18.155Z  Δ=19.941s
+      🔄 recovering… ok
+   [20] baseline… tamper… T0=2026-05-29T09:25:56.339Z → FAILURE@2026-05-29T09:26:16.063Z  Δ=19.724s
+      🔄 recovering… ok
+
+============================================================
+🏁 target=sidecar  SSP=1000ms
+   output → experiments/data/tamper-detection/results/sidecar/SSP1000ms-batch1.csv
+============================================================
+   🔥 Fleet warmup: resetting chain and seeding currentVerifier…
+   ⏳ Waiting for 4 robot(s) to complete warmup cycle…
+      ✅ robot1 warmed up
+      ✅ robot2 warmed up
+      ✅ robot3 warmed up
+      ✅ robot4 warmed up
+   ✅ Warmup done. currentVerifier is a real robot.
+
+   🚀 Starting continuous mode at SSP=1000ms…
+   [1] baseline… tamper… T0=2026-05-29T09:26:44.337Z → FAILURE@2026-05-29T09:26:50.142Z  Δ=5.804s
+      🔄 recovering… ok
+   [2] baseline… tamper… T0=2026-05-29T09:26:58.306Z → FAILURE@2026-05-29T09:27:04.071Z  Δ=5.764s
+      🔄 recovering… ok
+   [3] baseline… tamper… T0=2026-05-29T09:27:12.326Z → FAILURE@2026-05-29T09:27:18.043Z  Δ=5.717s
+      🔄 recovering… ok
+   [4] baseline… tamper… T0=2026-05-29T09:27:26.290Z → FAILURE@2026-05-29T09:27:30.191Z  Δ=3.901s
+      🔄 recovering… ok
+   [5] baseline… tamper… T0=2026-05-29T09:27:38.276Z → FAILURE@2026-05-29T09:27:44.145Z  Δ=5.869s
+      🔄 recovering… ok
+   [6] baseline… tamper… T0=2026-05-29T09:27:52.310Z → FAILURE@2026-05-29T09:27:58.116Z  Δ=5.806s
+      🔄 recovering… ok
+   [7] baseline… tamper… T0=2026-05-29T09:28:06.366Z → FAILURE@2026-05-29T09:28:12.172Z  Δ=5.805s
+      🔄 recovering… ok
+   [8] baseline… tamper… T0=2026-05-29T09:28:20.298Z → FAILURE@2026-05-29T09:28:26.205Z  Δ=5.906s
+      🔄 recovering… ok
+   [9] baseline… tamper… T0=2026-05-29T09:28:34.377Z → FAILURE@2026-05-29T09:28:40.043Z  Δ=5.666s
+      🔄 recovering… ok
+   [10] baseline… tamper… T0=2026-05-29T09:28:48.182Z → FAILURE@2026-05-29T09:28:54.100Z  Δ=5.917s
+      🔄 recovering… ok
+   [11] baseline… tamper… T0=2026-05-29T09:29:02.322Z → FAILURE@2026-05-29T09:29:08.061Z  Δ=5.738s
+      🔄 recovering… ok
+   [12] baseline… tamper… T0=2026-05-29T09:29:16.297Z → FAILURE@2026-05-29T09:29:20.112Z  Δ=3.815s
+      🔄 recovering… ok
+   [13] baseline… tamper… T0=2026-05-29T09:29:28.224Z → FAILURE@2026-05-29T09:29:34.089Z  Δ=5.864s
+      🔄 recovering… ok
+   [14] baseline… tamper… T0=2026-05-29T09:29:42.259Z → FAILURE@2026-05-29T09:29:48.076Z  Δ=5.817s
+      🔄 recovering… ok
+   [15] baseline… tamper… T0=2026-05-29T09:29:56.295Z → FAILURE@2026-05-29T09:30:02.127Z  Δ=5.831s
+      🔄 recovering… ok
+   [16] baseline… tamper… T0=2026-05-29T09:30:10.292Z → FAILURE@2026-05-29T09:30:16.083Z  Δ=5.791s
+      🔄 recovering… ok
+   [17] baseline… tamper… T0=2026-05-29T09:30:24.302Z → FAILURE@2026-05-29T09:30:30.150Z  Δ=5.847s
+      🔄 recovering… ok
+   [18] baseline… tamper… T0=2026-05-29T09:30:38.364Z → FAILURE@2026-05-29T09:30:44.222Z  Δ=5.857s
+      🔄 recovering… ok
+   [19] baseline… tamper… T0=2026-05-29T09:30:52.354Z → FAILURE@2026-05-29T09:30:58.220Z  Δ=5.865s
+      🔄 recovering… ok
+   [20] baseline… tamper… T0=2026-05-29T09:31:06.142Z → FAILURE@2026-05-29T09:31:12.178Z  Δ=6.035s
+      🔄 recovering… ok
+
+============================================================
+🏁 target=sidecar  SSP=5000ms
+   output → experiments/data/tamper-detection/results/sidecar/SSP5000ms-batch1.csv
+============================================================
+   🔥 Fleet warmup: resetting chain and seeding currentVerifier…
+   ⏳ Waiting for 4 robot(s) to complete warmup cycle…
+      ✅ robot1 warmed up
+      ✅ robot2 warmed up
+      ✅ robot3 warmed up
+      ✅ robot4 warmed up
+   ✅ Warmup done. currentVerifier is a real robot.
+
+   🚀 Starting continuous mode at SSP=5000ms…
+   [1] baseline… tamper… T0=2026-05-29T09:31:30.275Z → FAILURE@2026-05-29T09:31:36.188Z  Δ=5.912s
+      🔄 recovering… ok
+   [2] baseline… tamper… T0=2026-05-29T09:31:46.179Z → FAILURE@2026-05-29T09:31:54.170Z  Δ=7.991s
+      🔄 recovering… ok
+   [3] baseline… tamper… T0=2026-05-29T09:32:06.195Z → FAILURE@2026-05-29T09:32:10.179Z  Δ=3.983s
+      🔄 recovering… ok
+   [4] baseline… tamper… T0=2026-05-29T09:32:22.300Z → FAILURE@2026-05-29T09:32:26.179Z  Δ=3.879s
+      🔄 recovering… ok
+   [5] baseline… tamper… T0=2026-05-29T09:32:36.237Z → FAILURE@2026-05-29T09:32:44.198Z  Δ=7.961s
+      🔄 recovering… ok
+   [6] baseline… tamper… T0=2026-05-29T09:32:56.380Z → FAILURE@2026-05-29T09:33:00.083Z  Δ=3.703s
+      🔄 recovering… ok
+   [7] baseline… tamper… T0=2026-05-29T09:33:12.132Z → FAILURE@2026-05-29T09:33:18.151Z  Δ=6.019s
+      🔄 recovering… ok
+   [8] baseline… tamper… T0=2026-05-29T09:33:30.187Z → FAILURE@2026-05-29T09:33:34.157Z  Δ=3.969s
+      🔄 recovering… ok
+   [9] baseline… tamper… T0=2026-05-29T09:33:46.311Z → FAILURE@2026-05-29T09:33:52.033Z  Δ=5.721s
+      🔄 recovering… ok
+   [10] baseline… tamper… T0=2026-05-29T09:34:04.198Z → FAILURE@2026-05-29T09:34:08.153Z  Δ=3.954s
+      🔄 recovering… ok
+   [11] baseline… tamper… T0=2026-05-29T09:34:18.201Z → FAILURE@2026-05-29T09:34:26.031Z  Δ=7.830s
+      🔄 recovering… ok
+   [12] baseline… tamper… T0=2026-05-29T09:34:36.333Z → FAILURE@2026-05-29T09:34:44.104Z  Δ=7.771s
+      🔄 recovering… ok
+   [13] baseline… tamper… T0=2026-05-29T09:34:56.283Z → FAILURE@2026-05-29T09:35:02.019Z  Δ=5.735s
+      🔄 recovering… ok
+   [14] baseline… tamper… T0=2026-05-29T09:35:14.409Z → FAILURE@2026-05-29T09:35:20.112Z  Δ=5.703s
+      🔄 recovering… ok
+   [15] baseline… tamper… T0=2026-05-29T09:35:32.243Z → FAILURE@2026-05-29T09:35:36.106Z  Δ=3.862s
+      🔄 recovering… ok
+   [16] baseline… tamper… T0=2026-05-29T09:35:48.363Z → FAILURE@2026-05-29T09:35:58.020Z  Δ=9.656s
+      🔄 recovering… ok
+   [17] baseline… tamper… T0=2026-05-29T09:36:10.375Z → FAILURE@2026-05-29T09:36:20.191Z  Δ=9.816s
+      🔄 recovering… ok
+   [18] baseline… tamper… T0=2026-05-29T09:36:32.282Z → FAILURE@2026-05-29T09:36:36.019Z  Δ=3.737s
+      🔄 recovering… ok
+   [19] baseline… tamper… T0=2026-05-29T09:36:48.334Z → FAILURE@2026-05-29T09:36:58.163Z  Δ=9.828s
+      🔄 recovering… ok
+   [20] baseline… tamper… T0=2026-05-29T09:37:10.224Z → FAILURE@2026-05-29T09:37:14.152Z  Δ=3.928s
+      🔄 recovering… ok
+
+============================================================
+🏁 target=sidecar  SSP=10000ms
+   output → experiments/data/tamper-detection/results/sidecar/SSP10000ms-batch1.csv
+============================================================
+   🔥 Fleet warmup: resetting chain and seeding currentVerifier…
+   ⏳ Waiting for 4 robot(s) to complete warmup cycle…
+      ✅ robot1 warmed up
+      ✅ robot2 warmed up
+      ✅ robot3 warmed up
+      ✅ robot4 warmed up
+   ✅ Warmup done. currentVerifier is a real robot.
+
+   🚀 Starting continuous mode at SSP=10000ms…
+   [1] baseline… tamper… T0=2026-05-29T09:37:38.271Z → FAILURE@2026-05-29T09:37:48.055Z  Δ=9.784s
+      🔄 recovering… ok
+   [2] baseline… tamper… T0=2026-05-29T09:38:04.206Z → FAILURE@2026-05-29T09:38:16.024Z  Δ=11.817s
+      🔄 recovering… ok
+   [3] baseline… tamper… T0=2026-05-29T09:38:32.321Z → FAILURE@2026-05-29T09:38:44.034Z  Δ=11.713s
+      🔄 recovering… ok
+   [4] baseline… tamper… T0=2026-05-29T09:39:00.333Z → FAILURE@2026-05-29T09:39:12.059Z  Δ=11.726s
+      🔄 recovering… ok
+   [5] baseline… tamper… T0=2026-05-29T09:39:28.141Z → FAILURE@2026-05-29T09:39:40.152Z  Δ=12.011s
+      🔄 recovering… ok
+   [6] baseline… tamper… T0=2026-05-29T09:39:56.249Z → FAILURE@2026-05-29T09:40:08.187Z  Δ=11.938s
+      🔄 recovering… ok
+   [7] baseline… tamper… T0=2026-05-29T09:40:24.265Z → FAILURE@2026-05-29T09:40:36.052Z  Δ=11.786s
+      🔄 recovering… ok
+   [8] baseline… tamper… T0=2026-05-29T09:40:52.306Z → FAILURE@2026-05-29T09:41:04.058Z  Δ=11.751s
+      🔄 recovering… ok
+   [9] baseline… tamper… T0=2026-05-29T09:41:20.251Z → FAILURE@2026-05-29T09:41:32.068Z  Δ=11.816s
+      🔄 recovering… ok
+   [10] baseline… tamper… T0=2026-05-29T09:41:48.343Z → FAILURE@2026-05-29T09:42:00.140Z  Δ=11.797s
+      🔄 recovering… ok
+   [11] baseline… tamper… T0=2026-05-29T09:42:16.293Z → FAILURE@2026-05-29T09:42:28.019Z  Δ=11.726s
+      🔄 recovering… ok
+   [12] baseline… tamper… T0=2026-05-29T09:42:44.329Z → FAILURE@2026-05-29T09:42:56.036Z  Δ=11.707s
+      🔄 recovering… ok
+   [13] baseline… tamper… T0=2026-05-29T09:43:12.271Z → FAILURE@2026-05-29T09:43:24.068Z  Δ=11.797s
+      🔄 recovering… ok
+   [14] baseline… tamper… T0=2026-05-29T09:43:40.291Z → FAILURE@2026-05-29T09:43:52.090Z  Δ=11.799s
+      🔄 recovering… ok
+   [15] baseline… tamper… T0=2026-05-29T09:44:08.309Z → FAILURE@2026-05-29T09:44:20.088Z  Δ=11.778s
+      🔄 recovering… ok
+   [16] baseline… tamper… T0=2026-05-29T09:44:36.278Z → FAILURE@2026-05-29T09:44:48.178Z  Δ=11.899s
+      🔄 recovering… ok
+   [17] baseline… tamper… T0=2026-05-29T09:45:04.240Z → FAILURE@2026-05-29T09:45:16.167Z  Δ=11.926s
+      🔄 recovering… ok
+   [18] baseline… tamper… T0=2026-05-29T09:45:32.256Z → FAILURE@2026-05-29T09:45:44.022Z  Δ=11.766s
+      🔄 recovering… ok
+   [19] baseline… tamper… T0=2026-05-29T09:46:00.266Z → FAILURE@2026-05-29T09:46:12.045Z  Δ=11.779s
+      🔄 recovering… ok
+   [20] baseline… tamper… T0=2026-05-29T09:46:28.236Z → FAILURE@2026-05-29T09:46:40.050Z  Δ=11.813s
+      🔄 recovering… ok
+
+============================================================
+🏁 target=sidecar  SSP=20000ms
+   output → experiments/data/tamper-detection/results/sidecar/SSP20000ms-batch1.csv
+============================================================
+   🔥 Fleet warmup: resetting chain and seeding currentVerifier…
+   ⏳ Waiting for 4 robot(s) to complete warmup cycle…
+      ✅ robot1 warmed up
+      ✅ robot2 warmed up
+      ✅ robot3 warmed up
+      ✅ robot4 warmed up
+   ✅ Warmup done. currentVerifier is a real robot.
+
+   🚀 Starting continuous mode at SSP=20000ms…
+   [1] baseline… tamper… T0=2026-05-29T09:47:14.313Z → FAILURE@2026-05-29T09:47:34.065Z  Δ=19.751s
+      🔄 recovering… ok
+   [2] baseline… tamper… T0=2026-05-29T09:48:00.411Z → FAILURE@2026-05-29T09:48:22.092Z  Δ=21.681s
+      🔄 recovering… ok
+   [3] baseline… tamper… T0=2026-05-29T09:48:48.272Z → FAILURE@2026-05-29T09:49:10.071Z  Δ=21.798s
+      🔄 recovering… ok
+   [4] baseline… tamper… T0=2026-05-29T09:49:36.350Z → FAILURE@2026-05-29T09:49:58.039Z  Δ=21.688s
+      🔄 recovering… ok
+   [5] baseline… tamper… T0=2026-05-29T09:50:24.319Z → FAILURE@2026-05-29T09:50:46.094Z  Δ=21.775s
+      🔄 recovering… ok
+   [6] baseline… tamper… T0=2026-05-29T09:51:12.416Z → FAILURE@2026-05-29T09:51:34.123Z  Δ=21.707s
+      🔄 recovering… ok
+   [7] baseline… tamper… T0=2026-05-29T09:52:00.224Z → FAILURE@2026-05-29T09:52:22.162Z  Δ=21.937s
+      🔄 recovering… ok
+   [8] baseline… tamper… T0=2026-05-29T09:52:48.264Z → FAILURE@2026-05-29T09:53:10.037Z  Δ=21.773s
+      🔄 recovering… ok
+   [9] baseline… tamper… T0=2026-05-29T09:53:36.311Z → FAILURE@2026-05-29T09:53:58.096Z  Δ=21.785s
+      🔄 recovering… ok
+   [10] baseline… tamper… T0=2026-05-29T09:54:24.442Z → FAILURE@2026-05-29T09:54:46.141Z  Δ=21.699s
+      🔄 recovering… ok
+   [11] baseline… tamper… T0=2026-05-29T09:55:12.224Z → FAILURE@2026-05-29T09:55:34.164Z  Δ=21.939s
+      🔄 recovering… ok
+   [12] baseline… tamper… T0=2026-05-29T09:56:00.257Z → FAILURE@2026-05-29T09:56:22.026Z  Δ=21.769s
+      🔄 recovering… ok
+   [13] baseline… tamper… T0=2026-05-29T09:56:46.388Z → FAILURE@2026-05-29T09:57:10.094Z  Δ=23.705s
+      🔄 recovering… ok
+   [14] baseline… tamper… T0=2026-05-29T09:57:36.206Z → FAILURE@2026-05-29T09:57:58.186Z  Δ=21.979s
+      🔄 recovering… ok
+   [15] baseline… tamper… T0=2026-05-29T09:58:24.291Z → FAILURE@2026-05-29T09:58:46.052Z  Δ=21.760s
+      🔄 recovering… ok
+   [16] baseline… tamper… T0=2026-05-29T09:59:12.412Z → FAILURE@2026-05-29T09:59:34.092Z  Δ=21.680s
+      🔄 recovering… ok
+   [17] baseline… tamper… T0=2026-05-29T10:00:00.320Z → FAILURE@2026-05-29T10:00:22.117Z  Δ=21.796s
+      🔄 recovering… ok
+   [18] baseline… tamper… T0=2026-05-29T10:00:48.280Z → FAILURE@2026-05-29T10:01:10.202Z  Δ=21.922s
+      🔄 recovering… ok
+   [19] baseline… tamper… T0=2026-05-29T10:01:36.213Z → FAILURE@2026-05-29T10:01:58.024Z  Δ=21.810s
+      🔄 recovering… ok
+   [20] baseline… tamper… T0=2026-05-29T10:02:24.399Z → FAILURE@2026-05-29T10:02:46.105Z  Δ=21.705s
+      🔄 recovering… ok
+
+🎉 Done. 160/160 trials recorded.
+   Results in /home/nextnet/ros2-b-mutra/experiments/data/tamper-detection/results

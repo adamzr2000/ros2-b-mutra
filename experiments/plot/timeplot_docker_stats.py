@@ -19,10 +19,12 @@ VARIANT    = "rr"   # ← continuous-mode variant to plot
 SHOW       = "cpu"  # "cpu" | "net" | "both"
 
 LINE_WIDTH   = 2.6
-FONT_SCALE   = 1.6
+FONT_SCALE   = 2.0
 WINDOW_S     = 1      # rolling-mean smoothing window (seconds)
 BAND_ALPHA   = 0.25   # opacity of ±std shaded band
 
+COLOR_ROBOT  = "#59c396"
+COLOR_SECAAS = "#6a5d99"
 
 def _clean_container_label(raw: str) -> str:
     name = str(raw).replace("-sidecar", "").strip()
@@ -103,8 +105,6 @@ def generate_plot(df, n_robots, mode, script_dir):
                   rc={"xtick.direction": "out", "ytick.direction": "out"},
                   font_scale=FONT_SCALE)
     plt.rcParams.update({"font.family": "serif"})
-    color_robot  = "#993333"
-    color_secaas = "#336699"
 
     _all_panels = [
         ("cpu", "cpu_vcpus",   "CPU (vCPUs)"),
@@ -150,9 +150,9 @@ def generate_plot(df, n_robots, mode, script_dir):
         # ── Robot band ────────────────────────────────────────────────────────
         if robot_containers:
             t, mean, std = _robot_band(col)
-            ax.plot(t, mean, color=color_robot, linewidth=LINE_WIDTH, zorder=3)
+            ax.plot(t, mean, color=COLOR_ROBOT, linewidth=LINE_WIDTH, zorder=3)
             ax.fill_between(t, (mean - std).clip(0), mean + std,
-                            color=color_robot, alpha=BAND_ALPHA, zorder=2)
+                            color=COLOR_ROBOT, alpha=BAND_ALPHA, zorder=2)
             y_max = max(y_max, (mean + std).max())
 
         # ── SECaaS line ───────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ def generate_plot(df, n_robots, mode, script_dir):
             sub = df[df["Container"] == "SECaaS"].sort_values("t_rel_s").copy()
             sm  = _rolling(sub[col], sub["t_rel_s"])
             ax.plot(sub["t_rel_s"].values, sm,
-                    color=color_secaas, linewidth=LINE_WIDTH, zorder=3)
+                    color=COLOR_SECAAS, linewidth=LINE_WIDTH, zorder=3)
             y_max = max(y_max, sm.max() if len(sm) else 0.0)
 
         ax.set_ylabel(ylabel)
@@ -201,7 +201,7 @@ def generate_plot(df, n_robots, mode, script_dir):
                 else:
                     print(f"  t={tt:.1f}s  robot={r_mean:.1f}±{r_std:.1f} kbit/s  secaas={s_val:.1f} kbit/s")
 
-    axes[0].set_xlim(left=0)
+    axes[0].set_xlim(left=0, right=df["t_rel_s"].max())
     for ax in axes[:-1]:
         ax.tick_params(axis="x", labelbottom=False)
     axes[-1].set_xlabel("Time (s)")
@@ -210,18 +210,18 @@ def generate_plot(df, n_robots, mode, script_dir):
     legend_handles = []
     if robot_containers:
         legend_handles += [
-            mlines.Line2D([], [], color=color_robot, linewidth=LINE_WIDTH,
+            mlines.Line2D([], [], color=COLOR_ROBOT, linewidth=LINE_WIDTH,
                           label="Robot sidecar"),
         ]
     if has_secaas:
         legend_handles.append(
-            mlines.Line2D([], [], color=color_secaas, linewidth=LINE_WIDTH,
+            mlines.Line2D([], [], color=COLOR_SECAAS, linewidth=LINE_WIDTH,
                           label="SECaaS")
         )
 
     if n_panels == 1:
         axes[0].legend(handles=legend_handles,
-                       loc="upper right", ncol=2, framealpha=0.9,
+                       loc="upper center", ncol=2, framealpha=0.9,
                        fancybox=False, edgecolor="black",
                        borderpad=0.5, handlelength=1.4, columnspacing=1.2)
     else:

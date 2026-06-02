@@ -80,7 +80,6 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir, blockchain_ho
         json.dump(robot_config, f, indent=4)
 
     if ref_dir is None:
-        print(f"Created {config_path} using agent{agent_index} (RPC: {eth_node_url}).")
         return
 
     # 2) Ref-measurements -> ./ref-measurements/robot{i}.json (placeholder, replaced by bootstrap)
@@ -99,10 +98,6 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir, blockchain_ho
     with open(ref_path, "w") as f:
         json.dump(ref_measurements, f, indent=4)
 
-    print(
-        f"Created {config_path} and {ref_path} "
-        f"using agent{agent_index} (RPC: {eth_node_url})."
-    )
 
 
 def pick_agent_params(
@@ -147,7 +142,6 @@ def create_secaas_config(config_dir: str, blockchain_host: str,
     with open(filepath, "w") as f:
         json.dump(secaas_data, f, indent=4)
 
-    print(f"Created {filepath} using validator1 (RPC: {eth_node_url}).")
 
 
 if __name__ == "__main__":

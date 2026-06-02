@@ -2,7 +2,7 @@
     "name": "robot4",
     "eth_address": "0xdce8a9e9aa18b63433ddbeea5f05ec59266cd27b",
     "private_key": "0x6ea190666afb5b75686481fee2b266d7478fa792c8f078df3f191be93fe96382",
-    "robot_hash": "6ca591b61f86f966abdfafdc50547b241072696c93173188c302e6e64f432566",
-    "attestation_sidecar_hash": "9d774929f9bafd8652119aebb69b1ab6f392e14c26cb23d834c5215cfc706d47",
-    "combined_hash": "41db6c375bf34e073547f684e5ff30abb525095d66a1ca424d56617b2dfe9abe"
+    "robot_hash": "61c04293c5415524bc7144859c046c8e8cd8ddf590f5830de026d85a86cb0ecc",
+    "attestation_sidecar_hash": "336ab249acf041c7790126338e596462e240c540768302c30f5e14f5cdc4aada",
+    "combined_hash": "a6287d3f10b2019bec538297cf9c838c379f7863d0c29e17a2b8d0790bb6eddc"
 }
