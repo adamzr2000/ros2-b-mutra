@@ -103,7 +103,7 @@ def _draw_boxes(ax, positions, values, color, box_width, rng):
 def make_plot(data_map: dict[str, dict[int, list[float]]], out_suffix: str) -> None:
     targets  = list(data_map.keys())
     n_tgts   = len(targets)
-    ssps     = sorted({s for d in data_map.values() for s in d})
+    ssps     = sorted({s for d in data_map.values() for s in d}, reverse=True)
     n_ssps   = len(ssps)
     tick_pos = list(range(n_ssps))          # group centres: 0, 1, 2, 3
     labels   = [str(s // 1000) for s in ssps]
@@ -160,7 +160,7 @@ def make_plot(data_map: dict[str, dict[int, list[float]]], out_suffix: str) -> N
         ]
         ax.legend(
             handles=handles,
-            loc="upper left",
+            loc="upper right",
             frameon=True, framealpha=0.9, fancybox=False, edgecolor="black",
             borderpad=0.4, handlelength=1.2, labelspacing=0.3,
         )

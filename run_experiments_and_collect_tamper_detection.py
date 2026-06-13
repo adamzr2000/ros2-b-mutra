@@ -23,14 +23,12 @@ next measurement cycle (the SSP window) plus one block confirmation.
 
 Prerequisites:
   - Stack started WITHOUT --auto. This script owns the sidecar lifecycle:
-    it calls push_ssp (wait_for_digest + /stop + /config + /start) before
-    the first trial and after every recovery for BOTH target types, so all
-    trials run under identical, script-controlled conditions.
+    it runs warmup_fleet + push_ssp before EVERY trial (not just once per
+    block) so that each trial starts from the same on-chain state — chain
+    reset + one-shot warmup cycle seeds currentVerifier to a real robot
+    with an identical verifier-rotation position every time.
   - ITERQ_THRESHOLD=1 in .env (or start.sh --iterq 1).
-  - AttestationManagerLV contract (default). The script calls /reset before
-    each (target, SSP) block, resetting currentVerifier to SECaaS, then waits
-    for the full fleet to pass a baseline cycle so currentVerifier is a real
-    robot before tamper injection begins.
+  - AttestationManagerLV contract (default).
   - WAIT_FOR_VERIFICATION_RESULT=TRUE (default) so the prover sidecar
     logs the verifier's verdict; otherwise we can't read T1 from its log.
   - Attestation-sidecar image rebuilt with millisecond log timestamps
@@ -417,7 +415,6 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
         sidecar_alive(sidecar_port)
         if not wait_for_digest(sidecar_port):
             print("\n      ⚠️  /digest never returned combined_hash after recovery")
-        push_ssp(sidecar_port, ssp_ms)
         return False
 
     # 5. Recover for the next trial.
@@ -432,13 +429,12 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
         return False
     print("ok")
 
-    # 6. Uniform restart for both targets: wait_for_digest confirms the
-    #    measurement target is locatable, then push_ssp sets the SSP and
-    #    starts the loop. Using the same sequence for state_publisher and
-    #    sidecar ensures identical post-recovery state entering the next trial.
+    # 6. Wait until the sidecar has located the measurement target (critical
+    #    after robot-container restart where robot_state_publisher gets a new
+    #    PID). The outer loop then calls warmup_fleet + push_ssp to reset the
+    #    chain and seed currentVerifier to identical state for every trial.
     if not wait_for_digest(sidecar_port):
         print("\n      ⚠️  /digest never returned combined_hash after recovery")
-    push_ssp(sidecar_port, ssp_ms)
     return True
 
 
@@ -522,17 +518,18 @@ def main():
                 if not sidecar_alive(port, timeout=10):
                     sys.exit(f"❌ robot{i}-sidecar not reachable on port {port} — start the stack first")
 
-            # Reset chain + one-shot warmup: seeds currentVerifier to a real robot
-            # (not SECaaS) before any tamper injection. Mirrors run_continuous_warmup()
-            # in run_experiments_and_collect_results.py.
-            warmup_fleet(args.robots, ssp_ms)
-
-            # Switch all sidecars to continuous mode at the chosen SSP.
-            print(f"   🚀 Starting continuous mode at SSP={ssp_ms}ms…")
-            for i in range(1, args.robots + 1):
-                push_ssp(ROBOTS_BASE_PORT + (i - 1), ssp_ms)
-
             for i in range(1, args.trials + 1):
+                # Reset chain + seed currentVerifier before EVERY trial so all
+                # trials start from identical on-chain state regardless of how
+                # the verifier rotation evolved during the previous trial's
+                # recovery. This eliminates the systematic ~2 s detection gap
+                # between state_publisher and sidecar targets that arose from
+                # different recovery durations advancing the verifier rotation
+                # by different amounts between trials.
+                warmup_fleet(args.robots, ssp_ms)
+                for j in range(1, args.robots + 1):
+                    push_ssp(ROBOTS_BASE_PORT + (j - 1), ssp_ms)
+
                 total_attempted += 1
                 if run_trial(i, args.robot, sidecar, sidecar_port,
                              target, ssp_ms, args.robots, csv_path):

@@ -206,7 +206,24 @@ def generate_plot(df, n_robots, mode, script_dir):
         ax.tick_params(axis="x", labelbottom=False)
     axes[-1].set_xlabel("Time (s)")
 
-    # ── Figure legend (top centre) ────────────────────────────────────────────
+    # ── One-cycle annotation (t=20 to t=40) ──────────────────────────────────
+    from matplotlib.transforms import blended_transform_factory as _btf
+    for ax in axes:
+        ax.axvspan(19, 26, color="#e8e8e8", alpha=0.55, zorder=1)
+        ax.axvline(19, color="#444444", linestyle="--", linewidth=1.6, zorder=5)
+        ax.axvline(26, color="#444444", linestyle="--", linewidth=1.6, zorder=5)
+    _trans = _btf(axes[0].transData, axes[0].transAxes)
+    axes[0].text(
+        22, 0.94, "Attestation Cycle",
+        transform=_trans, ha="center", va="top",
+        fontsize=plt.rcParams["axes.labelsize"] * 0.85,
+        color="#222222", fontweight="bold",
+        bbox=dict(boxstyle="round,pad=0.25", facecolor="white",
+                  edgecolor="none", alpha=0.90),
+        zorder=10,
+    )
+
+    # ── Figure legend (top right) ─────────────────────────────────────────────
     legend_handles = []
     if robot_containers:
         legend_handles += [
@@ -221,15 +238,14 @@ def generate_plot(df, n_robots, mode, script_dir):
 
     if n_panels == 1:
         axes[0].legend(handles=legend_handles,
-                       loc="upper center", ncol=2, framealpha=0.9,
+                       loc="upper right", ncol=1, framealpha=0.9,
                        fancybox=False, edgecolor="black",
                        borderpad=0.5, handlelength=1.4, columnspacing=1.2)
     else:
-        fig.legend(handles=legend_handles,
-                   loc="upper center", bbox_to_anchor=(0.5, 1.0),
-                   ncol=len(legend_handles), framealpha=0.9,
-                   fancybox=False, edgecolor="black",
-                   borderpad=0.5, handlelength=1.4, columnspacing=1.2)
+        axes[0].legend(handles=legend_handles,
+                       loc="upper right", ncol=1, framealpha=0.9,
+                       fancybox=False, edgecolor="black",
+                       borderpad=0.5, handlelength=1.4, columnspacing=1.2)
     
     panel_tag = f"_{SHOW}" if SHOW != "both" else ""
     out_path = script_dir / f"timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}_{VARIANT}{panel_tag}.pdf"
