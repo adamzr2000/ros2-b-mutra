@@ -182,17 +182,18 @@ def sidecar_alive(port: int, timeout: float = 30.0) -> bool:
     return False
 
 
-def warmup_fleet(n_robots: int, ssp_ms: int) -> None:
+def warmup_fleet(n_robots: int, ssp_ms: int) -> bool:
     """Reset chain and run one-shot warmup cycle (export disabled) so that
     currentVerifier in the LV contract is a real robot before trials begin.
-    Mirrors run_continuous_warmup() in run_experiments_and_collect_results.py.
+    Returns True on success, False if any robot's warmup times out.
     """
     print("   🔥 Fleet warmup: resetting chain and seeding currentVerifier…")
 
     try:
         requests.post(f"{SECAAS_URL}/reset", timeout=10)
     except requests.RequestException as e:
-        sys.exit(f"❌ SECaaS /reset failed: {e}")
+        print(f"   ❌ SECaaS /reset failed: {e}", file=sys.stderr)
+        return False
 
     # Start SECaaS event listener — required to process AttestationStarted events
     # and send reference signatures. Without this, robot sidecars time out waiting
@@ -200,7 +201,8 @@ def warmup_fleet(n_robots: int, ssp_ms: int) -> None:
     try:
         requests.post(f"{SECAAS_URL}/start", timeout=10).raise_for_status()
     except requests.RequestException as e:
-        sys.exit(f"❌ SECaaS /start failed: {e}")
+        print(f"   ❌ SECaaS /start failed: {e}", file=sys.stderr)
+        return False
 
     warmup_since = time.time()
     for i in range(1, n_robots + 1):
@@ -216,11 +218,17 @@ def warmup_fleet(n_robots: int, ssp_ms: int) -> None:
             print(f"   ⚠️  robot{i} config failed: {e}", file=sys.stderr)
         start_attestation(port)
 
+    # Warmup timeout is blockchain-driven (one-shot has no SSP sleep).
+    # With N robots all submitting concurrent attestations, the last robot's
+    # close transaction may lag behind robot1's by N×block-period. Use a
+    # generous flat 90s so transient Besu delays don't abort the experiment.
+    warmup_timeout = 90.0
     print(f"   ⏳ Waiting for {n_robots} robot(s) to complete warmup cycle…")
     for i in range(1, n_robots + 1):
         cname = f"robot{i}-sidecar"
-        if not wait_for_clean_baseline(cname, warmup_since, ssp_ms):
-            sys.exit(f"❌ {cname} failed warmup — aborting")
+        if wait_for_prover_event(cname, PROVER_SUCCESS_RE, warmup_since, warmup_timeout) is None:
+            print(f"   ⚠️  {cname} timed out during warmup")
+            return False
         print(f"      ✅ robot{i} warmed up")
 
     # Restore continuous mode — loops are stopped, push_ssp will restart them
@@ -232,6 +240,7 @@ def warmup_fleet(n_robots: int, ssp_ms: int) -> None:
             pass
 
     print("   ✅ Warmup done. currentVerifier is a real robot.\n")
+    return True
 
 
 def wait_for_digest(port: int, timeout: float = 60.0) -> bool:
@@ -357,16 +366,25 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
     #    systematic ~4 s latency gap at SSP=5 s that is an artefact of
     #    recovery, not of detection speed.
     timeout_base = max(30.0, ssp_ms * 3.0 / 1000.0)
-    baseline_since = time.time()
     print("baseline…", end=" ", flush=True)
-    t_s1 = wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, baseline_since, timeout_base)
-    if t_s1 is None:
-        print("\n      ⚠️  no first SUCCESS observed — skipping trial")
-        return False
-    t_s2 = wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, t_s1 + 0.001, timeout_base)
-    if t_s2 is None:
-        print("\n      ⚠️  no second SUCCESS observed — skipping trial")
-        return False
+    t_s2 = None
+    for _attempt in range(2):
+        baseline_since = time.time()
+        t_s1 = wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, baseline_since, timeout_base)
+        if t_s1 is None:
+            if _attempt == 0:
+                print("(retry)…", end=" ", flush=True)
+                continue
+            print("\n      ⚠️  no first SUCCESS observed — skipping trial")
+            return False
+        t_s2 = wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, t_s1 + 0.001, timeout_base)
+        if t_s2 is not None:
+            break
+        if _attempt == 0:
+            print("(retry)…", end=" ", flush=True)
+        else:
+            print("\n      ⚠️  no second SUCCESS observed — skipping trial")
+            return False
 
     # 2. Inject.
     # T0 is recorded immediately after inject_tamper() returns (not before).
@@ -526,7 +544,13 @@ def main():
                 # between state_publisher and sidecar targets that arose from
                 # different recovery durations advancing the verifier rotation
                 # by different amounts between trials.
-                warmup_fleet(args.robots, ssp_ms)
+                for _warmup_attempt in range(3):
+                    if warmup_fleet(args.robots, ssp_ms):
+                        break
+                    if _warmup_attempt == 2:
+                        sys.exit("❌ Warmup failed after 3 attempts — aborting")
+                    print(f"   ⚠️  Warmup attempt {_warmup_attempt + 1} failed, retrying…")
+                    time.sleep(5)
                 for j in range(1, args.robots + 1):
                     push_ssp(ROBOTS_BASE_PORT + (j - 1), ssp_ms)
 
