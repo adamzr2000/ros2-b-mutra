@@ -25,8 +25,8 @@ import seaborn as sns
 RESULTS_BASE = Path(__file__).parent.parent / "data/robot-stats/results"
 FONT_SCALE   = 1.7
 
-SSP_MS_LIST  = [5000, 1000, 100, 10]   # 5 s, 1 s, 0.1 s, 0.01 s
-SSP_LABELS   = ["5", "1", "0.1", "0.01"]
+SSP_MS_LIST  = [10000, 5000, 1000, 10]   # 5 s, 1 s, 0.1 s, 0.01 s
+SSP_LABELS   = ["10", "5", "1", "0.01"]
 
 # Sequential blue ramp — light→dark maps SSP 5s→0.01s (slow→fast polling).
 # Avoids semantic collision with paper palette (green=robot, purple=SECaaS,

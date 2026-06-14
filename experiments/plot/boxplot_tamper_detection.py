@@ -32,12 +32,12 @@ FONT_SCALE = 1.7
 
 # Palette aligned with barplot_attestation_time_v5_combined.py
 _COLOR = {
-    "state_publisher": "#6a5d99",
+    "state_publisher": "#4B9FCC",
     "sidecar":         "#59c396",
 }
 _LABEL = {
-    "state_publisher": "Robot process",
-    "sidecar":         "Sidecar process",
+    "state_publisher": "Robot app",
+    "sidecar":         "Robot sidecar",
 }
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -154,8 +154,8 @@ def make_plot(data_map: dict[str, dict[int, list[float]]], out_suffix: str) -> N
     # ── legend — only when showing both targets ────────────────────────────────
     if n_tgts > 1:
         handles = [
-            mpatches.Patch(facecolor=_COLOR[t], alpha=0.75, edgecolor="none",
-                           label=_LABEL[t])
+            mpatches.Patch(facecolor=_COLOR[t], alpha=0.75, edgecolor=_darken(_COLOR[t]),
+                           linewidth=0.8, label=_LABEL[t])
             for t in targets
         ]
         ax.legend(
