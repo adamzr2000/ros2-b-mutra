@@ -1,4 +1,5 @@
 postgresql_data/
+experiments/data/**/bags/
 tss.zip
 checkpoints/*
 !checkpoints/reset_event_watcher.sh
