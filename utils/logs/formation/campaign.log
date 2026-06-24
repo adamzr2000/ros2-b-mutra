@@ -1,0 +1,118 @@
+nextnet@asus-g815:~/ros2-b-mutra$ ./tools/run_formation_campaign.sh --scenarios mitigated --ssp-list 10000 --reps 1 --password 'nextnet;'
+[13:54:10] Formation campaign: scenarios=[mitigated] reps=1 victim=robot3
+[13:54:10]           goal_x=30.0 window=200s attack_delay=10s ssp_list=[10000] gpu=on
+[13:54:10] ══════════════════════════════════════════════════════════════
+[13:54:10] ▶ RUN  tag=mitigated-ssp10000-r1  ssp=10000  mitigation=on  attack=true
+✅ .env updated (Robots: 4, Mode: local, Contract: AttestationManagerLV, Auto: TRUE, Export: FALSE, Startup: FALSE, SSP: 10000ms, CPU: 0.4, IterQ: 1, Password: set)
+🔧 Generating compose files for 4 robot(s) [mode: local]...
+✅ /home/nextnet/ros2-b-mutra/docker-compose.robots.yml  (4 robots, Gazebo mode, formation d=2.0)
+✅ /home/nextnet/ros2-b-mutra/docker-compose.attestation.yml  (4 sidecars, image: attestation-sidecar:latest, ports 8001–8004)
+
+🧹 Resetting local EventWatcher checkpoints...
+Removing JSONs under: /home/nextnet/ros2-b-mutra/checkpoints
+Done.
+
+*************************************
+Quorum Dev Quickstart
+*************************************
+Start network
+--------------------
+Starting network...
+WARN[0000] No services to build
+[+] up 12/12
+ ✔ Network quorum-dev-quickstart              Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Volume quorum-test-network_grafana         Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Volume quorum-test-network_prometheus      Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-prometheus-1 Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-grafana-1    Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-promtail-1   Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-loki-1       Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-validator1-1 Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-validator4-1 Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-validator3-1 Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-explorer-1   Created                                                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ ✔ Container quorum-test-network-validator2-1 Created                                               
+
+
+🛰️   Starting formation orchestrator (mitigation=true, scale=2.0, run-tag=mitigated-ssp10000-r1)...
+[+] up 2/2
+ ✔ Container orchestrator Created                                                                                                                                                                                                                                                                                                                                                                                                                                                 0.0s
+ ✔ Container bag-recorder Created                                                                                                                                                                                                                                                                                                                                                                                                                                                 0.0s
+   Logs will appear in experiments/data/formation/formation-mitigated-ssp10000-r1.csv
+🎉 All done.
+[13:55:19] ⏳ waiting for goal published (mission start)…
+[13:55:23] 🟢 mission started
+[13:55:23] ⏳ letting the swarm travel 10s before the attack…
+[13:55:33] ⏳ waiting for robot3-sidecar Final digest (worst-case anchor, timeout 25s)…
+[13:55:39] 🔔 attestation boundary — injecting NOW (expected detection ≈ 10000ms + B)
+[13:55:39] 💥 injecting steering tamper on robot3 (formation_agent, constant-turn)
+── Tampering ───────────────────────────────────────────
+  robot:   robot3 (container robot3-sidecar)
+  target:  formation_agent
+  offset:  0xbfa7
+  bytes:   5 byte(s) of fill '\220'
+
+  tampered PID=199 (formation_agent): 5 byte(s) at 0x642590a3b000 + 0xbfa7
+
+Recovery: docker restart robot3       (reload the binary fresh)
+./tools/run_formation_campaign.sh: line 143: /home/nextnet/ros2-b-mutra/experiments/data/formation/inject-mitigated-ssp10000-r1.json: Permission denied
+[13:55:39] ✅ robot3 formation_agent still alive (steering fault active)
+[13:55:39] ⏳ waiting for run window to finish (events-mitigated-ssp10000-r1.json)…
+[13:58:43] 🏁 run finished: {  "run_tag": "mitigated-ssp10000-r1",  "mode": "formation",  "mitigation": true,  "n_robots": 4,  "goal": [    30.0,    0.0  ],  "duration_s": 200.5,  "compromised": [    "robot3"  ],  "failure_events": [    [      33.75,      "robot3"    ]  ]}
+[13:58:43] 🧹 teardown (flushes the bag)
+[13:59:09] 📈 extracting metrics for mitigated-ssp10000-r1
+    0.0
+  ],
+  "window_s": 202.98,
+  "t_detect_s": 33.75,
+  "final_progress_m": 29.9761,
+  "goal_distance_m": 29.9999,
+  "progress_pct": 99.92,
+  "cumulative_damage": 116.0296,
+  "tte_rmse_m": 0.3711,
+  "max_formation_error_m": 1.126,
+  "robots": [
+    "robot1",
+    "robot2",
+    "robot3",
+    "robot4"
+  ],
+  "csv": "experiments/data/formation/formation-mitigated-ssp10000-r1.csv"
+}
+Saved → experiments/data/formation/formation-mitigated-ssp10000-r1.csv
+Saved → experiments/data/formation/metrics-mitigated-ssp10000-r1.json
+[13:59:12] 🧊 cooldown 60s
+[14:00:12] ✅ Formation campaign complete. Outputs in /home/nextnet/ros2-b-mutra/experiments/data/formation/
+/home/nextnet/ros2-b-mutra/experiments/data/formation/metrics-mitigated-ssp10000-r1.json
+/home/nextnet/ros2-b-mutra/experiments/data/formation/metrics-run.json
+/home/nextnet/ros2-b-mutra/experiments/data/formation/metrics-val2.json
+nextnet@asus-g815:~/ros2-b-mutra$
+
+nextnet@asus-g815:~/ros2-b-mutra$ cat experiments/data/formation/metrics-mitigated-ssp10000-r1.json
+{
+  "run_tag": "mitigated-ssp10000-r1",
+  "mode": "formation",
+  "pose_source": "ground_truth",
+  "mitigation": true,
+  "compromised": "robot3",
+  "formation_scale": 2.0,
+  "goal": [
+    30.0,
+    0.0
+  ],
+  "window_s": 202.98,
+  "t_detect_s": 33.75,
+  "final_progress_m": 29.9761,
+  "goal_distance_m": 29.9999,
+  "progress_pct": 99.92,
+  "cumulative_damage": 116.0296,
+  "tte_rmse_m": 0.3711,
+  "max_formation_error_m": 1.126,
+  "robots": [
+    "robot1",
+    "robot2",
+    "robot3",
+    "robot4"
+  ],
+  "csv": "experiments/data/formation/formation-mitigated-ssp10000-r1.csv"
+}

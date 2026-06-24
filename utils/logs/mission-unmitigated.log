@@ -1,0 +1,191 @@
+ ./tools/run_campaign.sh --scenarios unmitigated --reps 1 --password "nextnet;"
+🧭 Starting mission orchestrator (mitigation=false, run-tag=unmitigated-ssp20000-r1)...
+[+] up 1/1
+ ✔ Container orchestrator Created                                                                                                                                     0.0s
+   Logs will appear in experiments/data/mission/mission-unmitigated-ssp20000-r1.csv
+🎉 All done.
+[08:34:32] ⏳ waiting for mission to start (clock)…
+[08:34:34] 🟢 mission started
+[08:34:34] ⏳ waiting for robot3 to complete 3 waypoint(s) (progress-triggered injection)…
+[08:35:29] 🎯 robot3 reached 3 completed waypoints — injecting
+[08:35:29] 💥 injecting tamper on robot3 (mission_agent, true-freeze RET)
+── Tampering ───────────────────────────────────────────
+  robot:   robot3 (container robot3-sidecar)
+  target:  mission_agent
+  offset:  0xa80a
+  bytes:   1 byte(s) of fill '\303'
+
+  tampered PID=197 (mission_agent): 1 byte(s) at 0x5dae98704000 + 0xa80a
+
+Recovery: docker restart robot3       (reload the binary fresh)
+[08:35:29] 📝 injection record: /home/nextnet/ros2-b-mutra/experiments/data/mission/inject-unmitigated-ssp20000-r1.json  (2026-06-19T06:35:29Z)
+[08:35:29] ✅ robot3 mission_agent still alive (soft-freeze confirmed)
+[08:35:29] ⏳ waiting for mission to finish (summary-unmitigated-ssp20000-r1.json)…
+[08:41:15] 🏁 finished: {  "run_tag": "unmitigated-ssp20000-r1",  "mitigation": false,  "mission_total": 32,  "completed": 27,  "duration_s": 400.50070175156,  "sim_duration_s": null,  "effective_rtf": null,  "valid_run": null,  "compromised": [],  "failure_events": [    [      64.83,      "robot3"    ]  ],  "distance_m": {    "robot1": 29.832,    "robot2": 29.879,    "robot3": 11.235,    "robot4": 29.829  },  "distance_total_m": 100.775,  "csv": "/experiments/data/mission/mission-unmitigated-ssp20000-r1.csv"}
+[08:41:15] ⚠️  no /clock seen — effective RTF unknown for unmitigated-ssp20000-r1; RTF gate skipped
+[08:41:15] 🧹 teardown
+[08:42:39] ✅ Campaign complete. Outputs in /home/nextnet/ros2-b-mutra/experiments/data/mission/
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r1.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r2.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r3.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r4.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r5.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r6.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r7.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r8.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-baseline-r9.json
+/home/nextnet/ros2-b-mutra/experiments/data/mission/summary-unmitigated-ssp20000-r1.json
+nextnet@asus-g815:~/ros2-b-mutra$
+
+nextnet@asus-g815:~/ros2-b-mutra$ docker logs -f robot3
+Waiting for /gazebo node to start...
+/gazebo node has started!
+Waiting for /spawn_entity service to start...
+/spawn_entity service is available!
+Launching TurtleBot3 with the following parameters:
+Namespace: robot3
+X Pose: -2.0
+Y Pose: -2.0
+Nav2:  TRUE
+[INFO] [launch]: All log files can be found below /home/agent/.ros/log/2026-06-19-06-34-29-260599-robot3-192
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [robot_state_publisher-1]: process started with pid [193]
+[INFO] [spawn_entity.py-2]: process started with pid [195]
+[INFO] [mission_agent-3]: process started with pid [197]
+[mission_agent-3] [INFO] [1781850869.322917714] [robot3.mission_agent]: mission_agent ready: robot_id=robot3 control=cmd_vel tick=10.0Hz
+[robot_state_publisher-1] [INFO] [1781850869.328264411] [robot3.robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-1] [INFO] [1781850869.328322417] [robot3.robot_state_publisher]: got segment base_link
+[robot_state_publisher-1] [INFO] [1781850869.328328552] [robot3.robot_state_publisher]: got segment base_scan
+[robot_state_publisher-1] [INFO] [1781850869.328332206] [robot3.robot_state_publisher]: got segment caster_back_link
+[robot_state_publisher-1] [INFO] [1781850869.328335291] [robot3.robot_state_publisher]: got segment imu_link
+[robot_state_publisher-1] [INFO] [1781850869.328338284] [robot3.robot_state_publisher]: got segment wheel_left_link
+[robot_state_publisher-1] [INFO] [1781850869.328341349] [robot3.robot_state_publisher]: got segment wheel_right_link
+[spawn_entity.py-2] [INFO] [1781850869.493074806] [spawn_entity]: Spawn Entity started
+[spawn_entity.py-2] [INFO] [1781850869.493233843] [spawn_entity]: Loading entity XML from file /home/agent/ros2_ws/install/turtlebot3_gazebo/share/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf
+[spawn_entity.py-2] [INFO] [1781850869.493633410] [spawn_entity]: Waiting for service /spawn_entity, timeout = 300
+[spawn_entity.py-2] [INFO] [1781850869.493765478] [spawn_entity]: Waiting for service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781850869.496456956] [spawn_entity]: Calling service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781850871.623415061] [spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [robot3_burger]
+[INFO] [spawn_entity.py-2]: process has finished cleanly [pid 195]
+[mission_agent-3] [INFO] [1781850873.631411744] [robot3.mission_agent]: Assignment received: 8 waypoint(s) (completed so far: 0)
+[mission_agent-3] [INFO] [1781850892.722851338] [robot3.mission_agent]: Waypoint 1/8 reached.
+[mission_agent-3] [INFO] [1781850911.022809114] [robot3.mission_agent]: Waypoint 2/8 reached.
+[mission_agent-3] [INFO] [1781850929.222679505] [robot3.mission_agent]: Waypoint 3/8 reached.
+^Cnextnet@asus-g815:~/ros2-b-mutra$ docker logs -f robot4
+Waiting for /gazebo node to start...
+/gazebo node has started!
+Waiting for /spawn_entity service to start...
+/spawn_entity service is available!
+Launching TurtleBot3 with the following parameters:
+Namespace: robot4
+X Pose: 2.0
+Y Pose: -2.0
+Nav2:  TRUE
+[INFO] [launch]: All log files can be found below /home/agent/.ros/log/2026-06-19-06-34-29-269536-robot4-191
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [robot_state_publisher-1]: process started with pid [192]
+[INFO] [spawn_entity.py-2]: process started with pid [194]
+[INFO] [mission_agent-3]: process started with pid [196]
+[mission_agent-3] [INFO] [1781850869.325460420] [robot4.mission_agent]: mission_agent ready: robot_id=robot4 control=cmd_vel tick=10.0Hz
+[robot_state_publisher-1] [INFO] [1781850869.328707187] [robot4.robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-1] [INFO] [1781850869.328778543] [robot4.robot_state_publisher]: got segment base_link
+[robot_state_publisher-1] [INFO] [1781850869.328784620] [robot4.robot_state_publisher]: got segment base_scan
+[robot_state_publisher-1] [INFO] [1781850869.328788101] [robot4.robot_state_publisher]: got segment caster_back_link
+[robot_state_publisher-1] [INFO] [1781850869.328791270] [robot4.robot_state_publisher]: got segment imu_link
+[robot_state_publisher-1] [INFO] [1781850869.328794100] [robot4.robot_state_publisher]: got segment wheel_left_link
+[robot_state_publisher-1] [INFO] [1781850869.328797105] [robot4.robot_state_publisher]: got segment wheel_right_link
+[spawn_entity.py-2] [INFO] [1781850869.492968841] [spawn_entity]: Spawn Entity started
+[spawn_entity.py-2] [INFO] [1781850869.493130665] [spawn_entity]: Loading entity XML from file /home/agent/ros2_ws/install/turtlebot3_gazebo/share/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf
+[spawn_entity.py-2] [INFO] [1781850869.493574038] [spawn_entity]: Waiting for service /spawn_entity, timeout = 300
+[spawn_entity.py-2] [INFO] [1781850869.493708085] [spawn_entity]: Waiting for service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781850869.495754313] [spawn_entity]: Calling service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781850871.234006281] [spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [robot4_burger]
+[INFO] [spawn_entity.py-2]: process has finished cleanly [pid 194]
+[mission_agent-3] [INFO] [1781850873.631527161] [robot4.mission_agent]: Assignment received: 8 waypoint(s) (completed so far: 0)
+[mission_agent-3] [INFO] [1781850890.725490354] [robot4.mission_agent]: Waypoint 1/8 reached.
+[mission_agent-3] [INFO] [1781850909.025269026] [robot4.mission_agent]: Waypoint 2/8 reached.
+[mission_agent-3] [INFO] [1781850927.225247533] [robot4.mission_agent]: Waypoint 3/8 reached.
+[mission_agent-3] [INFO] [1781850945.424902175] [robot4.mission_agent]: Waypoint 4/8 reached.
+[mission_agent-3] [INFO] [1781850963.624756038] [robot4.mission_agent]: Waypoint 5/8 reached.
+[mission_agent-3] [INFO] [1781850981.824647786] [robot4.mission_agent]: Waypoint 6/8 reached.
+[mission_agent-3] [INFO] [1781851000.024521366] [robot4.mission_agent]: Waypoint 7/8 reached.
+[mission_agent-3] [INFO] [1781851018.224414811] [robot4.mission_agent]: Waypoint 8/8 reached.
+^Cnextnet@asus-g815:~/ros2-b-mutra$ docker logs -f robot2
+Waiting for /gazebo node to start...
+/gazebo node has started!
+Waiting for /spawn_entity service to start...
+/spawn_entity service is available!
+Launching TurtleBot3 with the following parameters:
+Namespace: robot2
+X Pose: -2.0
+Y Pose: 2.0
+Nav2:  TRUE
+[INFO] [launch]: All log files can be found below /home/agent/.ros/log/2026-06-19-06-34-29-271187-robot2-192
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [robot_state_publisher-1]: process started with pid [193]
+[INFO] [spawn_entity.py-2]: process started with pid [195]
+[INFO] [mission_agent-3]: process started with pid [197]
+[mission_agent-3] [INFO] [1781850869.326358011] [robot2.mission_agent]: mission_agent ready: robot_id=robot2 control=cmd_vel tick=10.0Hz
+[robot_state_publisher-1] [INFO] [1781850869.327541822] [robot2.robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-1] [INFO] [1781850869.327590311] [robot2.robot_state_publisher]: got segment base_link
+[robot_state_publisher-1] [INFO] [1781850869.327594793] [robot2.robot_state_publisher]: got segment base_scan
+[robot_state_publisher-1] [INFO] [1781850869.327597003] [robot2.robot_state_publisher]: got segment caster_back_link
+[robot_state_publisher-1] [INFO] [1781850869.327599017] [robot2.robot_state_publisher]: got segment imu_link
+[robot_state_publisher-1] [INFO] [1781850869.327600768] [robot2.robot_state_publisher]: got segment wheel_left_link
+[robot_state_publisher-1] [INFO] [1781850869.327602517] [robot2.robot_state_publisher]: got segment wheel_right_link
+[spawn_entity.py-2] [INFO] [1781850869.492974999] [spawn_entity]: Spawn Entity started
+[spawn_entity.py-2] [INFO] [1781850869.493133260] [spawn_entity]: Loading entity XML from file /home/agent/ros2_ws/install/turtlebot3_gazebo/share/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf
+[spawn_entity.py-2] [INFO] [1781850869.493575918] [spawn_entity]: Waiting for service /spawn_entity, timeout = 300
+[spawn_entity.py-2] [INFO] [1781850869.493728420] [spawn_entity]: Waiting for service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781850869.495751767] [spawn_entity]: Calling service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781850870.823583410] [spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [robot2_burger]
+[INFO] [spawn_entity.py-2]: process has finished cleanly [pid 195]
+[mission_agent-3] [INFO] [1781850874.131045435] [robot2.mission_agent]: Assignment received: 8 waypoint(s) (completed so far: 0)
+[mission_agent-3] [INFO] [1781850893.226307350] [robot2.mission_agent]: Waypoint 1/8 reached.
+[mission_agent-3] [INFO] [1781850911.426181659] [robot2.mission_agent]: Waypoint 2/8 reached.
+[mission_agent-3] [INFO] [1781850929.626039710] [robot2.mission_agent]: Waypoint 3/8 reached.
+[mission_agent-3] [INFO] [1781850947.825765749] [robot2.mission_agent]: Waypoint 4/8 reached.
+[mission_agent-3] [INFO] [1781850966.025781052] [robot2.mission_agent]: Waypoint 5/8 reached.
+[mission_agent-3] [INFO] [1781850984.225563499] [robot2.mission_agent]: Waypoint 6/8 reached.
+[mission_agent-3] [INFO] [1781851002.425414009] [robot2.mission_agent]: Waypoint 7/8 reached.
+[mission_agent-3] [INFO] [1781851020.625262585] [robot2.mission_agent]: Waypoint 8/8 reached.
+^Cnextnet@asus-g815:~/ros2-b-mutra$ docker logs -f robot1
+Waiting for /gazebo node to start...
+/gazebo node has started!
+Waiting for /spawn_entity service to start...
+/spawn_entity service is available!
+Launching TurtleBot3 with the following parameters:
+Namespace: robot1
+X Pose: 2.0
+Y Pose: 2.0
+Nav2:  TRUE
+[INFO] [launch]: All log files can be found below /home/agent/.ros/log/2026-06-19-06-34-29-260659-robot1-192
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [robot_state_publisher-1]: process started with pid [193]
+[INFO] [spawn_entity.py-2]: process started with pid [195]
+[INFO] [mission_agent-3]: process started with pid [197]
+[mission_agent-3] [INFO] [1781850869.322767528] [robot1.mission_agent]: mission_agent ready: robot_id=robot1 control=cmd_vel tick=10.0Hz
+[robot_state_publisher-1] [INFO] [1781850869.327541717] [robot1.robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-1] [INFO] [1781850869.327590365] [robot1.robot_state_publisher]: got segment base_link
+[robot_state_publisher-1] [INFO] [1781850869.327594617] [robot1.robot_state_publisher]: got segment base_scan
+[robot_state_publisher-1] [INFO] [1781850869.327596737] [robot1.robot_state_publisher]: got segment caster_back_link
+[robot_state_publisher-1] [INFO] [1781850869.327599074] [robot1.robot_state_publisher]: got segment imu_link
+[robot_state_publisher-1] [INFO] [1781850869.327601090] [robot1.robot_state_publisher]: got segment wheel_left_link
+[robot_state_publisher-1] [INFO] [1781850869.327603024] [robot1.robot_state_publisher]: got segment wheel_right_link
+[spawn_entity.py-2] [INFO] [1781850869.494354892] [spawn_entity]: Spawn Entity started
+[spawn_entity.py-2] [INFO] [1781850869.494522063] [spawn_entity]: Loading entity XML from file /home/agent/ros2_ws/install/turtlebot3_gazebo/share/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf
+[spawn_entity.py-2] [INFO] [1781850869.494908253] [spawn_entity]: Waiting for service /spawn_entity, timeout = 300
+[spawn_entity.py-2] [INFO] [1781850869.495032868] [spawn_entity]: Waiting for service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781850869.496868503] [spawn_entity]: Calling service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781850872.006060954] [spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [robot1_burger]
+[INFO] [spawn_entity.py-2]: process has finished cleanly [pid 195]
+[mission_agent-3] [INFO] [1781850873.631106318] [robot1.mission_agent]: Assignment received: 8 waypoint(s) (completed so far: 0)
+[mission_agent-3] [INFO] [1781850890.722827821] [robot1.mission_agent]: Waypoint 1/8 reached.
+[mission_agent-3] [INFO] [1781850909.022616861] [robot1.mission_agent]: Waypoint 2/8 reached.
+[mission_agent-3] [INFO] [1781850927.222391901] [robot1.mission_agent]: Waypoint 3/8 reached.
+[mission_agent-3] [INFO] [1781850945.422324132] [robot1.mission_agent]: Waypoint 4/8 reached.
+[mission_agent-3] [INFO] [1781850963.622212300] [robot1.mission_agent]: Waypoint 5/8 reached.
+[mission_agent-3] [INFO] [1781850981.821977171] [robot1.mission_agent]: Waypoint 6/8 reached.
+[mission_agent-3] [INFO] [1781851000.021866148] [robot1.mission_agent]: Waypoint 7/8 reached.
+[mission_agent-3] [INFO] [1781851018.221768008] [robot1.mission_agent]: Waypoint 8/8 reached.
+nextnet@asus-g815:~/ros2-b-mutra$

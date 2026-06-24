@@ -1,0 +1,33 @@
+{
+  "run_tag": "baseline-r1",
+  "mode": "formation",
+  "pose_source": "ground_truth",
+  "mitigation": true,
+  "compromised": "robot3",
+  "formation_scale": 2.0,
+  "goal": [
+    30.0,
+    0.0
+  ],
+  "window_s": 201.85,
+  "t_inject_wall": null,
+  "t_inject_s": null,
+  "t_detect_s": null,
+  "t_attack_to_detect_s": null,
+  "final_progress_m": 29.9915,
+  "goal_distance_m": 29.9998,
+  "progress_pct": 99.97,
+  "ife_compromise": null,
+  "ife_window_s": null,
+  "ife_remaining": null,
+  "cumulative_damage": 6.5262,
+  "tte_rmse_m": 0.0001,
+  "max_formation_error_m": 0.0667,
+  "robots": [
+    "robot1",
+    "robot2",
+    "robot3",
+    "robot4"
+  ],
+  "csv": "experiments/data/formation-v2/formation-baseline-r1.csv"
+}

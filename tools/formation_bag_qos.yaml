@@ -1,0 +1,21 @@
+# QoS profile overrides for `ros2 bag record` in the formation experiment.
+#
+# /formation/goal and /formation/excluded are published by the orchestrator with
+# TRANSIENT_LOCAL (latched) durability so late-joining agents still receive them.
+# rosbag2's default subscription is VOLATILE, which would miss a latched message
+# published before the recorder subscribed (the goal at t0, the excluded event).
+# Forcing the recorder's subscription to TRANSIENT_LOCAL + RELIABLE here makes it
+# capture those latched markers reliably.
+#
+# Usage:
+#   ros2 bag record --qos-profile-overrides-path tools/formation_bag_qos.yaml ...
+/formation/goal:
+  durability: transient_local
+  reliability: reliable
+  history: keep_last
+  depth: 1
+/formation/excluded:
+  durability: transient_local
+  reliability: reliable
+  history: keep_last
+  depth: 1

@@ -1,0 +1,25 @@
+{
+  "run_tag": "unmitigated-ssp10000-r6",
+  "mitigation": false,
+  "mission_total": 32,
+  "completed": 27,
+  "duration_s": 180.5000729560852,
+  "sim_duration_s": null,
+  "effective_rtf": null,
+  "valid_run": null,
+  "compromised": [],
+  "failure_events": [
+    [
+      62.87,
+      "robot3"
+    ]
+  ],
+  "distance_m": {
+    "robot1": 28.211,
+    "robot2": 28.295,
+    "robot3": 10.657,
+    "robot4": 28.22
+  },
+  "distance_total_m": 95.383,
+  "csv": "/experiments/data/mission/mission-unmitigated-ssp10000-r6.csv"
+}

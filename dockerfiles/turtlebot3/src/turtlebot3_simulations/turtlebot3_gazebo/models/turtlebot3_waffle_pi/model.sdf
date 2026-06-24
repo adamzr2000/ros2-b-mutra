@@ -133,11 +133,11 @@
         <always_on>true</always_on>
         <visualize>true</visualize>
         <pose>-0.064 0 0.121 0 0 0</pose>
-        <update_rate>40</update_rate>
+        <update_rate>5</update_rate>
         <ray>
           <scan>
             <horizontal>
-              <samples>1080</samples>
+              <samples>360</samples>
               <resolution>1.000000</resolution>
               <min_angle>0.000000</min_angle>
               <max_angle>6.280000</max_angle>
@@ -145,8 +145,8 @@
           </scan>
           <range>
             <min>0.120000</min>
-            <max>30.0</max>
-            <resolution>0.001</resolution>
+            <max>3.5</max>
+            <resolution>0.015000</resolution>
           </range>
           <noise>
             <type>gaussian</type>

@@ -1,0 +1,7 @@
+{
+  "_comment": "Mission for swarm_arena.world (16x16 walled empty room, 4 robots). Spawns: robot1=(2,2) robot2=(-2,2) robot3=(-2,-2) robot4=(2,-2) — one per quadrant. No internal obstacles; walls at +/-8. Each robot runs a 2-loop patrol (8 waypoints) of a 4x4 square in its own quadrant, every waypoint >=2m from the walls to avoid costmap-inflation slowdowns. Open lanes give Nav2 near-deterministic straight-line paths (low mission-time variance). Mission total = 32 waypoints. Mitigation case: victim robot3 soft-freezes mid-mission; the orchestrator reassigns its entire remaining queue to the nearest healthy robot (robot4, the bottom-right neighbour). Format: [x, y] in the map frame (yaw defaults to 0).",
+  "robot1": [[6, 2], [6, 6], [2, 6], [2, 2], [6, 2], [6, 6], [2, 6], [2, 2]],
+  "robot2": [[-6, 2], [-6, 6], [-2, 6], [-2, 2], [-6, 2], [-6, 6], [-2, 6], [-2, 2]],
+  "robot3": [[-6, -2], [-6, -6], [-2, -6], [-2, -2], [-6, -2], [-6, -6], [-2, -6], [-2, -2]],
+  "robot4": [[6, -2], [6, -6], [2, -6], [2, -2], [6, -2], [6, -6], [2, -6], [2, -2]]
+}

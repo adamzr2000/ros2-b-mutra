@@ -6,29 +6,53 @@ Measures wall-clock time between in-memory binary tampering (via
 tools/tamper.sh) and the first ❌ FAILURE attestation result logged
 by the prover sidecar.
 
-For each trial:
-  1. Wait for TWO consecutive ✅ SUCCESS attestations before injecting.
-     The first confirms the loop is healthy; the second normalises the
-     injection phase so T0 is always set right after a completed attestation
-     cycle (goroutine done, inter-cycle sleep about to begin). This gives
-     identical conditions for both state_publisher and sidecar targets
-     regardless of recovery duration.
-  2. Capture T0 (host clock) and run tamper.sh.
+For each trial (worst-case anchoring):
+  1. Confirm the loop is healthy after recovery (one ✅ SUCCESS), then wait for
+     the prover to log a fresh measurement ("Final digest") — the start of a
+     new attestation cycle, just before its inter-cycle (SSP) sleep.
+  2. Inject the tamper IMMEDIATELY and capture T0 (host clock). The just-taken
+     measurement was clean, so the tamper is first sampled by the NEXT cycle
+     one full period (SSP) later. Anchoring to a measurement — not to the
+     asynchronous SUCCESS log line, which lags its measurement by the
+     confirmation time B — yields the deterministic worst case.
   3. Tail the prover sidecar's log; record T1 from the first
      "[Prover-...] Result: ❌ FAILURE" line with timestamp > T0.
   4. Recover the container(s) for the next trial.
 
-Latency = T1 − T0. Lower bound is set by the prover's sleep until the
-next measurement cycle (the SSP window) plus one block confirmation.
+Latency = T1 − T0 ≈ SSP + B, where B (~5–6 s) is the on-chain confirmation
+time of the 3-tx peer verification path. The clean worst case is monotonic in
+SSP, with intercept B (the irreducible blockchain cost). The old
+SUCCESS-anchored scheme instead produced L = ⌈B/P⌉·P (P = the loop period),
+a sawtooth that was non-monotonic and bimodal near SSP ≈ B.
+
+Contract support (LV and RR):
+  The script auto-detects the deployed contract from config/robot1.json's ABI
+  (SetSecaasOnly ⇒ AttestationManagerRR, otherwise AttestationManagerLV) and
+  adapts the warmup accordingly. Override with --contract rr|lv.
+
+  - LV (root-of-trust): currentVerifier is the last successfully verified agent.
+    Right after robot1 succeeds, currentVerifier == robot1, so robot1 cannot
+    verify itself and the contract falls back to SECaaS for the next cycle —
+    the *detection* cycle. That is the 2-tx atomic path (~1 block faster than
+    the 3-tx peer path), and which path runs is a race against the other robots'
+    closings. This is the dominant variance source in LV tamper-detection data.
+
+  - RR (round-robin): ElectVerifier always excludes the prover and picks a peer
+    with lastSuccess != 0; it only falls back to SECaaS when no such peer exists.
+    After warmup seeds all robots, robot1 is ALWAYS verified by a peer (3-tx),
+    so verifier identity is deterministic and the 2-tx/3-tx race disappears.
+    Recommended for clean detection-latency micro-benchmarks.
 
 Prerequisites:
   - Stack started WITHOUT --auto. This script owns the sidecar lifecycle:
     it runs warmup_fleet + push_ssp before EVERY trial (not just once per
-    block) so that each trial starts from the same on-chain state — chain
-    reset + one-shot warmup cycle seeds currentVerifier to a real robot
-    with an identical verifier-rotation position every time.
+    block) so that each trial starts from the same on-chain state.
+      * LV: chain reset + one-shot warmup seeds currentVerifier to a real robot.
+      * RR: ResetChain sets secaasOnly=true; the one-shot warmup seeds every
+        robot's lastSuccess via the SECaaS-only path, then the script flips
+        /secaas-only=false so trials use peer (round-robin) verification.
   - ITERQ_THRESHOLD=1 in .env (or start.sh --iterq 1).
-  - AttestationManagerLV contract (default).
+  - Contract deployed via start.sh --contract lv|rr (auto-detected here).
   - WAIT_FOR_VERIFICATION_RESULT=TRUE (default) so the prover sidecar
     logs the verifier's verdict; otherwise we can't read T1 from its log.
   - Attestation-sidecar image rebuilt with millisecond log timestamps
@@ -39,14 +63,20 @@ Usage:
   python3 run_experiments_and_collect_tamper_detection.py --ssp 1000,5000,10000,20000 --trials 15
   python3 run_experiments_and_collect_tamper_detection.py --ssp 20000 --trials 10 --target sidecar
   python3 run_experiments_and_collect_tamper_detection.py --ssp 20000 --trials 10 --target both
+  python3 run_experiments_and_collect_tamper_detection.py --ssp 5000 --trials 30 --contract rr
 
 Output:
   experiments/data/tamper-detection/results/<target>/SSP{N}ms-batch{B}.csv
-  Columns: trial, t0_iso, t1_iso, latency_s, detected, ssp_ms, n_robots, target, robot
+  Columns: trial, t0_iso, t1_iso, latency_s, detected, ssp_ms, n_robots, target,
+           robot, contract, verifier, verifier_addr, tx_path
+  where tx_path ∈ {2tx-secaas, 3tx-peer, unknown} is derived from the on-chain
+  verifier recorded in the prover's "Verified by:" log line — making each run
+  self-diagnosing for the verifier-identity effect described above.
 """
 
 import argparse
 import csv
+import json
 import os
 import re
 import subprocess
@@ -76,6 +106,26 @@ LOG_TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\b")
 # corrupted when docker logs are piped through a non-UTF-8 locale or cat -v.
 PROVER_FAILURE_RE  = re.compile(r"\[Prover-.*?\].*FAILURE")
 PROVER_SUCCESS_RE  = re.compile(r"\[Prover-.*?\].*SUCCESS")
+
+# Capture the attestation id from a FAILURE line so we can pair it with the
+# adjacent "Verified by: 0x..." line (prover.go logs Result then Verified-by
+# back-to-back for the same [Prover-<id>]).
+PROVER_FAILURE_ID_RE = re.compile(r"\[Prover-([^\]]+)\].*FAILURE")
+
+# Marks the START of a fresh attestation cycle: the prover logs the folded
+# measurement ("Final digest" for K=1, "Rolling-hash digest" for K>1) right
+# after sampling the binary and just before the inter-cycle (SSP) sleep.
+# Injecting immediately after this line anchors T0 to a clean measurement, so
+# the tamper is first sampled one full period later → deterministic worst case.
+PROVER_MEASURE_RE = re.compile(r"\[Prover\].*(?:Final digest|Rolling-hash digest)")
+
+# CONTRACT is auto-detected in main() (or forced via --contract); module-level
+# so warmup_fleet / run_trial can branch without threading it through everywhere.
+CONTRACT = "lv"
+
+# Map lowercase eth address → label ("secaas", "robot1", …), loaded from config/
+# at startup. Used to classify the on-chain verifier of each detected FAILURE.
+VERIFIER_LABELS: dict[str, str] = {}
 
 # ── Small utilities ───────────────────────────────────────────────────────────
 
@@ -132,6 +182,83 @@ def container_running(name: str) -> bool:
         return False
 
 
+# ── Contract detection & verifier-identity classification ──────────────────────
+
+def detect_contract_variant() -> str:
+    """Infer 'rr' or 'lv' from the deployed ABI in config/robot1.json.
+
+    RR exposes SetSecaasOnly; LV exposes GetCurrentVerifier instead. Falls back
+    to 'lv' if the config can't be read (LV is the historical default).
+    """
+    cfg = REPO_ROOT / "config" / "robot1.json"
+    try:
+        abi = json.loads(cfg.read_text()).get("contract_abi", [])
+        names = {e.get("name") for e in abi if isinstance(e, dict)}
+    except (OSError, ValueError):
+        return "lv"
+    if "SetSecaasOnly" in names:
+        return "rr"
+    return "lv"
+
+
+def load_verifier_labels() -> dict[str, str]:
+    """Build {lowercase eth address → label} from config/secaas.json + robot*.json.
+
+    Lets us name the on-chain verifier of each detected FAILURE (secaas vs a
+    specific peer) and thereby infer the transaction path (2-tx vs 3-tx).
+    """
+    labels: dict[str, str] = {}
+    cdir = REPO_ROOT / "config"
+    sec = cdir / "secaas.json"
+    if sec.exists():
+        try:
+            labels[json.loads(sec.read_text())["eth_address"].lower()] = "secaas"
+        except (OSError, ValueError, KeyError):
+            pass
+    for p in sorted(cdir.glob("robot*.json")):
+        try:
+            d = json.loads(p.read_text())
+            labels[d["eth_address"].lower()] = d["name"]
+        except (OSError, ValueError, KeyError):
+            pass
+    return labels
+
+
+def classify_verifier(addr: str | None) -> tuple[str, str]:
+    """Return (label, tx_path) for an on-chain verifier address.
+
+    secaas  → 2tx-secaas (atomic resolve: SendEvidence + ResolveAttestationSECaaS)
+    robotN  → 3tx-peer    (SendEvidence + SendRefSignature + CloseAttestationProcess)
+    """
+    if not addr:
+        return "", ""
+    label = VERIFIER_LABELS.get(addr.lower(), "unknown")
+    if label == "secaas":
+        return label, "2tx-secaas"
+    if label.startswith("robot"):
+        return label, "3tx-peer"
+    return label, "unknown"
+
+
+def set_secaas_only(enabled: bool) -> bool:
+    """Toggle the RR contract's secaasOnly flag via the SECaaS HTTP API.
+
+    enabled=False switches from startup mode (SECaaS is sole verifier) to mutual
+    round-robin peer election. No-op semantics for LV (caller must not invoke).
+    """
+    try:
+        r = requests.post(
+            f"{SECAAS_URL}/secaas-only",
+            params={"enabled": "true" if enabled else "false"},
+            timeout=35,
+        )
+        r.raise_for_status()
+        return True
+    except requests.RequestException as e:
+        print(f"   ⚠️  /secaas-only={enabled} failed: {e}", file=sys.stderr)
+        return False
+
+
 # ── HTTP config push ──────────────────────────────────────────────────────────
 
 def stop_attestation(port: int) -> None:
@@ -183,11 +310,17 @@ def sidecar_alive(port: int, timeout: float = 30.0) -> bool:
 
 
 def warmup_fleet(n_robots: int, ssp_ms: int) -> bool:
-    """Reset chain and run one-shot warmup cycle (export disabled) so that
-    currentVerifier in the LV contract is a real robot before trials begin.
-    Returns True on success, False if any robot's warmup times out.
+    """Reset chain and run a one-shot warmup cycle (export disabled) so every
+    trial starts from identical on-chain state. Returns True on success, False
+    if any robot's warmup times out.
+
+      LV: seeds currentVerifier to a real robot (root-of-trust rotation).
+      RR: ResetChain sets secaasOnly=true, so the one-shot cycle seeds each
+          robot's lastSuccess via SECaaS; afterwards we flip secaasOnly=false
+          so trials use peer (round-robin) verification — making the verifier
+          for robot1's detection cycle a deterministic peer (3-tx path).
     """
-    print("   🔥 Fleet warmup: resetting chain and seeding currentVerifier…")
+    print(f"   🔥 Fleet warmup ({CONTRACT.upper()}): resetting chain and seeding verifier pool…")
 
     try:
         requests.post(f"{SECAAS_URL}/reset", timeout=10)
@@ -239,8 +372,33 @@ def warmup_fleet(n_robots: int, ssp_ms: int) -> bool:
         except requests.RequestException:
             pass
 
-    print("   ✅ Warmup done. currentVerifier is a real robot.\n")
+    # RR: all robots now have lastSuccess != 0. Leave startup (SECaaS-only) mode
+    # so that trials elect a peer verifier round-robin (never SECaaS, never the
+    # prover itself). LV has no secaasOnly flag — skip the toggle entirely.
+    if CONTRACT == "rr":
+        if not set_secaas_only(False):
+            return False
+        print("   ✅ Warmup done. RR peer election enabled (verifier ≠ prover, ≠ SECaaS).\n")
+    else:
+        print("   ✅ Warmup done. currentVerifier is a real robot.\n")
     return True
+
+
+def run_warmup(n_robots: int, ssp_ms: int) -> None:
+    """warmup_fleet with up to 3 retries; aborts the run on persistent failure.
+
+    A single robot occasionally fails to close its one-shot warmup attestation
+    within the timeout (concurrent re-seeding right after a chain reset stresses
+    the SECaaS nonce sequence / EventWatcher). A retry — which performs a fresh
+    reset — almost always clears it.
+    """
+    for attempt in range(3):
+        if warmup_fleet(n_robots, ssp_ms):
+            return
+        if attempt == 2:
+            sys.exit("❌ Warmup failed after 3 attempts — aborting")
+        print(f"   ⚠️  Warmup attempt {attempt + 1} failed, retrying…")
+        time.sleep(5)
 
 
 def wait_for_digest(port: int, timeout: float = 60.0) -> bool:
@@ -290,6 +448,52 @@ def wait_for_clean_baseline(container: str, since: float, ssp_ms: int,
     """
     timeout = max(30.0, ssp_ms * timeout_factor / 1000.0)
     return wait_for_prover_event(container, PROVER_SUCCESS_RE, since, timeout) is not None
+
+
+def wait_for_prover_failure(container: str, since: float, timeout: float,
+                            poll_s: float = 0.1) -> tuple[float | None, str | None]:
+    """Block until the first FAILURE line logged after `since`.
+
+    Returns (t1, verifier_addr): t1 is the FAILURE log timestamp (unix float),
+    verifier_addr is the on-chain verifier from the same attestation's
+    "Verified by: 0x…" line (prover.go logs Result then Verified-by back-to-back
+    for the same [Prover-<id>]). verifier_addr may be None if that line hasn't
+    flushed yet; we re-fetch briefly to catch it.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        logs = docker_logs_since(container, since)
+        lines = logs.splitlines()
+        for idx, line in enumerate(lines):
+            ts = parse_log_ts(line)
+            if ts is None or ts < since:
+                continue
+            m = PROVER_FAILURE_ID_RE.search(line)
+            if not m:
+                continue
+            att = m.group(1)
+            vaddr = _find_verifier_addr(lines, idx, att)
+            # The Verified-by line is logged microseconds after Result but may
+            # not be in this batch yet — re-fetch up to ~1s to pair it.
+            if vaddr is None:
+                pair_deadline = time.time() + 1.0
+                while vaddr is None and time.time() < pair_deadline:
+                    time.sleep(0.1)
+                    relines = docker_logs_since(container, since).splitlines()
+                    vaddr = _find_verifier_addr(relines, 0, att)
+            return ts, vaddr
+        time.sleep(poll_s)
+    return None, None
+
+
+def _find_verifier_addr(lines: list[str], start_idx: int, att_id: str) -> str | None:
+    """Scan lines[start_idx:] for '[Prover-<att_id>] … Verified by: 0x…'."""
+    vre = re.compile(r"\[Prover-" + re.escape(att_id) + r"\].*Verified by:\s*(0x[0-9a-fA-F]+)")
+    for l in lines[start_idx:]:
+        mm = vre.search(l)
+        if mm:
+            return mm.group(1)
+    return None
 
 
 # ── Recovery ──────────────────────────────────────────────────────────────────
@@ -354,43 +558,36 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
     """One injection + detection + recovery cycle. Returns True if measured."""
     print(f"   [{trial_idx}] ", end="", flush=True)
 
-    # 1. Baseline — wait for TWO consecutive SUCCESSes before injecting.
+    # 1. Baseline — confirm the loop is healthy after recovery (one SUCCESS),
+    #    then wait for the START of a fresh measurement cycle.
     #
-    #    The first SUCCESS confirms the loop is healthy after recovery.
-    #    The second SUCCESS normalises the injection phase: T0 is always set
-    #    right after a completed attestation cycle (blockchain goroutine just
-    #    finished, inter-cycle sleep about to begin), so the time remaining
-    #    until the next detection measurement is ~SSP for BOTH targets.
-    #    Without this, the different recovery durations (6 s sidecar vs 18 s
-    #    robot) cause T0 to land at different cycle phases, producing a
-    #    systematic ~4 s latency gap at SSP=5 s that is an artefact of
-    #    recovery, not of detection speed.
+    #    Worst-case anchoring: we inject immediately after the prover logs a
+    #    fresh measurement ("Final digest"), i.e. right at the beginning of the
+    #    inter-cycle (SSP) sleep. The just-taken measurement is clean (sampled
+    #    before the tamper), so the tamper is first observed by the NEXT
+    #    measurement one full period (SSP) later, and confirmed B seconds after
+    #    that. This anchors T0 to a measurement rather than to the asynchronous
+    #    SUCCESS log line (which lags its measurement by B), giving the clean
+    #    deterministic worst case L ≈ SSP + B and removing the ⌈B/P⌉·P
+    #    quantization and the SSP≈B bimodality of the old SUCCESS-anchored scheme.
     timeout_base = max(30.0, ssp_ms * 3.0 / 1000.0)
     print("baseline…", end=" ", flush=True)
-    t_s2 = None
-    for _attempt in range(2):
-        baseline_since = time.time()
-        t_s1 = wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, baseline_since, timeout_base)
-        if t_s1 is None:
-            if _attempt == 0:
-                print("(retry)…", end=" ", flush=True)
-                continue
-            print("\n      ⚠️  no first SUCCESS observed — skipping trial")
-            return False
-        t_s2 = wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, t_s1 + 0.001, timeout_base)
-        if t_s2 is not None:
-            break
-        if _attempt == 0:
-            print("(retry)…", end=" ", flush=True)
-        else:
-            print("\n      ⚠️  no second SUCCESS observed — skipping trial")
+    if wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, time.time(), timeout_base) is None:
+        # one retry — the loop may still be settling right after recovery
+        print("(retry)…", end=" ", flush=True)
+        if wait_for_prover_event(sidecar, PROVER_SUCCESS_RE, time.time(), timeout_base) is None:
+            print("\n      ⚠️  no SUCCESS observed (loop unhealthy) — skipping trial")
             return False
 
-    # 2. Inject.
-    # T0 is recorded immediately after inject_tamper() returns (not before).
-    # The docker exec connection + dispatch overhead (~200–400 ms) is excluded,
-    # so T0 is within ~20–50 ms of the actual byte write, giving a tighter
-    # lower bound and reducing systematic latency overestimation.
+    # Wait for the next fresh measurement line — start of a new cycle.
+    print("sync…", end=" ", flush=True)
+    if wait_for_prover_event(sidecar, PROVER_MEASURE_RE, time.time(), timeout_base) is None:
+        print("\n      ⚠️  no fresh measurement observed — skipping trial")
+        return False
+
+    # 2. Inject immediately (start of the inter-cycle sleep).
+    # T0 is recorded right after inject_tamper() returns. The ~200–400 ms exec
+    # dispatch is excluded, so T0 is within ~20–50 ms of the actual byte write.
     print("tamper…", end=" ", flush=True)
     try:
         inject_tamper(robot, target)
@@ -402,30 +599,38 @@ def run_trial(trial_idx: int, robot: str, sidecar: str, sidecar_port: int,
     print(f"T0={t0_iso}", end=" ", flush=True)
 
     # 3. Wait for FAILURE in the prover log. Cap wait at 3×SSP + 10s.
+    #    Also capture the on-chain verifier so we can record the tx path
+    #    (2tx-secaas vs 3tx-peer) that produced this detection.
     timeout = max(30.0, (ssp_ms / 1000.0) * 3.0 + 10.0)
-    t1 = wait_for_prover_event(sidecar, PROVER_FAILURE_RE, t0, timeout)
+    t1, verifier_addr = wait_for_prover_failure(sidecar, t0, timeout)
 
     detected = t1 is not None
     latency  = round(t1 - t0, 3) if detected else None
     t1_iso   = iso_ms(t1) if detected else ""
+    verifier_label, tx_path = classify_verifier(verifier_addr) if detected else ("", "")
 
     if detected:
-        print(f"→ FAILURE@{t1_iso}  Δ={latency:.3f}s")
+        vinfo = f"  [{tx_path or '?'} via {verifier_label or '?'}]"
+        print(f"→ FAILURE@{t1_iso}  Δ={latency:.3f}s{vinfo}")
     else:
         print(f"\n      ❌ no FAILURE detected within {timeout:.0f}s")
 
     # 4. Persist — always write the row so detection_rate is computable:
     #    detection_rate = non-empty latency_s rows / total rows.
     append_row(csv_path, {
-        "trial":     trial_idx,
-        "t0_iso":    t0_iso,
-        "t1_iso":    t1_iso,
-        "latency_s": f"{latency:.3f}" if detected else "",
-        "detected":  int(detected),
-        "ssp_ms":    ssp_ms,
-        "n_robots":  n_robots,
-        "target":    target,
-        "robot":     robot,
+        "trial":         trial_idx,
+        "t0_iso":        t0_iso,
+        "t1_iso":        t1_iso,
+        "latency_s":     f"{latency:.3f}" if detected else "",
+        "detected":      int(detected),
+        "ssp_ms":        ssp_ms,
+        "n_robots":      n_robots,
+        "target":        target,
+        "robot":         robot,
+        "contract":      CONTRACT,
+        "verifier":      verifier_label,
+        "verifier_addr": verifier_addr or "",
+        "tx_path":       tx_path,
     })
 
     if not detected:
@@ -492,7 +697,26 @@ def main():
                         "each pass a baseline attestation cycle (so they are "
                         "registered in the on-chain verifier pool) before trials "
                         "begin. Default: 4")
+    p.add_argument("--contract", choices=["rr", "lv", "auto"], default="auto",
+                   help="Contract variant. 'auto' (default) detects it from "
+                        "config/robot1.json's ABI. RR gives deterministic peer "
+                        "verification; LV uses the root-of-trust rotation.")
     args = p.parse_args()
+
+    # Resolve the contract variant and load address→label map for verifier
+    # classification. These populate the module globals used by warmup_fleet /
+    # run_trial so the rest of the code stays contract-agnostic.
+    global CONTRACT, VERIFIER_LABELS
+    CONTRACT = detect_contract_variant() if args.contract == "auto" else args.contract
+    detected = detect_contract_variant()
+    if args.contract not in ("auto", detected):
+        print(f"⚠️  --contract {args.contract} overrides detected '{detected}' "
+              f"(from ABI). Ensure the stack was started with --contract {args.contract}.",
+              file=sys.stderr)
+    VERIFIER_LABELS = load_verifier_labels()
+    if not VERIFIER_LABELS:
+        print("⚠️  no config/*.json addresses loaded — verifier/tx_path columns "
+              "will be 'unknown'.", file=sys.stderr)
 
     if not TAMPER_SCRIPT.exists():
         sys.exit(f"❌ tamper script not found: {TAMPER_SCRIPT}")
@@ -515,8 +739,12 @@ def main():
     if args.robots < idx:
         sys.exit(f"❌ --robots {args.robots} is less than target robot index {idx}")
 
-    print(f"📋 robot={args.robot}  sidecar={sidecar}:{sidecar_port}")
+    print(f"📋 robot={args.robot}  sidecar={sidecar}:{sidecar_port}  contract={CONTRACT.upper()}")
     print(f"📋 fleet={args.robots} robot(s)  targets={targets}  ssps={args.ssp}ms  trials={args.trials} each")
+    if CONTRACT == "rr":
+        print("📋 RR: trials use round-robin peer verification (deterministic 3-tx path).")
+    else:
+        print("📋 LV: verifier may be SECaaS (2-tx) or a peer (3-tx) — tx_path column records which.")
     print(f"📁 results → {BASE_RESULTS}/<target>/SSPNms-batchN.csv")
 
     total_attempted = 0
@@ -536,21 +764,22 @@ def main():
                 if not sidecar_alive(port, timeout=10):
                     sys.exit(f"❌ robot{i}-sidecar not reachable on port {port} — start the stack first")
 
+            # RR seeds lastSuccess once and that state persists across trials
+            # (container recovery does not clear the chain), so we warm up a
+            # SINGLE time before the trial loop. Re-resetting every trial only
+            # re-introduces the fragile concurrent re-seeding (occasional 90s
+            # warmup timeouts) for no determinism benefit — the verifier is a
+            # peer (3-tx) on every cycle regardless of which peer.
+            #
+            # LV must reset before EVERY trial: currentVerifier evolves during
+            # recovery and determines the 2-tx vs 3-tx path, so identical
+            # on-chain state per trial is required to control that variance.
+            if CONTRACT == "rr":
+                run_warmup(args.robots, ssp_ms)
+
             for i in range(1, args.trials + 1):
-                # Reset chain + seed currentVerifier before EVERY trial so all
-                # trials start from identical on-chain state regardless of how
-                # the verifier rotation evolved during the previous trial's
-                # recovery. This eliminates the systematic ~2 s detection gap
-                # between state_publisher and sidecar targets that arose from
-                # different recovery durations advancing the verifier rotation
-                # by different amounts between trials.
-                for _warmup_attempt in range(3):
-                    if warmup_fleet(args.robots, ssp_ms):
-                        break
-                    if _warmup_attempt == 2:
-                        sys.exit("❌ Warmup failed after 3 attempts — aborting")
-                    print(f"   ⚠️  Warmup attempt {_warmup_attempt + 1} failed, retrying…")
-                    time.sleep(5)
+                if CONTRACT != "rr":
+                    run_warmup(args.robots, ssp_ms)
                 for j in range(1, args.robots + 1):
                     push_ssp(ROBOTS_BASE_PORT + (j - 1), ssp_ms)
 

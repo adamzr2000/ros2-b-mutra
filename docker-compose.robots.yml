@@ -1,5 +1,5 @@
 # docker-compose.robots.yml
-# AUTO-GENERATED for 4 robot(s) [Gazebo mode] — edit generate_compose.py, not this file.
+# AUTO-GENERATED for 16 robot(s) [Gazebo mode] — edit generate_compose.py, not this file.
 
 services:
   gazebo-server:
@@ -9,6 +9,7 @@ services:
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
       - GAZEBO_AUDIO_DEVICE=none
+      - GAZEBO_WORLD=${GAZEBO_WORLD:-empty}
     ports:
       - "127.0.0.1:11345:11345"
     tty: true
@@ -16,6 +17,13 @@ services:
     command: bash -c "./start_gazebo_server.sh"
     networks:
       - ros-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   robot1:
     image: turtlebot3-gazebo
@@ -25,8 +33,14 @@ services:
         - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot1
-        - X_POSE=0
-        - Y_POSE=0
+        - X_POSE=-1.5
+        - Y_POSE=1.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
     command: bash -c "./start_turtlebot.sh"
     depends_on:
       - gazebo-server
@@ -43,8 +57,14 @@ services:
         - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot2
-        - X_POSE=5
-        - Y_POSE=0
+        - X_POSE=-0.5
+        - Y_POSE=1.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
     command: bash -c "./start_turtlebot.sh"
     depends_on:
       - gazebo-server
@@ -61,8 +81,14 @@ services:
         - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot3
-        - X_POSE=10
-        - Y_POSE=0
+        - X_POSE=0.5
+        - Y_POSE=1.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
     command: bash -c "./start_turtlebot.sh"
     depends_on:
       - gazebo-server
@@ -79,8 +105,14 @@ services:
         - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
         - GAZEBO_MASTER_URI=http://gazebo-server:11345
         - NAMESPACE=robot4
-        - X_POSE=15
-        - Y_POSE=0
+        - X_POSE=1.5
+        - Y_POSE=1.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
     command: bash -c "./start_turtlebot.sh"
     depends_on:
       - gazebo-server
@@ -88,6 +120,320 @@ services:
     tty: true
     networks:
       - ros-net
+
+  robot5:
+    image: turtlebot3-gazebo
+    container_name: robot5
+    hostname: robot5
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot5
+        - X_POSE=-1.5
+        - Y_POSE=0.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot6:
+    image: turtlebot3-gazebo
+    container_name: robot6
+    hostname: robot6
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot6
+        - X_POSE=-0.5
+        - Y_POSE=0.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot7:
+    image: turtlebot3-gazebo
+    container_name: robot7
+    hostname: robot7
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot7
+        - X_POSE=0.5
+        - Y_POSE=0.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot8:
+    image: turtlebot3-gazebo
+    container_name: robot8
+    hostname: robot8
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot8
+        - X_POSE=1.5
+        - Y_POSE=0.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot9:
+    image: turtlebot3-gazebo
+    container_name: robot9
+    hostname: robot9
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot9
+        - X_POSE=-1.5
+        - Y_POSE=-0.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot10:
+    image: turtlebot3-gazebo
+    container_name: robot10
+    hostname: robot10
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot10
+        - X_POSE=-0.5
+        - Y_POSE=-0.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot11:
+    image: turtlebot3-gazebo
+    container_name: robot11
+    hostname: robot11
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot11
+        - X_POSE=0.5
+        - Y_POSE=-0.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot12:
+    image: turtlebot3-gazebo
+    container_name: robot12
+    hostname: robot12
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot12
+        - X_POSE=1.5
+        - Y_POSE=-0.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot13:
+    image: turtlebot3-gazebo
+    container_name: robot13
+    hostname: robot13
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot13
+        - X_POSE=-1.5
+        - Y_POSE=-1.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot14:
+    image: turtlebot3-gazebo
+    container_name: robot14
+    hostname: robot14
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot14
+        - X_POSE=-0.5
+        - Y_POSE=-1.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot15:
+    image: turtlebot3-gazebo
+    container_name: robot15
+    hostname: robot15
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot15
+        - X_POSE=0.5
+        - Y_POSE=-1.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  robot16:
+    image: turtlebot3-gazebo
+    container_name: robot16
+    hostname: robot16
+    environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+        - GAZEBO_MASTER_URI=http://gazebo-server:11345
+        - NAMESPACE=robot16
+        - X_POSE=1.5
+        - Y_POSE=-1.5
+        - NAV2_MAP=map.yaml
+        - ENABLE_NAV2=${ENABLE_NAV2:-false}
+        - ENABLE_FORMATION=${ENABLE_FORMATION:-false}
+        - FORMATION_SCALE=${FORMATION_SCALE:-2.0}
+        - K_ATT=${K_ATT:-0.8}
+        - K_FORM=${K_FORM:-3.0}
+    command: bash -c "./start_turtlebot.sh"
+    depends_on:
+      - gazebo-server
+    stdin_open: true
+    tty: true
+    networks:
+      - ros-net
+
+  gazebo-vnc:
+    image: gazebo-vnc
+    container_name: gazebo-vnc
+    hostname: gazebo-vnc
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - GAZEBO_MASTER_URI=http://gazebo-server:11345
+      - GAZEBO_MODEL_PATH=/home/ubuntu/turtlebot3_models
+    ports:
+      - "6080:80"
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - ./dockerfiles/turtlebot3/src/turtlebot3_simulations/turtlebot3_gazebo/models:/home/ubuntu/turtlebot3_models:ro
+    depends_on:
+      - gazebo-server
+    networks:
+      - ros-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 networks:
   ros-net:

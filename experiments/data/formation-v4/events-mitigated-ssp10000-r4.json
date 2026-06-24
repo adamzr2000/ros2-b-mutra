@@ -1,0 +1,20 @@
+{
+  "run_tag": "mitigated-ssp10000-r4",
+  "mode": "formation",
+  "mitigation": true,
+  "n_robots": 4,
+  "goal": [
+    60.0,
+    0.0
+  ],
+  "duration_s": 400.0,
+  "compromised": [
+    "robot3"
+  ],
+  "failure_events": [
+    [
+      84.04,
+      "robot3"
+    ]
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "_comment": "Mission for the turtlebot3_world Gazebo world (4 robots). Spawns: robot1=(1.5,0.5) robot2=(-1.5,0.5) robot3=(-1.5,-0.5) robot4=(1.5,-0.5). Obstacles: 9 cylinders (r~0.15) on a 3x3 grid at {-1,0,1}^2. Walls ~ +/-2.5. Each robot patrols a 4-point loop INSIDE its own quadrant so baseline runs are collision/congestion-free (independent Nav2 stacks have no shared costmap). Every waypoint is >=0.7m from any cylinder centre and >=0.9m from the walls. Reassigned waypoints (mitigation case) are still individually reachable; Nav2's global planner routes the rescuer around the cylinders. Format: [x, y] in the map frame (yaw defaults to 0).",
+  "robot1": [[0.5, 0.5], [0.5, 1.5], [1.5, 1.5], [1.5, 0.5]],
+  "robot2": [[-0.5, 0.5], [-0.5, 1.5], [-1.5, 1.5], [-1.5, 0.5]],
+  "robot3": [[-0.5, -0.5], [-0.5, -1.5], [-1.5, -1.5], [-1.5, -0.5]],
+  "robot4": [[0.5, -0.5], [0.5, -1.5], [1.5, -1.5], [1.5, -0.5]]
+}

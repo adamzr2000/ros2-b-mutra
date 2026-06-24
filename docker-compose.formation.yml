@@ -1,0 +1,85 @@
+# docker-compose.formation.yml
+# Swarm FORMATION orchestrator for the runtime-tampering experiments.
+# Coexists with docker-compose.orchestrator.yml (the patrol experiment): same
+# image, but overrides the command to run formation_orchestrator.py and passes
+# formation-specific env. Brought up by start.sh --formation after the robots
+# (running formation_agent) and sidecars are up. Reaches the Besu RPC on the
+# host via host.docker.internal (read-only chain watcher).
+services:
+  orchestrator:
+    image: orchestrator:latest
+    container_name: orchestrator
+    hostname: orchestrator
+    command: ["bash", "-lc", "source /opt/ros/${ROS_DISTRO:-humble}/setup.bash && exec python3 /app/formation_orchestrator.py"]
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - N_ROBOTS=${N_ROBOTS}
+      - ROBOT_PREFIX=robot
+      - CONFIG_DIR=/config
+      - MITIGATION=${MITIGATION:-true}
+      - READY_TIMEOUT_S=${READY_TIMEOUT_S:-180}
+      # Fixed analysis window after the goal is published — same for every
+      # scenario/SSP so the offline damage integrals are directly comparable.
+      - RUN_DURATION_S=${RUN_DURATION_S:-240}
+      - POLL_INTERVAL_S=${POLL_INTERVAL_S:-1.0}
+      - LOG_DIR=/experiments/data/${FORMATION_DATA_SUBDIR:-formation}
+      - RUN_TAG=${RUN_TAG:-run}
+      # Straight-line goal for the formation (empty world). The half-diagonal d is
+      # an agent/recorder/offline concern, not the control-only orchestrator's.
+      - GOAL_X=${GOAL_X:-8.0}
+      - GOAL_Y=${GOAL_Y:-0.0}
+      - EXCLUDE_ROBOT=${EXCLUDE_ROBOT:-robot3}
+    volumes:
+      - ./config:/config:ro
+      - ./experiments:/experiments:rw
+      # Live-mount the app for quick iteration without rebuilding the image.
+      - ./dockerfiles/orchestrator/app:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    tty: true
+    networks:
+      - ros-net
+
+  # Independent data recorder. Captures ONLY the topics needed for offline metric
+  # computation via an anchored regex allowlist, so disk usage stays bounded:
+  #   /robotN/ground_truth   true world pose (P3D) — the metric source
+  #   /robotN/odom           encoder belief — for belief-vs-truth comparison
+  #   /robotN/formation_status   readiness / state
+  #   /formation/goal,excluded   latched t0 + mitigation markers
+  #   /clock                 sim-time alignment
+  # Latched goal/excluded markers are captured reliably via the QoS override. The
+  # bag is recomputed into FE / cumulative-damage / TTE offline by
+  # tools/formation_metrics.py — no live math in the orchestrator.
+  bag-recorder:
+    image: turtlebot3-gazebo
+    container_name: bag-recorder
+    hostname: bag-recorder
+    # Run as root so it can create the bag under the (root-owned, docker-created)
+    # mounted bags/ directory — consistent with the orchestrator's writes.
+    user: root
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - RUN_TAG=${RUN_TAG:-run}
+    command:
+      - bash
+      - -lc
+      - >
+        source /opt/ros/${ROS_DISTRO:-humble}/setup.bash &&
+        rm -rf "/bags/${RUN_TAG:-run}" &&
+        exec ros2 bag record
+        --regex '^/(robot[0-9]+/(odom|ground_truth|formation_status)|formation/(goal|excluded)|clock)$$'
+        --qos-profile-overrides-path /qos.yaml
+        -o "/bags/${RUN_TAG:-run}"
+    volumes:
+      - ./experiments/data/${FORMATION_DATA_SUBDIR:-formation}/bags:/bags:rw
+      - ./tools/formation_bag_qos.yaml:/qos.yaml:ro
+    tty: true
+    networks:
+      - ros-net
+
+networks:
+  ros-net:
+    external: true
+    name: ros-net

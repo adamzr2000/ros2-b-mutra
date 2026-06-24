@@ -1,8 +1,8 @@
 {
     "name": "robot11",
-    "cmd_name": "gzserver",
-    "text_section_size": 85412,
-    "offset": 35552,
+    "cmd_name": "robot_state_publisher",
+    "text_section_size": 42223,
+    "offset": 0,
     "text_section_prefix": "",
     "eth_address": "0xa95846b77385c4650028b0dcb5d5c876748e1f7d",
     "private_key": "0xcad6e1c1c49b891e91a10ae5d30b095ebbabc675de0a72e5ed85cf2792c04941",

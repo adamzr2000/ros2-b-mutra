@@ -1,12 +1,12 @@
 {
     "name": "robot26",
-    "cmd_name": "gzserver",
-    "text_section_size": 85412,
-    "offset": 35552,
+    "cmd_name": "robot_state_publisher",
+    "text_section_size": 42223,
+    "offset": 0,
     "text_section_prefix": "",
     "eth_address": "0x1b13cea71b947c446867a960b59a6ee2df8922ce",
     "private_key": "0xe603cd36159cd5c57c9ce8ae7c01a89782af0123bc88c488aeac2d6f6d4d290d",
-    "eth_node_url": "http://host.docker.internal:21003",
+    "eth_node_url": "http://host.docker.internal:21004",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {

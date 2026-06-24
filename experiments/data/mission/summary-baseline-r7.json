@@ -1,0 +1,20 @@
+{
+  "run_tag": "baseline-r7",
+  "mitigation": true,
+  "mission_total": 32,
+  "completed": 32,
+  "duration_s": 139.50050071440637,
+  "sim_duration_s": null,
+  "effective_rtf": null,
+  "valid_run": null,
+  "compromised": [],
+  "failure_events": [],
+  "distance_m": {
+    "robot1": 28.201,
+    "robot2": 28.31,
+    "robot3": 28.307,
+    "robot4": 28.222
+  },
+  "distance_total_m": 113.04,
+  "csv": "/experiments/data/mission/mission-baseline-r7.csv"
+}

@@ -1,0 +1,20 @@
+{
+  "run_tag": "unmitigated-ssp30000-r1",
+  "mode": "formation",
+  "mitigation": false,
+  "n_robots": 4,
+  "goal": [
+    30.0,
+    0.0
+  ],
+  "duration_s": 200.5,
+  "compromised": [
+    "robot3"
+  ],
+  "failure_events": [
+    [
+      62.31,
+      "robot3"
+    ]
+  ]
+}

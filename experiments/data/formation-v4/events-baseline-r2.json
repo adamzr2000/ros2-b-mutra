@@ -1,0 +1,13 @@
+{
+  "run_tag": "baseline-r2",
+  "mode": "formation",
+  "mitigation": true,
+  "n_robots": 4,
+  "goal": [
+    60.0,
+    0.0
+  ],
+  "duration_s": 400.0,
+  "compromised": [],
+  "failure_events": []
+}

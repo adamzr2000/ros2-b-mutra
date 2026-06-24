@@ -1,0 +1,32 @@
+{
+  "run_tag": "unmitigated-ssp10000-r2",
+  "mode": "formation",
+  "pose_source": "ground_truth",
+  "mitigation": false,
+  "compromised": "robot3",
+  "formation_scale": 2.0,
+  "goal": [
+    30.0,
+    0.0
+  ],
+  "window_s": 201.73,
+  "t_inject_wall": "2026-06-20T22:23:47.424Z",
+  "t_inject_s": 18.746,
+  "t_detect_s": 34.71,
+  "t_attack_to_detect_s": 15.964,
+  "final_progress_m": 6.9471,
+  "goal_distance_m": 29.9999,
+  "progress_pct": 23.16,
+  "ife_compromise": 52.4465,
+  "ife_window_s": 182.98,
+  "cumulative_damage": 52.7789,
+  "tte_rmse_m": 0.3473,
+  "max_formation_error_m": 0.2972,
+  "robots": [
+    "robot1",
+    "robot2",
+    "robot3",
+    "robot4"
+  ],
+  "csv": "experiments/data/formation/formation-unmitigated-ssp10000-r2.csv"
+}

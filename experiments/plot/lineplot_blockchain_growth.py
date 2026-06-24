@@ -18,7 +18,7 @@ ITERQ_VALS = [1, 2, 4, 8]
 INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
 IDLE_FILE  = "../data/blockchain-stats/_summary/blockchain_stats_idle.csv"
 
-FONT_SCALE = 1.6
+FONT_SCALE = 1.45
 LINEWIDTH  = 1.8
 MARKERSIZE = 7
 COLOR_IDLE = "gray"
@@ -52,8 +52,8 @@ def main():
                   font_scale=FONT_SCALE)
     plt.rcParams.update({"font.family": "serif"})
 
-    fig, ax = plt.subplots(figsize=(7, 4.5))
-    plt.subplots_adjust(left=0.12, right=0.97, top=0.95, bottom=0.14)
+    fig, ax = plt.subplots(figsize=(7, 3.4))
+    plt.subplots_adjust(left=0.12, right=0.97, top=0.97, bottom=0.16)
 
     n_vals = sorted(df["N"].unique())
 
@@ -88,7 +88,7 @@ def main():
     ax.set_axisbelow(True)
 
     ax.legend(loc="upper left", frameon=True, framealpha=0.9, fancybox=False,
-              edgecolor="black", borderpad=0.4, handlelength=1.5)
+              edgecolor="black", borderpad=0.4, handlelength=1.5, fontsize="small")
 
     out_path = script_dir / "lineplot_blockchain_growth.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")

@@ -1,0 +1,261 @@
+[17:07:04] Formation campaign: scenarios=[mitigated] reps=1 victim=robot3
+[17:07:04]           goal_x=30.0 window=200s attack_delay=10s ssp_list=[10000 20000 30000 60000] gpu=on
+[17:07:04] ══════════════════════════════════════════════════════════════
+[17:07:04] ▶ RUN  tag=mitigated-ssp10000-r1  ssp=10000  mitigation=on  attack=true
+✅ .env updated (Robots: 4, Mode: local, Contract: AttestationManagerLV, Auto: TRUE, Export: FALSE, Startup: FALSE, SSP: 10000ms, CPU: 0.4, IterQ: 1, Password: set)
+🔧 Generating compose files for 4 robot(s) [mode: local]...
+✅ /home/nextnet/ros2-b-mutra/docker-compose.robots.yml  (4 robots, Gazebo mode, formation d=2.0)
+✅ /home/nextnet/ros2-b-mutra/docker-compose.attestation.yml  (4 sidecars, image: attestation-sidecar:latest, ports 8001–8004)
+
+🧹 Resetting local EventWatcher checkpoints...
+[sudo] password for nextnet: Removing JSONs under: /home/nextnet/ros2-b-mutra/checkpoints
+Done.
+
+tput: No value for $TERM and no -T specified
+tput: No value for $TERM and no -T specified
+*************************************
+Quorum Dev Quickstart
+*************************************
+Start network
+--------------------
+Starting network...
+time="2026-06-20T17:07:04+02:00" level=warning msg="No services to build"
+ Network quorum-dev-quickstart Creating 
+ Network quorum-dev-quickstart Created 
+ Volume quorum-test-network_grafana Creating 
+ Volume quorum-test-network_grafana Created 
+ Volume quorum-test-network_prometheus Creating 
+ Volume quorum-test-network_prometheus Created 
+ Container quorum-test-network-prometheus-1 Creating 
+ Container quorum-test-network-grafana-1 Creating 
+ Container quorum-test-network-loki-1 Creating 
+ Container quorum-test-network-validator1-1 Creating 
+ Container quorum-test-network-promtail-1 Creating 
+ Container quorum-test-network-validator1-1 Created 
+ Container quorum-test-network-validator4-1 Creating 
+ Container quorum-test-network-validator3-1 Creating 
+ Container quorum-test-network-validator2-1 Creating 
+ Container quorum-test-network-explorer-1 Creating 
+ Container quorum-test-network-loki-1 Created 
+ Container quorum-test-network-grafana-1 Created 
+ Container quorum-test-network-promtail-1 Created 
+ Container quorum-test-network-prometheus-1 Created 
+ Container quorum-test-network-explorer-1 Created 
+ Container quorum-test-network-validator4-1 Created 
+ Container quorum-test-network-validator3-1 Created 
+ Container quorum-test-network-validator2-1 Created 
+ Container quorum-test-network-promtail-1 Starting 
+ Container quorum-test-network-loki-1 Starting 
+ Container quorum-test-network-validator1-1 Starting 
+ Container quorum-test-network-prometheus-1 Starting 
+ Container quorum-test-network-grafana-1 Starting 
+ Container quorum-test-network-prometheus-1 Started 
+ Container quorum-test-network-loki-1 Started 
+ Container quorum-test-network-grafana-1 Started 
+ Container quorum-test-network-promtail-1 Started 
+ Container quorum-test-network-validator1-1 Started 
+ Container quorum-test-network-explorer-1 Starting 
+ Container quorum-test-network-validator4-1 Starting 
+ Container quorum-test-network-validator3-1 Starting 
+ Container quorum-test-network-validator2-1 Starting 
+ Container quorum-test-network-validator4-1 Started 
+ Container quorum-test-network-explorer-1 Started 
+ Container quorum-test-network-validator2-1 Started 
+ Container quorum-test-network-validator3-1 Started 
+tput: No value for $TERM and no -T specified
+[17:07:04] ⏳ waiting for goal published (mission start)…
+[17:13:05] ❌ goal never published for mitigated-ssp10000-r1 — tearing down and skipping
+[17:13:08] ══════════════════════════════════════════════════════════════
+[17:13:08] ▶ RUN  tag=mitigated-ssp20000-r1  ssp=20000  mitigation=on  attack=true
+✅ .env updated (Robots: 4, Mode: local, Contract: AttestationManagerLV, Auto: TRUE, Export: FALSE, Startup: FALSE, SSP: 20000ms, CPU: 0.4, IterQ: 1, Password: set)
+🔧 Generating compose files for 4 robot(s) [mode: local]...
+✅ /home/nextnet/ros2-b-mutra/docker-compose.robots.yml  (4 robots, Gazebo mode, formation d=2.0)
+✅ /home/nextnet/ros2-b-mutra/docker-compose.attestation.yml  (4 sidecars, image: attestation-sidecar:latest, ports 8001–8004)
+
+🧹 Resetting local EventWatcher checkpoints...
+[sudo] password for nextnet: Removing JSONs under: /home/nextnet/ros2-b-mutra/checkpoints
+Done.
+
+tput: No value for $TERM and no -T specified
+tput: No value for $TERM and no -T specified
+*************************************
+Quorum Dev Quickstart
+*************************************
+Start network
+--------------------
+Starting network...
+time="2026-06-20T17:13:08+02:00" level=warning msg="No services to build"
+ Network quorum-dev-quickstart Creating 
+ Network quorum-dev-quickstart Created 
+ Volume quorum-test-network_prometheus Creating 
+ Volume quorum-test-network_prometheus Created 
+ Volume quorum-test-network_grafana Creating 
+ Volume quorum-test-network_grafana Created 
+ Container quorum-test-network-grafana-1 Creating 
+ Container quorum-test-network-prometheus-1 Creating 
+ Container quorum-test-network-loki-1 Creating 
+ Container quorum-test-network-validator1-1 Creating 
+ Container quorum-test-network-promtail-1 Creating 
+ Container quorum-test-network-validator1-1 Created 
+ Container quorum-test-network-explorer-1 Creating 
+ Container quorum-test-network-validator4-1 Creating 
+ Container quorum-test-network-validator3-1 Creating 
+ Container quorum-test-network-validator2-1 Creating 
+ Container quorum-test-network-grafana-1 Created 
+ Container quorum-test-network-loki-1 Created 
+ Container quorum-test-network-promtail-1 Created 
+ Container quorum-test-network-prometheus-1 Created 
+ Container quorum-test-network-explorer-1 Created 
+ Container quorum-test-network-validator2-1 Created 
+ Container quorum-test-network-validator4-1 Created 
+ Container quorum-test-network-validator3-1 Created 
+ Container quorum-test-network-validator1-1 Starting 
+ Container quorum-test-network-grafana-1 Starting 
+ Container quorum-test-network-promtail-1 Starting 
+ Container quorum-test-network-loki-1 Starting 
+ Container quorum-test-network-prometheus-1 Starting 
+ Container quorum-test-network-validator1-1 Started 
+ Container quorum-test-network-validator3-1 Starting 
+ Container quorum-test-network-explorer-1 Starting 
+ Container quorum-test-network-validator4-1 Starting 
+ Container quorum-test-network-validator2-1 Starting 
+ Container quorum-test-network-loki-1 Started 
+ Container quorum-test-network-prometheus-1 Started 
+ Container quorum-test-network-grafana-1 Started 
+ Container quorum-test-network-promtail-1 Started 
+ Container quorum-test-network-validator2-1 Started 
+ Container quorum-test-network-explorer-1 Started 
+ Container quorum-test-network-validator3-1 Started 
+ Container quorum-test-network-validator4-1 Started 
+tput: No value for $TERM and no -T specified
+[17:13:08] ⏳ waiting for goal published (mission start)…
+[17:19:09] ❌ goal never published for mitigated-ssp20000-r1 — tearing down and skipping
+[17:19:12] ══════════════════════════════════════════════════════════════
+[17:19:12] ▶ RUN  tag=mitigated-ssp30000-r1  ssp=30000  mitigation=on  attack=true
+✅ .env updated (Robots: 4, Mode: local, Contract: AttestationManagerLV, Auto: TRUE, Export: FALSE, Startup: FALSE, SSP: 30000ms, CPU: 0.4, IterQ: 1, Password: set)
+🔧 Generating compose files for 4 robot(s) [mode: local]...
+✅ /home/nextnet/ros2-b-mutra/docker-compose.robots.yml  (4 robots, Gazebo mode, formation d=2.0)
+✅ /home/nextnet/ros2-b-mutra/docker-compose.attestation.yml  (4 sidecars, image: attestation-sidecar:latest, ports 8001–8004)
+
+🧹 Resetting local EventWatcher checkpoints...
+[sudo] password for nextnet: Removing JSONs under: /home/nextnet/ros2-b-mutra/checkpoints
+Done.
+
+tput: No value for $TERM and no -T specified
+tput: No value for $TERM and no -T specified
+*************************************
+Quorum Dev Quickstart
+*************************************
+Start network
+--------------------
+Starting network...
+time="2026-06-20T17:19:12+02:00" level=warning msg="No services to build"
+ Network quorum-dev-quickstart Creating 
+ Network quorum-dev-quickstart Created 
+ Volume quorum-test-network_prometheus Creating 
+ Volume quorum-test-network_prometheus Created 
+ Volume quorum-test-network_grafana Creating 
+ Volume quorum-test-network_grafana Created 
+ Container quorum-test-network-grafana-1 Creating 
+ Container quorum-test-network-promtail-1 Creating 
+ Container quorum-test-network-validator1-1 Creating 
+ Container quorum-test-network-loki-1 Creating 
+ Container quorum-test-network-prometheus-1 Creating 
+ Container quorum-test-network-validator1-1 Created 
+ Container quorum-test-network-validator3-1 Creating 
+ Container quorum-test-network-explorer-1 Creating 
+ Container quorum-test-network-validator4-1 Creating 
+ Container quorum-test-network-validator2-1 Creating 
+ Container quorum-test-network-loki-1 Created 
+ Container quorum-test-network-promtail-1 Created 
+ Container quorum-test-network-grafana-1 Created 
+ Container quorum-test-network-prometheus-1 Created 
+ Container quorum-test-network-explorer-1 Created 
+ Container quorum-test-network-validator3-1 Created 
+ Container quorum-test-network-validator2-1 Created 
+ Container quorum-test-network-validator4-1 Created 
+ Container quorum-test-network-validator1-1 Starting 
+ Container quorum-test-network-grafana-1 Starting 
+ Container quorum-test-network-loki-1 Starting 
+ Container quorum-test-network-prometheus-1 Starting 
+ Container quorum-test-network-promtail-1 Starting 
+ Container quorum-test-network-grafana-1 Started 
+ Container quorum-test-network-prometheus-1 Started 
+ Container quorum-test-network-loki-1 Started 
+ Container quorum-test-network-validator1-1 Started 
+ Container quorum-test-network-validator3-1 Starting 
+ Container quorum-test-network-validator2-1 Starting 
+ Container quorum-test-network-explorer-1 Starting 
+ Container quorum-test-network-validator4-1 Starting 
+ Container quorum-test-network-promtail-1 Started 
+ Container quorum-test-network-validator3-1 Started 
+ Container quorum-test-network-validator2-1 Started 
+ Container quorum-test-network-explorer-1 Started 
+ Container quorum-test-network-validator4-1 Started 
+tput: No value for $TERM and no -T specified
+[17:19:12] ⏳ waiting for goal published (mission start)…
+[17:25:13] ❌ goal never published for mitigated-ssp30000-r1 — tearing down and skipping
+[17:25:16] ══════════════════════════════════════════════════════════════
+[17:25:16] ▶ RUN  tag=mitigated-ssp60000-r1  ssp=60000  mitigation=on  attack=true
+✅ .env updated (Robots: 4, Mode: local, Contract: AttestationManagerLV, Auto: TRUE, Export: FALSE, Startup: FALSE, SSP: 60000ms, CPU: 0.4, IterQ: 1, Password: set)
+🔧 Generating compose files for 4 robot(s) [mode: local]...
+✅ /home/nextnet/ros2-b-mutra/docker-compose.robots.yml  (4 robots, Gazebo mode, formation d=2.0)
+✅ /home/nextnet/ros2-b-mutra/docker-compose.attestation.yml  (4 sidecars, image: attestation-sidecar:latest, ports 8001–8004)
+
+🧹 Resetting local EventWatcher checkpoints...
+[sudo] password for nextnet: Removing JSONs under: /home/nextnet/ros2-b-mutra/checkpoints
+Done.
+
+tput: No value for $TERM and no -T specified
+tput: No value for $TERM and no -T specified
+*************************************
+Quorum Dev Quickstart
+*************************************
+Start network
+--------------------
+Starting network...
+time="2026-06-20T17:25:16+02:00" level=warning msg="No services to build"
+ Network quorum-dev-quickstart Creating 
+ Network quorum-dev-quickstart Created 
+ Volume quorum-test-network_grafana Creating 
+ Volume quorum-test-network_grafana Created 
+ Volume quorum-test-network_prometheus Creating 
+ Volume quorum-test-network_prometheus Created 
+ Container quorum-test-network-validator1-1 Creating 
+ Container quorum-test-network-grafana-1 Creating 
+ Container quorum-test-network-promtail-1 Creating 
+ Container quorum-test-network-prometheus-1 Creating 
+ Container quorum-test-network-loki-1 Creating 
+ Container quorum-test-network-validator1-1 Created 
+ Container quorum-test-network-validator4-1 Creating 
+ Container quorum-test-network-validator3-1 Creating 
+ Container quorum-test-network-explorer-1 Creating 
+ Container quorum-test-network-validator2-1 Creating 
+ Container quorum-test-network-promtail-1 Created 
+ Container quorum-test-network-loki-1 Created 
+ Container quorum-test-network-prometheus-1 Created 
+ Container quorum-test-network-grafana-1 Created 
+ Container quorum-test-network-explorer-1 Created 
+ Container quorum-test-network-validator2-1 Created 
+ Container quorum-test-network-validator3-1 Created 
+ Container quorum-test-network-validator4-1 Created 
+ Container quorum-test-network-validator1-1 Starting 
+ Container quorum-test-network-prometheus-1 Starting 
+ Container quorum-test-network-promtail-1 Starting 
+ Container quorum-test-network-loki-1 Starting 
+ Container quorum-test-network-grafana-1 Starting 
+ Container quorum-test-network-grafana-1 Started 
+ Container quorum-test-network-promtail-1 Started 
+ Container quorum-test-network-loki-1 Started 
+ Container quorum-test-network-validator1-1 Started 
+ Container quorum-test-network-validator4-1 Starting 
+ Container quorum-test-network-validator3-1 Starting 
+ Container quorum-test-network-explorer-1 Starting 
+ Container quorum-test-network-validator2-1 Starting 
+ Container quorum-test-network-prometheus-1 Started 
+ Container quorum-test-network-validator4-1 Started 
+ Container quorum-test-network-explorer-1 Started 
+ Container quorum-test-network-validator3-1 Started 
+ Container quorum-test-network-validator2-1 Started 
+tput: No value for $TERM and no -T specified
+[17:25:16] ⏳ waiting for goal published (mission start)…

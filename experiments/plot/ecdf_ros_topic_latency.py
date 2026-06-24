@@ -123,7 +123,7 @@ def main():
     sns.set_theme(context="paper", style="ticks",
                   rc={"xtick.direction": "out", "ytick.direction": "out"},
                   font_scale=FONT_SCALE)
-    plt.rcParams.update({"font.family": "serif"})
+    plt.rcParams.update({"font.family": "serif", "pdf.fonttype": 42, "ps.fonttype": 42})
 
     fig, ax = plt.subplots(figsize=(6.5, 4.2))
     plt.subplots_adjust(left=0.13, right=0.97, top=0.95, bottom=0.18)
@@ -173,20 +173,22 @@ def main():
 
     axins.set_xlim(z_lo, z_hi)
     axins.set_ylim(0.79, 0.96)
-    axins.tick_params(labelsize=plt.rcParams["font.size"] * 0.62,
+    axins.tick_params(labelsize=plt.rcParams["font.size"] * 0.8,
                       length=4, width=0.8, direction="out")
     axins.grid(axis="both", linestyle="-", linewidth=0.5, alpha=0.5)
     axins.set_axisbelow(True)
     axins.xaxis.set_major_locator(plt.MaxNLocator(4))
     axins.yaxis.set_major_locator(plt.MaxNLocator(4))
 
-    # Matplotlib 3.10+: returns a single InsetIndicator object
-    indicator = ax.indicate_inset_zoom(
+    # indicate_inset_zoom returns (rectangle, connectors) on older Matplotlib
+    # and an InsetIndicator object with a .connectors attribute on 3.10+.
+    result = ax.indicate_inset_zoom(
         axins, edgecolor="black", linewidth=1.0, linestyle="--", alpha=0.9
     )
+    connectors = result.connectors if hasattr(result, "connectors") else result[1]
     # connectors order: [0] lower-left, [1] upper-left, [2] lower-right, [3] upper-right
     # keep only bottom-left and top-right (diagonal pair)
-    for i, conn in enumerate(indicator.connectors):
+    for i, conn in enumerate(connectors):
         conn.set_visible(i in (0, 3))
         conn.set_linestyle("--")
         conn.set_color("black")

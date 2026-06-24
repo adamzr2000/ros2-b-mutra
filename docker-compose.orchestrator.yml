@@ -1,0 +1,39 @@
+# docker-compose.orchestrator.yml
+# Swarm mission orchestrator for the runtime-tampering experiments.
+# Brought up by start.sh after the robots/sidecars are running (Gazebo + Nav2
+# + mission_agent on each robot). Joins ros-net to drive the robots and reaches
+# the Besu RPC on the host via host.docker.internal (read-only chain watcher).
+services:
+  orchestrator:
+    image: orchestrator:latest
+    container_name: orchestrator
+    hostname: orchestrator
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - N_ROBOTS=${N_ROBOTS}
+      - ROBOT_PREFIX=robot
+      - CONFIG_DIR=/config
+      - MISSION_FILE=${MISSION_FILE:-/app/missions/turtlebot3_world.json}
+      - MITIGATION=${MITIGATION:-true}
+      - READY_TIMEOUT_S=${READY_TIMEOUT_S:-180}
+      - MISSION_TIMEOUT_S=${MISSION_TIMEOUT_S:-600}
+      - POLL_INTERVAL_S=${POLL_INTERVAL_S:-1.0}
+      - LOG_DIR=/experiments/data/mission
+      - RUN_TAG=${RUN_TAG:-run}
+      - RTF_MIN=${RTF_MIN:-0.9}
+    volumes:
+      - ./config:/config:ro
+      - ./experiments:/experiments:rw
+      # Live-mount the app for quick iteration without rebuilding the image.
+      - ./dockerfiles/orchestrator/app:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    tty: true
+    networks:
+      - ros-net
+
+networks:
+  ros-net:
+    external: true
+    name: ros-net

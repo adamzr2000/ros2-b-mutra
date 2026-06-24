@@ -104,6 +104,11 @@ if [[ "$DEPLOY_MODE" == "remote" ]]; then
 else
 # ── LOCAL MODE teardown: everything on d-mutra ────────────────────────────────
 
+  # Orchestrator (patrol mission experiments) — harmless if it was never started.
+  echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.orchestrator.yml" down 2>/dev/null || true
+  # Formation experiment (orchestrator + bag-recorder) — stopping the recorder
+  # here is what flushes/closes the ros2 bag cleanly. Harmless if never started.
+  echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.formation.yml" down 2>/dev/null || true
   echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.attestation.yml" down
   echo "$PASSWORD" | sudo -S docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.robots.yml" down
 

@@ -1,4 +1,4 @@
-.PHONY: all clean attestation-sidecar attestation-sidecar-lv-struct-delete docker-stats-collector eth-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper
+.PHONY: all clean attestation-sidecar attestation-sidecar-lv-struct-delete docker-stats-collector eth-stats-collector gazebo-vnc turtlebot3 hardhat secaas secaas-wrapper orchestrator
 
 # --- Variables ---
 IMG_ATTESTATION_SIDECAR    := attestation-sidecar:latest
@@ -10,6 +10,7 @@ IMG_TURTLEBOT              := turtlebot3-gazebo:latest
 IMG_HARDHAT                := hardhat:latest
 IMG_SECAAS                 := secaas:latest
 IMG_SECAAS_WRAPPER         := secaas-wrapper:latest
+IMG_ORCHESTRATOR           := orchestrator:latest
 
 # --- Main Command ---
 
@@ -64,3 +65,7 @@ secaas:
 secaas-wrapper:
 	@echo ">> 📦 Building [$(IMG_SECAAS_WRAPPER)]..."
 	@docker build -t $(IMG_SECAAS_WRAPPER) ./secaas-wrapper
+
+orchestrator:
+	@echo ">> 📦 Building [$(IMG_ORCHESTRATOR)]..."
+	@docker build -t $(IMG_ORCHESTRATOR) ./orchestrator

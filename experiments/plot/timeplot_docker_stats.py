@@ -23,8 +23,8 @@ FONT_SCALE   = 2.0
 WINDOW_S     = 1      # rolling-mean smoothing window (seconds)
 BAND_ALPHA   = 0.25   # opacity of ±std shaded band
 
-COLOR_ROBOT  = "#59c396"
-COLOR_SECAAS = "#6a5d99"
+COLOR_ROBOT  = "#3BA774"
+COLOR_SECAAS = "#3B3177"
 
 def _clean_container_label(raw: str) -> str:
     name = str(raw).replace("-sidecar", "").strip()
@@ -104,7 +104,7 @@ def generate_plot(df, n_robots, mode, script_dir):
     sns.set_theme(context="paper", style="ticks",
                   rc={"xtick.direction": "out", "ytick.direction": "out"},
                   font_scale=FONT_SCALE)
-    plt.rcParams.update({"font.family": "serif"})
+    plt.rcParams.update({"font.family": "serif", "pdf.fonttype": 42, "ps.fonttype": 42})
 
     _all_panels = [
         ("cpu", "cpu_vcpus",   "CPU (vCPUs)"),
@@ -206,22 +206,56 @@ def generate_plot(df, n_robots, mode, script_dir):
         ax.tick_params(axis="x", labelbottom=False)
     axes[-1].set_xlabel("Time (s)")
 
-    # ── One-cycle annotation (t=20 to t=40) ──────────────────────────────────
-    from matplotlib.transforms import blended_transform_factory as _btf
-    for ax in axes:
-        ax.axvspan(19, 26, color="#e8e8e8", alpha=0.55, zorder=1)
-        ax.axvline(19, color="#444444", linestyle="--", linewidth=1.6, zorder=5)
-        ax.axvline(26, color="#444444", linestyle="--", linewidth=1.6, zorder=5)
-    _trans = _btf(axes[0].transData, axes[0].transAxes)
-    axes[0].text(
-        22, 0.94, "Attestation Cycle",
-        transform=_trans, ha="center", va="top",
-        fontsize=plt.rcParams["axes.labelsize"] * 0.85,
-        color="#222222", fontweight="bold",
-        bbox=dict(boxstyle="round,pad=0.25", facecolor="white",
-                  edgecolor="none", alpha=0.90),
-        zorder=10,
-    )
+    # ── Attestation-cycle grey bands on ALL peaks ─────────────────────────────
+    # Detect all SECaaS CPU spike centres, then shade a ±half-width window on
+    # every panel in light grey.  Uses the same smoothed series already computed
+    # for plotting; falls back to a simple periodic grid if detection fails.
+    C_ATT_BAND = "#bbbbbb"   # light grey fill
+    att_peak_times: list[float] = []
+
+    if has_secaas:
+        sub_s   = df[df["Container"] == "SECaaS"].sort_values("t_rel_s")
+        sm_s    = _rolling(sub_s["cpu_vcpus"], sub_s["t_rel_s"])
+        t_s_arr = sub_s["t_rel_s"].values
+        if sm_s.size:
+            baseline   = np.percentile(sm_s, 25) or 1e-6
+            spike_mask = (sm_s > 2.0 * baseline) & (t_s_arr > 3.0)
+            try:
+                from scipy.signal import find_peaks
+                peak_idxs, _ = find_peaks(sm_s * spike_mask, distance=5)
+            except ImportError:
+                # scipy unavailable — use simple local-max detection
+                masked = sm_s * spike_mask
+                peak_idxs = np.where(
+                    (masked[1:-1] > masked[:-2]) & (masked[1:-1] > masked[2:])
+                )[0] + 1
+            att_peak_times = [float(t_s_arr[i]) for i in peak_idxs]
+
+    # fallback: if too few peaks found, guess from the SSP (if detectable)
+    if len(att_peak_times) < 2 and has_secaas:
+        t_max = float(df["t_rel_s"].max())
+        ssp_guess = 20.0
+        att_peak_times = list(np.arange(ssp_guess, t_max, ssp_guess))
+
+    if att_peak_times:
+        # Estimate spacing from detected peaks.
+        if len(att_peak_times) >= 2:
+            spacing = float(np.median(np.diff(att_peak_times)))
+        else:
+            spacing = 20.0
+        # Extrapolate the first cycle backward: the initial attestation fires
+        # immediately at startup but has lower magnitude (startup noise suppresses
+        # the spike), so find_peaks misses it.  Prepend one period before the
+        # earliest detected peak, clamped to t ≥ 0.
+        first_extrap = att_peak_times[0] - spacing
+        if first_extrap >= 0:
+            att_peak_times = [first_extrap] + att_peak_times
+
+        half_w = min(spacing * 0.20, 3.0)
+        for t_pk in att_peak_times:
+            for ax in axes:
+                ax.axvspan(t_pk - half_w, t_pk + half_w,
+                           color=C_ATT_BAND, alpha=0.55, zorder=1, linewidth=0)
 
     # ── Figure legend (top right) ─────────────────────────────────────────────
     legend_handles = []
@@ -235,17 +269,17 @@ def generate_plot(df, n_robots, mode, script_dir):
             mlines.Line2D([], [], color=COLOR_SECAAS, linewidth=LINE_WIDTH,
                           label="SECaaS")
         )
+    if att_peak_times:
+        legend_handles.append(
+            mpatches.Patch(facecolor=C_ATT_BAND, alpha=0.55, edgecolor="none",
+                           label="Attestation cycle")
+        )
 
-    if n_panels == 1:
-        axes[0].legend(handles=legend_handles,
-                       loc="upper right", ncol=1, framealpha=0.9,
-                       fancybox=False, edgecolor="black",
-                       borderpad=0.5, handlelength=1.4, columnspacing=1.2)
-    else:
-        axes[0].legend(handles=legend_handles,
-                       loc="upper right", ncol=1, framealpha=0.9,
-                       fancybox=False, edgecolor="black",
-                       borderpad=0.5, handlelength=1.4, columnspacing=1.2)
+    axes[0].legend(handles=legend_handles,
+                   bbox_to_anchor=(0.5, 1.02), loc="lower center",
+                   ncol=3, framealpha=0.9,
+                   fancybox=False, edgecolor="black",
+                   borderpad=0.5, handlelength=1.4, columnspacing=1.0)
     
     panel_tag = f"_{SHOW}" if SHOW != "both" else ""
     out_path = script_dir / f"timeplot_docker_stats_N{n_robots}_{mode}_run{TARGET_RUN}_{VARIANT}{panel_tag}.pdf"

@@ -75,7 +75,7 @@ Options:
   --export       Set EXPORT_RESULTS=TRUE
   --wait-tx      Set WAIT_FOR_TX_CONFIRMATIONS=TRUE
   --startup      Set ONE_SHOT=TRUE
-  --ssp N        Attestation interval in milliseconds — sets ATTESTATION_INTERVAL_MS=N (default: 20000).
+  --ssp N        Attestation interval in milliseconds — sets ATTESTATION_INTERVAL_MS=N (default: 10000).
                  Use 0 for back-to-back measurements with no sleep (bounded only by CPU_LIMIT).
   --cpu-limit X  Sidecar CPU limit fraction — sets CPU_LIMIT=X in .env and compose files (default: 0.4)
   --contract rr|lv  Smart contract variant (default: lv; rr = round-robin verifier election)
@@ -92,20 +92,45 @@ Options:
                  Pass this flag if you deliberately want the placeholder behaviour.
   --attest-gzserver  Local 4-robot Gazebo mode: all sidecars attest the gazebo-server
                  process instead of robot_state_publisher.
+  --attest-mission-agent  Sidecars attest the mission_agent process (swarm mission
+                 experiments). Requires --nav2. Mutually exclusive with --attest-gzserver.
+  --mission      Bring up the orchestrator container to run the waypoint mission
+                 (local Gazebo + --nav2 only, N≤4). Reads MISSION_FILE.
+  --formation    Formation experiment (local Gazebo, N≤4): launch formation_agent
+                 on every robot (decentralized APF over neighbor odometry), spawn
+                 the swarm in a square, attest formation_agent, and bring up the
+                 formation orchestrator. Mutually exclusive with --nav2/--mission.
+  --formation-scale X  Formation half-diagonal d (m), square-corner spawn distance
+                 (default: 2.0). Must match the orchestrator's FORMATION_SCALE.
+  --mitigation on|off  Orchestrator reassigns a compromised robot's waypoints on
+                 attestation FAILURE (on) or only records the failure (off). Default: on.
+  --run-tag TAG  Tag for the orchestrator output files (mission-<TAG>.csv). Default: run.
   --no-wait-result  Set WAIT_FOR_VERIFICATION_RESULT=FALSE (fire-and-forget mode)
+  --gpu          Enable NVIDIA GPU access in the gazebo-server container
+                 (Gazebo mode only: N≤4). Adds a deploy.resources.reservations
+                 device block for the nvidia driver. Requires the NVIDIA Container
+                 Toolkit on the host.
+  --vnc          Add a gazebo-vnc container on ros-net (Gazebo mode only: N≤4).
+                 Exposes the Gazebo web VNC viewer at http://localhost:6080.
+                 Build the image first: cd dockerfiles/gazebo-vnc && docker build -t gazebo-vnc .
+  --world NAME   Gazebo world to load (Gazebo mode only: N≤4). Default: empty.
+                 Available: empty, turtlebot3_world, swarm_arena, house, dqn1, dqn2, dqn3, dqn4
+  --nav2         Enable Nav2 autonomous navigation stack on every robot container.
+                 Sets ENABLE_NAV2=true. Requires the turtlebot3-gazebo image to be
+                 rebuilt after adding ros-humble-navigation2 to the Dockerfile.
   -h|--help      Show this help
 
 EOF
 }
 
 # Default values
-N_ROBOTS_VAL="4"
+N_ROBOTS_VAL="2"
 AUTO_START_VAL="FALSE"
 EXPORT_RESULTS_VAL="FALSE"
 WAIT_TX_VAL="FALSE"
 ONE_SHOT_VAL="FALSE"
 DEPLOY_MODE="local"
-SSP_VAL="20000"
+SSP_VAL="10000"
 CPU_LIMIT_VAL="0.4"
 NO_CPU_LIMIT_VAL="FALSE"
 CPU_LIMIT_EXPLICIT="FALSE"
@@ -116,9 +141,39 @@ PASSWORD_VAL="netcom;"
 BOOTSTRAP_REFS="TRUE"
 WAIT_RESULT_VAL="TRUE"
 ATTEST_GZSERVER_VAL="FALSE"
+GPU_VAL="FALSE"
+VNC_VAL="FALSE"
+WORLD_VAL="empty"
+NAV2_VAL="FALSE"
 
 GZSERVER_TEXT_SECTION_SIZE="85412"
 GZSERVER_TEXT_SECTION_OFFSET="35552"
+
+# mission_agent attest target (self-contained .text; tick() hot loop lives in
+# the executable's own .text — see dockerfiles/turtlebot3/src/mission_agent).
+ATTEST_MISSION_AGENT_VAL="FALSE"
+# Size of the executable R E LOAD segment (readelf -l: memsz 0xc25a1) of the
+# cmd_vel mission_agent build; measured from the r-xp mapping base (offset 0).
+# Covers .text incl. tick(), so the runtime tamper is detected. Re-derive after
+# any mission_agent rebuild: readelf -lW <bin> | awk '/LOAD/&&/R E/'.
+MISSION_AGENT_TEXT_SECTION_SIZE="796065"
+MISSION_AGENT_TEXT_SECTION_OFFSET="0"
+
+# formation_agent attest target (formation experiment; APF tick() hot loop lives
+# in the executable's own .text — see dockerfiles/turtlebot3/src/formation_agent).
+# R E LOAD segment memsz 0xf8ccd = 1019085, from the r-xp mapping base (offset 0).
+# Re-derive after any formation_agent rebuild: readelf -lW <bin> | awk '/LOAD/&&/R E/'.
+FORMATION_AGENT_TEXT_SECTION_SIZE="1019085"
+FORMATION_AGENT_TEXT_SECTION_OFFSET="0"
+
+# Orchestrator / mission experiment knobs.
+MISSION_VAL="FALSE"
+MITIGATION_VAL="true"
+RUN_TAG_VAL="run"
+
+# Formation experiment knobs.
+FORMATION_VAL="FALSE"
+FORMATION_SCALE_VAL="2.0"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -174,7 +229,36 @@ while [[ $# -gt 0 ]]; do
       shift 2 ;;
     --no-bootstrap)  BOOTSTRAP_REFS="FALSE"; shift ;;
     --attest-gzserver) ATTEST_GZSERVER_VAL="TRUE"; shift ;;
+    --attest-mission-agent) ATTEST_MISSION_AGENT_VAL="TRUE"; shift ;;
+    --mission)       MISSION_VAL="TRUE"; shift ;;
+    --formation)     FORMATION_VAL="TRUE"; shift ;;
+    --formation-scale)
+      FORMATION_SCALE_VAL="$2"
+      if ! [[ "$FORMATION_SCALE_VAL" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+        echo "❌ --formation-scale must be a positive number (got '$FORMATION_SCALE_VAL')"; exit 1
+      fi
+      shift 2 ;;
+    --mitigation)
+      MITIGATION_VAL="$2"
+      if [[ "$MITIGATION_VAL" != "on" && "$MITIGATION_VAL" != "off" ]]; then
+        echo "❌ --mitigation must be 'on' or 'off' (got '$MITIGATION_VAL')"; exit 1
+      fi
+      [[ "$MITIGATION_VAL" == "on" ]] && MITIGATION_VAL="true" || MITIGATION_VAL="false"
+      shift 2 ;;
+    --run-tag)
+      if [[ -z "${2-}" ]]; then echo "❌ --run-tag requires a value"; exit 1; fi
+      RUN_TAG_VAL="$2"; shift 2 ;;
     --no-wait-result) WAIT_RESULT_VAL="FALSE"; shift ;;
+    --gpu)           GPU_VAL="TRUE"; shift ;;
+    --vnc)           VNC_VAL="TRUE"; shift ;;
+    --world)
+      WORLD_VAL="$2"
+      case "$WORLD_VAL" in
+        empty|turtlebot3_world|swarm_arena|house|dqn1|dqn2|dqn3|dqn4) ;;
+        *) echo "❌ --world must be one of: empty, turtlebot3_world, swarm_arena, house, dqn1, dqn2, dqn3, dqn4 (got '$WORLD_VAL')"; exit 1 ;;
+      esac
+      shift 2 ;;
+    --nav2)          NAV2_VAL="TRUE"; shift ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "❌ Unknown arg: $1"; echo; usage; exit 1 ;;
   esac
@@ -188,6 +272,53 @@ fi
 
 if [[ "$ATTEST_GZSERVER_VAL" == "TRUE" ]] && { [[ "$DEPLOY_MODE" != "local" ]] || [[ "$N_ROBOTS_VAL" != "4" ]]; }; then
   echo "❌ --attest-gzserver is only valid with --robots 4 in local mode"
+  exit 1
+fi
+
+if [[ "$ATTEST_GZSERVER_VAL" == "TRUE" && "$ATTEST_MISSION_AGENT_VAL" == "TRUE" ]]; then
+  echo "❌ --attest-gzserver and --attest-mission-agent are mutually exclusive"
+  exit 1
+fi
+
+# The mission_agent only runs when Nav2 is enabled (it drives navigate_to_pose),
+# so attesting it — and running the orchestrator mission — both require --nav2.
+if [[ "$ATTEST_MISSION_AGENT_VAL" == "TRUE" && "$NAV2_VAL" != "TRUE" ]]; then
+  echo "❌ --attest-mission-agent requires --nav2 (the mission_agent only runs with Nav2)"
+  exit 1
+fi
+
+if [[ "$MISSION_VAL" == "TRUE" ]] && { [[ "$NAV2_VAL" != "TRUE" ]] || [[ "$DEPLOY_MODE" != "local" ]] || (( N_ROBOTS_VAL > 4 )); }; then
+  echo "❌ --mission requires --nav2 in local Gazebo mode (--robots 1..4)"
+  exit 1
+fi
+
+# Formation experiment: local Gazebo, N≤4, and mutually exclusive with the patrol
+# stack (--nav2 / --mission / --attest-*). It brings up its own attest target
+# (formation_agent) and orchestrator (docker-compose.formation.yml).
+if [[ "$FORMATION_VAL" == "TRUE" ]]; then
+  if [[ "$DEPLOY_MODE" != "local" ]] || (( N_ROBOTS_VAL > 4 )); then
+    echo "❌ --formation requires local Gazebo mode (--robots 1..4)"; exit 1
+  fi
+  if [[ "$NAV2_VAL" == "TRUE" || "$MISSION_VAL" == "TRUE" ]]; then
+    echo "❌ --formation is mutually exclusive with --nav2 / --mission"; exit 1
+  fi
+  if [[ "$ATTEST_GZSERVER_VAL" == "TRUE" || "$ATTEST_MISSION_AGENT_VAL" == "TRUE" ]]; then
+    echo "❌ --formation is mutually exclusive with --attest-gzserver / --attest-mission-agent"; exit 1
+  fi
+fi
+
+if [[ "$GPU_VAL" == "TRUE" ]] && (( N_ROBOTS_VAL > 16 )); then
+  echo "❌ --gpu is only valid in Gazebo mode (--robots 1..16)"
+  exit 1
+fi
+
+if [[ "$VNC_VAL" == "TRUE" ]] && (( N_ROBOTS_VAL > 16 )); then
+  echo "❌ --vnc is only valid in Gazebo mode (--robots 1..16)"
+  exit 1
+fi
+
+if [[ "$WORLD_VAL" != "empty" ]] && (( N_ROBOTS_VAL > 16 )); then
+  echo "❌ --world is only valid in Gazebo mode (--robots 1..16)"
   exit 1
 fi
 
@@ -249,6 +380,23 @@ else
   upsert_env "CPU_LIMIT" "$CPU_LIMIT_VAL"
 fi
 upsert_env "ITERQ_THRESHOLD"           "$ITERQ_VAL"
+upsert_env "GAZEBO_WORLD"              "$WORLD_VAL"
+upsert_env "ENABLE_NAV2"              "$NAV2_VAL"
+upsert_env "ENABLE_FORMATION"          "$FORMATION_VAL"
+upsert_env "FORMATION_SCALE"           "$FORMATION_SCALE_VAL"
+upsert_env "MITIGATION"                "$MITIGATION_VAL"
+upsert_env "RUN_TAG"                   "$RUN_TAG_VAL"
+
+# Per-world mission file for the orchestrator (its compose is static, so it
+# reads MISSION_FILE from .env). Robot spawns and the Nav2 map are baked per
+# world by generate_compose.py (WORLD_SPAWN_POSITIONS / WORLD_MAP), so they need
+# no .env entries here. We always upsert MISSION_FILE so switching worlds never
+# leaves a stale mission in .env.
+if [[ "$WORLD_VAL" == "swarm_arena" ]]; then
+  upsert_env "MISSION_FILE" "/app/missions/swarm_arena.json"
+else
+  upsert_env "MISSION_FILE" "/app/missions/turtlebot3_world.json"
+fi
 
 CPU_DISPLAY="$CPU_LIMIT_VAL"
 [[ "$NO_CPU_LIMIT_VAL" == "TRUE" ]] && CPU_DISPLAY="none (uncapped)"
@@ -264,9 +412,12 @@ if [[ "$DEPLOY_MODE" == "remote" ]]; then
 else
   COMPOSE_BLOCKCHAIN_HOST="host.docker.internal"
 fi
-COMPOSE_FLAGS=(--robots "$N_ROBOTS_VAL" --blockchain-host "$COMPOSE_BLOCKCHAIN_HOST" --mode "$DEPLOY_MODE" --contract "$CONTRACT_VAL")
+COMPOSE_FLAGS=(--robots "$N_ROBOTS_VAL" --blockchain-host "$COMPOSE_BLOCKCHAIN_HOST" --mode "$DEPLOY_MODE" --contract "$CONTRACT_VAL" --world "$WORLD_VAL")
+[[ "$FORMATION_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--formation --formation-scale "$FORMATION_SCALE_VAL")
 [[ "$NO_CPU_LIMIT_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--no-cpu-limit)
 [[ "$ATTEST_GZSERVER_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--attest-gzserver)
+[[ "$GPU_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--gpu)
+[[ "$VNC_VAL" == "TRUE" ]] && COMPOSE_FLAGS+=(--vnc)
 python3 "$SCRIPT_DIR/generate_compose.py" "${COMPOSE_FLAGS[@]}"
 echo
 
@@ -325,6 +476,14 @@ if [[ "$ATTEST_GZSERVER_VAL" == "TRUE" ]]; then
   _ATTEST_CMD_NAME="gzserver"
   _ATTEST_TEXT_SIZE="$GZSERVER_TEXT_SECTION_SIZE"
   _ATTEST_OFFSET="$GZSERVER_TEXT_SECTION_OFFSET"
+elif [[ "$ATTEST_MISSION_AGENT_VAL" == "TRUE" ]]; then
+  _ATTEST_CMD_NAME="mission_agent"
+  _ATTEST_TEXT_SIZE="$MISSION_AGENT_TEXT_SECTION_SIZE"
+  _ATTEST_OFFSET="$MISSION_AGENT_TEXT_SECTION_OFFSET"
+elif [[ "$FORMATION_VAL" == "TRUE" ]]; then
+  _ATTEST_CMD_NAME="formation_agent"
+  _ATTEST_TEXT_SIZE="$FORMATION_AGENT_TEXT_SECTION_SIZE"
+  _ATTEST_OFFSET="$FORMATION_AGENT_TEXT_SECTION_OFFSET"
 else
   _ATTEST_CMD_NAME="robot_state_publisher"
   _ATTEST_TEXT_SIZE="42223"
@@ -502,7 +661,7 @@ if [[ "$BOOTSTRAP_REFS" == "TRUE" && "$DEPLOY_MODE" == "local" ]]; then
   # (robot_state_publisher / dummy_publisher) to be alive in the robot
   # container — that's when /digest returns combined_hash instead of an
   # error. Gazebo takes ~30s to spin up the publisher.
-  max_attempts=60   # = up to 2 minutes
+  max_attempts=70   # = up to 2 minutes
   attempt=1
   while (( attempt <= max_attempts )); do
     if curl -s "http://localhost:8001/digest" 2>/dev/null | grep -q '"combined_hash"'; then
@@ -561,6 +720,34 @@ elif [[ "$BOOTSTRAP_REFS" == "TRUE" && "$DEPLOY_MODE" == "remote" ]]; then
       && curl -s -X POST "$SECAAS_URL/reset" | jq . \
       || echo "⚠️  Bootstrap failed — attestations may close as FAILURE."
   fi
+fi
+
+# ── Mission orchestrator ──────────────────────────────────────────────────────
+# Local Gazebo + Nav2 only. Started last so the robots (and their mission_agent
+# nodes) are already up; the orchestrator waits READY_TIMEOUT_S for each agent's
+# mission_status before assigning the mission, then watches the chain for
+# attestation FAILUREs and (if MITIGATION=true) reassigns the victim's waypoints.
+if [[ "$MISSION_VAL" == "TRUE" && "$DEPLOY_MODE" == "local" ]]; then
+  echo
+  echo "🧭 Starting mission orchestrator (mitigation=$MITIGATION_VAL, run-tag=$RUN_TAG_VAL)..."
+  mkdir -p "$SCRIPT_DIR/experiments/data/mission"
+  docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.orchestrator.yml" up -d
+  echo "   Logs will appear in experiments/data/mission/mission-${RUN_TAG_VAL}.csv"
+fi
+
+# ── Formation orchestrator ────────────────────────────────────────────────────
+# Local Gazebo only. Started last so the robots (and their formation_agent nodes)
+# are already up; it publishes the shared goal, logs Formation Error / TTE over
+# time, and watches the chain for attestation FAILUREs to isolate (and, if
+# MITIGATION=true, reconfigure away from) the compromised robot.
+if [[ "$FORMATION_VAL" == "TRUE" && "$DEPLOY_MODE" == "local" ]]; then
+  echo
+  echo "🛰️  Starting formation orchestrator (mitigation=$MITIGATION_VAL, scale=$FORMATION_SCALE_VAL, run-tag=$RUN_TAG_VAL)..."
+  FDATA_SUBDIR="${FORMATION_DATA_SUBDIR:-formation}"
+  mkdir -p "$SCRIPT_DIR/experiments/data/$FDATA_SUBDIR"
+  mkdir -p "$SCRIPT_DIR/experiments/data/$FDATA_SUBDIR/bags"
+  docker compose -p "$PROJECT_NAME" -f "$SCRIPT_DIR/docker-compose.formation.yml" up -d
+  echo "   Logs will appear in experiments/data/$FDATA_SUBDIR/formation-${RUN_TAG_VAL}.csv"
 fi
 
 echo "🎉 All done."

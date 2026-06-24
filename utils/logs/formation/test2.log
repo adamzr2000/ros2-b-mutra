@@ -1,0 +1,115 @@
+nextnet@asus-g815:~/ros2-b-mutra$ ./start.sh --robots 4 --formation --auto --password 'nextnet;'
+...
+   (Attempt 22/70) Waiting for /digest...
+✅ robot1 /digest is ready.
+-> Querying sidecar at localhost:8001/digest ...
+   robot_hash               = 8e468872882f317c2b3301f1ff1aa8cf7fca46c09dde834304096470d9bdedbb
+   attestation_sidecar_hash = c64db06e6343bd2220320bf3e44f4984ba18d505419fe26db84b97596ecc9ee5
+   combined_hash            = 28d5caebc2f67aa7900fa50f36d047c8a34bd61653f0bea924ffd6c541c13f35
+-> Patched 4/4 files in ./ref-measurements
+-> Syncing SECaaS at http://localhost:8000 ...
+{"message":"Sync completed. 4/4 agents updated.","details":[{"agent":"robot1","status":"synced","address":"0x0ba0690b0b7e10ebe67026b6bf49c92dfe32e419"},{"agent":"robot2","status":"synced","address":"0x7b2a775383f0f3beebc8cee063e20df3e296487e"},{"agent":"robot3","status":"synced","address":"0xd58df39bc1ea89717dfb2c68fe80423dc953b55e"},{"agent":"robot4","status":"synced","address":"0xdce8a9e9aa18b63433ddbeea5f05ec59266cd27b"}]}
+🧹 Resetting on-chain attestation chain...
+{
+  "message": "Chain reset",
+  "tx_hash": "5c5fe4fce48e89153f1ec9aa37fbb019bf19f4dea68f76d9f52801d80e1edbfc"
+}
+▶ Auto-starting attestation workers (SECaaS + sidecars)...
+{
+  "message": "Attestation started."
+}
+{"message":"Attestation started."}
+{"message":"Attestation started."}
+{"message":"Attestation started."}
+{"message":"Attestation started."}
+
+🛰️  Starting formation orchestrator (mitigation=true, scale=2.0, run-tag=run)...
+[+] up 2/2
+ ✔ Container bag-recorder Created                                                                                                           0.0s
+ ✔ Container orchestrator Created                                                                                                           0.0s
+   Logs will appear in experiments/data/formation/formation-run.csv
+🎉 All done.
+nextnet@asus-g815:~/ros2-b-mutra$
+
+nextnet@asus-g815:~/ros2-b-mutra$ ./tools/tamper.sh robot3 --target formation_agent
+── Tampering ───────────────────────────────────────────
+  robot:   robot3 (container robot3-sidecar)
+  target:  formation_agent
+  offset:  0xbfa7
+  bytes:   5 byte(s) of fill '\220'
+
+  tampered PID=197 (formation_agent): 5 byte(s) at 0x56bef3264000 + 0xbfa7
+
+Recovery: docker restart robot3       (reload the binary fresh)
+nextnet@asus-g815:~/ros2-b-mutra$ docker logs -f orchestrator
+[INFO] [1781948375.104743039] [formation_orchestrator]: Chain: rpc=http://host.docker.internal:21003 contract=0x1932c48b2bF8102Ba33B4A6B545C32236e342f34 connected=True
+[INFO] [1781948375.107629479] [formation_orchestrator]: Formation (control-only): 4 robots, goal=(40.0, 0.0), window=120.0s; mitigation=ON
+[INFO] [1781948375.609135649] [formation_orchestrator]: Goal published (40.0, 0.0) (t0); running fixed window 120.0s.
+[WARN] [1781948450.567847353] [formation_orchestrator]: ⚠️ Attestation FAILURE for robot3 (prover=0xd58dF39bC1EA89717DfB2C68Fe80423DC953b55E) at t=75.0s
+[INFO] [1781948450.568186067] [formation_orchestrator]: Isolated robot3; published /formation/excluded.
+
+
+nextnet@asus-g815:~/ros2-b-mutra$ docker logs -f robot3
+Waiting for /gazebo node to start...
+/gazebo node has started!
+Waiting for /spawn_entity service to start...
+/spawn_entity service is available!
+Launching TurtleBot3 with the following parameters:
+Namespace: robot3
+X Pose: -2.0
+Y Pose: -2.0
+Nav2:  FALSE
+[INFO] [launch]: All log files can be found below /home/agent/.ros/log/2026-06-20-09-39-32-836796-robot3-192
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [robot_state_publisher-1]: process started with pid [193]
+[INFO] [spawn_entity.py-2]: process started with pid [195]
+[INFO] [formation_agent-3]: process started with pid [197]
+[formation_agent-3] [INFO] [1781948372.902478883] [robot3.formation_agent]: formation_agent ready: robot_id=robot3 neighbors=3 scale=2.00 tick=10.0Hz
+[robot_state_publisher-1] [INFO] [1781948372.905217590] [robot3.robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-1] [INFO] [1781948372.905268250] [robot3.robot_state_publisher]: got segment base_link
+[robot_state_publisher-1] [INFO] [1781948372.905272520] [robot3.robot_state_publisher]: got segment base_scan
+[robot_state_publisher-1] [INFO] [1781948372.905274996] [robot3.robot_state_publisher]: got segment caster_back_link
+[robot_state_publisher-1] [INFO] [1781948372.905277123] [robot3.robot_state_publisher]: got segment imu_link
+[robot_state_publisher-1] [INFO] [1781948372.905278947] [robot3.robot_state_publisher]: got segment wheel_left_link
+[robot_state_publisher-1] [INFO] [1781948372.905280702] [robot3.robot_state_publisher]: got segment wheel_right_link
+[spawn_entity.py-2] [INFO] [1781948373.063594867] [spawn_entity]: Spawn Entity started
+[spawn_entity.py-2] [INFO] [1781948373.063766945] [spawn_entity]: Loading entity XML from file /home/agent/ros2_ws/install/turtlebot3_gazebo/share/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf
+[spawn_entity.py-2] [INFO] [1781948373.064203835] [spawn_entity]: Waiting for service /spawn_entity, timeout = 300
+[spawn_entity.py-2] [INFO] [1781948373.064324999] [spawn_entity]: Waiting for service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781948373.069015265] [spawn_entity]: Calling service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781948374.203080218] [spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [robot3_burger]
+[INFO] [spawn_entity.py-2]: process has finished cleanly [pid 195]
+[formation_agent-3] [INFO] [1781948375.609058714] [robot3.formation_agent]: Goal received: (40.00, 0.00)
+[formation_agent-3] [WARN] [1781948450.568015534] [robot3.formation_agent]: Excluded from formation — halting.
+^Cnextnet@asus-g815:~/ros2-b-mutra$ docker logs -f robot1
+Waiting for /gazebo node to start...
+/gazebo node has started!
+Waiting for /spawn_entity service to start...
+/spawn_entity service is available!
+Launching TurtleBot3 with the following parameters:
+Namespace: robot1
+X Pose: 2.0
+Y Pose: 2.0
+Nav2:  FALSE
+[INFO] [launch]: All log files can be found below /home/agent/.ros/log/2026-06-20-09-39-32-836056-robot1-192
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [robot_state_publisher-1]: process started with pid [193]
+[INFO] [spawn_entity.py-2]: process started with pid [195]
+[INFO] [formation_agent-3]: process started with pid [197]
+[formation_agent-3] [INFO] [1781948372.902950748] [robot1.formation_agent]: formation_agent ready: robot_id=robot1 neighbors=3 scale=2.00 tick=10.0Hz
+[robot_state_publisher-1] [INFO] [1781948372.905228234] [robot1.robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-1] [INFO] [1781948372.905288585] [robot1.robot_state_publisher]: got segment base_link
+[robot_state_publisher-1] [INFO] [1781948372.905294688] [robot1.robot_state_publisher]: got segment base_scan
+[robot_state_publisher-1] [INFO] [1781948372.905297973] [robot1.robot_state_publisher]: got segment caster_back_link
+[robot_state_publisher-1] [INFO] [1781948372.905301126] [robot1.robot_state_publisher]: got segment imu_link
+[robot_state_publisher-1] [INFO] [1781948372.905303842] [robot1.robot_state_publisher]: got segment wheel_left_link
+[robot_state_publisher-1] [INFO] [1781948372.905306615] [robot1.robot_state_publisher]: got segment wheel_right_link
+[spawn_entity.py-2] [INFO] [1781948373.066417059] [spawn_entity]: Spawn Entity started
+[spawn_entity.py-2] [INFO] [1781948373.066599350] [spawn_entity]: Loading entity XML from file /home/agent/ros2_ws/install/turtlebot3_gazebo/share/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf
+[spawn_entity.py-2] [INFO] [1781948373.067046385] [spawn_entity]: Waiting for service /spawn_entity, timeout = 300
+[spawn_entity.py-2] [INFO] [1781948373.067172755] [spawn_entity]: Waiting for service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781948373.069356122] [spawn_entity]: Calling service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781948374.999900554] [spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [robot1_burger]
+[INFO] [spawn_entity.py-2]: process has finished cleanly [pid 195]
+[formation_agent-3] [INFO] [1781948375.609203265] [robot1.formation_agent]: Goal received: (40.00, 0.00)
+[formation_agent-3] [INFO] [1781948450.568302173] [robot1.formation_agent]: Neighbor robot3 excluded — reconfiguring to triangle.

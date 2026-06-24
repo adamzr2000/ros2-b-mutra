@@ -18,7 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     ros-${ROS_DISTRO}-rosidl-generator-dds-idl \
     ros-${ROS_DISTRO}-turtlebot3-msgs \
-    ros-${ROS_DISTRO}-gazebo-ros-pkgs && \
+    ros-${ROS_DISTRO}-gazebo-ros-pkgs \
+    ros-${ROS_DISTRO}-navigation2 \
+    ros-${ROS_DISTRO}-nav2-bringup && \
     rm -rf /var/lib/apt/lists/* && \
     pip3 install --no-cache-dir flask
 

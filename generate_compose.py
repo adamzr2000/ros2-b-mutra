@@ -4,14 +4,14 @@ Generates docker-compose files for a given number of robots (1–128).
 
 LOCAL MODE (default):
   Everything runs on d-mutra.
-  N ≤ GAZEBO_LIMIT = 4: Gazebo mode (gazebo-server + turtlebots on ros-net).
-  N > GAZEBO_LIMIT:     dummy mode (namespaced ROS2 dummy_publisher, no Gazebo).
+  N ≤ GAZEBO_LIMIT = 16: Gazebo mode (gazebo-server + turtlebots on ros-net).
+  N > GAZEBO_LIMIT:      dummy mode (namespaced ROS2 dummy_publisher, no Gazebo).
   Always outputs docker-compose.robots.yml and docker-compose.attestation.yml.
 
 REMOTE MODE (--mode remote):
   d-mutra hosts Besu + SECaaS + monitoring only.
   All robots + sidecars run on remote host(s).
-  N ≤ GAZEBO_LIMIT: Gazebo mode on remote1.
+  N ≤ GAZEBO_LIMIT (16): Gazebo mode on remote1.
   N > GAZEBO_LIMIT: dummy mode on remote1 (and remote2 if N > REMOTE1_LIMIT).
   Outputs under generated/:
       docker-compose.robots-N{N}-remote1.yml
@@ -28,11 +28,12 @@ Usage:
 Called automatically by start.sh via --robots N --mode MODE.
 """
 import argparse
+import math
 import os
 import sys
 
 MAX_ROBOTS    = 128
-GAZEBO_LIMIT  = 4    # N ≤ 4: real Gazebo simulation; N > 4: dummy mode
+GAZEBO_LIMIT  = 16   # N ≤ 16: real Gazebo simulation; N > 16: dummy mode
 REMOTE1_LIMIT = 64   # remote mode: robots 1..64 on remote1
 REMOTE2_LIMIT = 128  # remote mode: robots 65..128 on remote2
 
@@ -44,17 +45,60 @@ CONTRACT_TO_IMAGE = {
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def robot_position(i: int, spacing: int = 5):
-    """Grid layout: 10 robots per row, `spacing` units apart."""
-    row = (i - 1) // 10
-    col = (i - 1) % 10
-    return col * spacing, row * spacing
+# Per-world spawn presets for Gazebo mode (N≤4).
+# Chosen to avoid model obstacles and keep robots ≥1m apart.
+WORLD_SPAWN_POSITIONS = {
+    # turtlebot3_world: 3×3 cylinder grid at ±1.1m spacing (r=0.15m).
+    # Corners of a 1m square sit in the four open diagonal gaps.
+    "turtlebot3_world": [(1.5, 0.5), (-1.5, 0.5), (-1.5, -0.5), (1.5, -0.5)],
+    # swarm_arena: 16×16 walled empty room. Robots spawn at the four inner
+    # corners (±2,±2), one per quadrant, for symmetric quadrant-loop missions.
+    "swarm_arena": [(2.0, 2.0), (-2.0, 2.0), (-2.0, -2.0), (2.0, -2.0)],
+}
+
+# Nav2 occupancy map per world (filename inside turtlebot3_navigation2/map/).
+# Worlds not listed here use the default map.yaml (the turtlebot3_world map).
+WORLD_MAP = {
+    "swarm_arena": "swarm_arena.yaml",
+}
+
+
+def robot_position(i: int, spacing: float = 5.0, world: str = "empty",
+                   formation: bool = False, formation_scale: float = 2.0,
+                   grid_cols: int = 0, grid_rows: int = 0, grid_spacing: float = 1.0):
+    """Return (x, y) spawn position for robot i (1-indexed).
+
+    Formation mode (N≤4): corners of a 2d×2d square — robot1 (+d,+d), robot2 (-d,+d),
+    robot3 (-d,-d), robot4 (+d,-d) — matching the slot offsets the formation_agent uses.
+    Compact grid mode (4<N≤GAZEBO_LIMIT): ceil(sqrt(N))×ceil(sqrt(N)) centered grid at
+    grid_spacing metre intervals — robots spawn stationary, no formation agent runs.
+    World preset (N≤4): per-world fixed positions (see WORLD_SPAWN_POSITIONS).
+    Default: 10-per-row grid at `spacing` metres — dummy mode.
+    """
+    if formation:
+        d = formation_scale
+        corners = [(d, d), (-d, d), (-d, -d), (d, -d)]
+        if 1 <= i <= len(corners):
+            return corners[i - 1]
+    preset = WORLD_SPAWN_POSITIONS.get(world, [])
+    if preset and 1 <= i <= len(preset):
+        return preset[i - 1]
+    if grid_cols > 0:
+        col = (i - 1) % grid_cols
+        row = (i - 1) // grid_cols
+        x = (col - (grid_cols - 1) / 2.0) * grid_spacing
+        y = ((grid_rows - 1) / 2.0 - row) * grid_spacing
+        return round(x, 3), round(y, 3)
+    row_idx = (i - 1) // 10
+    col_idx = (i - 1) % 10
+    return col_idx * spacing, row_idx * spacing
 
 
 # ── Robot compose generators ──────────────────────────────────────────────────
 
-def generate_robots_yml_gazebo(n: int) -> str:
-    """N ≤ GAZEBO_LIMIT: gazebo-server + N turtlebots on ros-net bridge."""
+def generate_robots_yml_gazebo(n: int, gpu: bool = False, vnc: bool = False, world: str = "empty",
+                               formation: bool = False, formation_scale: float = 2.0) -> str:
+    """N ≤ GAZEBO_LIMIT (16): gazebo-server + N turtlebots on ros-net bridge."""
     lines = [
         "# docker-compose.robots.yml",
         f"# AUTO-GENERATED for {n} robot(s) [Gazebo mode] — edit generate_compose.py, not this file.",
@@ -67,6 +111,7 @@ def generate_robots_yml_gazebo(n: int) -> str:
         "    environment:",
         "      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}",
         "      - GAZEBO_AUDIO_DEVICE=none",
+        "      - GAZEBO_WORLD=${GAZEBO_WORLD:-empty}",
         "    ports:",
         '      - "127.0.0.1:11345:11345"',
         "    tty: true",
@@ -75,9 +120,29 @@ def generate_robots_yml_gazebo(n: int) -> str:
         "    networks:",
         "      - ros-net",
     ]
+    if gpu:
+        lines += [
+            "    deploy:",
+            "      resources:",
+            "        reservations:",
+            "          devices:",
+            "            - driver: nvidia",
+            "              count: 1",
+            "              capabilities: [gpu]",
+        ]
 
+    # For N>4 use a compact centered grid so robots stand still without a
+    # formation agent — intended for Gazebo photo runs.
+    grid_cols = grid_rows = 0
+    if n > 4:
+        grid_cols = math.ceil(math.sqrt(n))
+        grid_rows = math.ceil(n / grid_cols)
+
+    nav2_map = WORLD_MAP.get(world, "map.yaml")
     for i in range(1, n + 1):
-        x, y = robot_position(i)
+        x, y = robot_position(i, world=world, formation=formation,
+                              formation_scale=formation_scale,
+                              grid_cols=grid_cols, grid_rows=grid_rows)
         lines += [
             "",
             f"  robot{i}:",
@@ -90,6 +155,12 @@ def generate_robots_yml_gazebo(n: int) -> str:
             f"        - NAMESPACE=robot{i}",
             f"        - X_POSE={x}",
             f"        - Y_POSE={y}",
+            f"        - NAV2_MAP={nav2_map}",
+            f"        - ENABLE_NAV2=${{ENABLE_NAV2:-false}}",
+            f"        - ENABLE_FORMATION=${{ENABLE_FORMATION:-false}}",
+            f"        - FORMATION_SCALE=${{FORMATION_SCALE:-2.0}}",
+            f"        - K_ATT=${{K_ATT:-0.8}}",
+            f"        - K_FORM=${{K_FORM:-3.0}}",
             f'    command: bash -c "./start_turtlebot.sh"',
             f"    depends_on:",
             f"      - gazebo-server",
@@ -98,6 +169,42 @@ def generate_robots_yml_gazebo(n: int) -> str:
             f"    networks:",
             f"      - ros-net",
         ]
+
+    if vnc:
+        vnc_lines = [
+            "",
+            "  gazebo-vnc:",
+            "    image: gazebo-vnc",
+            "    container_name: gazebo-vnc",
+            "    hostname: gazebo-vnc",
+            "    environment:",
+            "      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}",
+            "      - GAZEBO_MASTER_URI=http://gazebo-server:11345",
+            # Mount the turtlebot3_gazebo model tree so gzclient can resolve
+            # model://turtlebot3_common/meshes/*.dae URIs for robot visuals.
+            "      - GAZEBO_MODEL_PATH=/home/ubuntu/turtlebot3_models",
+            "    ports:",
+            '      - "6080:80"',
+            "    security_opt:",
+            "      - seccomp:unconfined",
+            "    volumes:",
+            "      - ./dockerfiles/turtlebot3/src/turtlebot3_simulations/turtlebot3_gazebo/models:/home/ubuntu/turtlebot3_models:ro",
+            "    depends_on:",
+            "      - gazebo-server",
+            "    networks:",
+            "      - ros-net",
+        ]
+        if gpu:
+            vnc_lines += [
+                "    deploy:",
+                "      resources:",
+                "        reservations:",
+                "          devices:",
+                "            - driver: nvidia",
+                "              count: 1",
+                "              capabilities: [gpu]",
+            ]
+        lines += vnc_lines
 
     lines += [
         "",
@@ -131,6 +238,7 @@ def generate_robots_yml_dummy(n: int) -> str:
             f"    hostname: robot{i}",
             f"    environment:",
             f"        - NAMESPACE=robot{i}",
+            f"        - ENABLE_NAV2=${{ENABLE_NAV2:-false}}",
             f'    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot{i}"',
             f"    stdin_open: true",
             f"    tty: true",
@@ -139,9 +247,11 @@ def generate_robots_yml_dummy(n: int) -> str:
     return "\n".join(lines) + "\n"
 
 
-def generate_robots_yml(n: int) -> str:
+def generate_robots_yml(n: int, gpu: bool = False, vnc: bool = False, world: str = "empty",
+                        formation: bool = False, formation_scale: float = 2.0) -> str:
     if n <= GAZEBO_LIMIT:
-        return generate_robots_yml_gazebo(n)
+        return generate_robots_yml_gazebo(n, gpu=gpu, vnc=vnc, world=world,
+                                          formation=formation, formation_scale=formation_scale)
     return generate_robots_yml_dummy(n)
 
 
@@ -164,6 +274,7 @@ def generate_robots_remote_yml(n_start: int, n_end: int) -> str:
             f"    hostname: robot{i}",
             f"    environment:",
             f"        - NAMESPACE=robot{i}",
+            f"        - ENABLE_NAV2=${{ENABLE_NAV2:-false}}",
             f'    command: bash -c "source /opt/ros/humble/setup.bash && source /home/agent/ros2_ws/install/setup.bash && ros2 launch c_example_package dummy_publisher.launch.py namespace:=robot{i}"',
             f"    stdin_open: true",
             f"    tty: true",
@@ -347,6 +458,27 @@ if __name__ == "__main__":
         "--attest-gzserver", action="store_true", default=False,
         help="Test-only local Gazebo mode: make robot1 sidecar attach to gazebo-server PID namespace.",
     )
+    parser.add_argument(
+        "--gpu", action="store_true", default=False,
+        help="Add NVIDIA GPU reservation to the gazebo-server container (Gazebo mode only, N≤4).",
+    )
+    parser.add_argument(
+        "--vnc", action="store_true", default=False,
+        help="Add a gazebo-vnc sidecar container on ros-net with port 6080:80 (Gazebo mode only, N≤4).",
+    )
+    parser.add_argument(
+        "--world", default="empty",
+        help="Gazebo world name — selects world-aware spawn positions (Gazebo mode only, N≤4).",
+    )
+    parser.add_argument(
+        "--formation", action="store_true", default=False,
+        help="Formation experiment (Gazebo mode only, N≤4): spawn robots at the "
+             "square corners (±d,±d) and set ENABLE_FORMATION=true default.",
+    )
+    parser.add_argument(
+        "--formation-scale", type=float, default=2.0,
+        help="Formation half-diagonal d (m) — square-corner spawn distance (default 2.0).",
+    )
     args = parser.parse_args()
 
     if not 1 <= args.robots <= MAX_ROBOTS:
@@ -357,9 +489,22 @@ if __name__ == "__main__":
         print("❌ --attest-gzserver is only valid for local mode with --robots 4")
         sys.exit(1)
 
+    if args.gpu and args.robots > GAZEBO_LIMIT:
+        print(f"❌ --gpu is only valid in Gazebo mode (N≤{GAZEBO_LIMIT})")
+        sys.exit(1)
+
+    if args.vnc and args.robots > GAZEBO_LIMIT:
+        print(f"❌ --vnc is only valid in Gazebo mode (N≤{GAZEBO_LIMIT})")
+        sys.exit(1)
+
     n = args.robots
     sidecar_image = CONTRACT_TO_IMAGE[args.contract]
     no_cpu_limit  = args.no_cpu_limit
+    gpu           = args.gpu
+    vnc           = args.vnc
+    world         = args.world
+    formation     = args.formation
+    formation_scale = args.formation_scale
 
     if args.mode == "remote":
         # ── REMOTE MODE: all robots on remote host(s) ─────────────────────────
@@ -376,7 +521,7 @@ if __name__ == "__main__":
         if n <= GAZEBO_LIMIT:
             # Gazebo mode: use full Gazebo compose (includes ros-net bridge)
             with open(robots_r1_path, "w") as f:
-                f.write(generate_robots_yml_gazebo(n))
+                f.write(generate_robots_yml_gazebo(n, gpu=gpu, vnc=vnc, world=world))
             print(f"✅ {robots_r1_path}  (robots 1–{n}, Gazebo mode)")
         else:
             with open(robots_r1_path, "w") as f:
@@ -416,8 +561,10 @@ if __name__ == "__main__":
         attestation_path = os.path.join(SCRIPT_DIR, "docker-compose.attestation.yml")
 
         with open(robots_path, "w") as f:
-            f.write(generate_robots_yml(n))
-        print(f"✅ {robots_path}  ({n} robots, {mode} mode)")
+            f.write(generate_robots_yml(n, gpu=gpu, vnc=vnc, world=world,
+                                        formation=formation, formation_scale=formation_scale))
+        print(f"✅ {robots_path}  ({n} robots, {mode} mode"
+              + (f", formation d={formation_scale}" if formation else "") + ")")
 
         cfg_dir = "./config" if n <= GAZEBO_LIMIT else "./config-dummy"
         with open(attestation_path, "w") as f:

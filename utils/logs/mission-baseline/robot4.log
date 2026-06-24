@@ -1,0 +1,38 @@
+nextnet@asus-g815:~$ docker logs -f robot4
+Waiting for /gazebo node to start...
+/gazebo node has started!
+Waiting for /spawn_entity service to start...
+/spawn_entity service is available!
+Launching TurtleBot3 with the following parameters:
+Namespace: robot4
+X Pose: 2.0
+Y Pose: -2.0
+Nav2:  TRUE
+[INFO] [launch]: All log files can be found below /home/agent/.ros/log/2026-06-18-22-29-08-307936-robot4-198
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [robot_state_publisher-1]: process started with pid [199]
+[INFO] [spawn_entity.py-2]: process started with pid [201]
+[INFO] [mission_agent-3]: process started with pid [203]
+[mission_agent-3] [INFO] [1781821748.377880995] [robot4.mission_agent]: mission_agent ready: robot_id=robot4 control=cmd_vel tick=10.0Hz
+[robot_state_publisher-1] [INFO] [1781821748.379600453] [robot4.robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-1] [INFO] [1781821748.379672211] [robot4.robot_state_publisher]: got segment base_link
+[robot_state_publisher-1] [INFO] [1781821748.379678161] [robot4.robot_state_publisher]: got segment base_scan
+[robot_state_publisher-1] [INFO] [1781821748.379681608] [robot4.robot_state_publisher]: got segment caster_back_link
+[robot_state_publisher-1] [INFO] [1781821748.379684519] [robot4.robot_state_publisher]: got segment imu_link
+[robot_state_publisher-1] [INFO] [1781821748.379687372] [robot4.robot_state_publisher]: got segment wheel_left_link
+[robot_state_publisher-1] [INFO] [1781821748.379690280] [robot4.robot_state_publisher]: got segment wheel_right_link
+[spawn_entity.py-2] [INFO] [1781821748.542855612] [spawn_entity]: Spawn Entity started
+[spawn_entity.py-2] [INFO] [1781821748.543015893] [spawn_entity]: Loading entity XML from file /home/agent/ros2_ws/install/turtlebot3_gazebo/share/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf
+[spawn_entity.py-2] [INFO] [1781821748.543393877] [spawn_entity]: Waiting for service /spawn_entity, timeout = 300
+[spawn_entity.py-2] [INFO] [1781821748.543528228] [spawn_entity]: Waiting for service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781821748.545634537] [spawn_entity]: Calling service /spawn_entity
+[spawn_entity.py-2] [INFO] [1781821750.094277912] [spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [robot4_burger]
+[INFO] [spawn_entity.py-2]: process has finished cleanly [pid 201]
+[mission_agent-3] [INFO] [1781821752.675644491] [robot4.mission_agent]: Assignment received: 8 waypoint(s) (completed so far: 0)
+[mission_agent-3] [INFO] [1781821769.677869291] [robot4.mission_agent]: Waypoint 1/8 reached.
+[mission_agent-3] [INFO] [1781821787.877723278] [robot4.mission_agent]: Waypoint 2/8 reached.
+[mission_agent-3] [INFO] [1781821806.077601173] [robot4.mission_agent]: Waypoint 3/8 reached.
+[mission_agent-3] [INFO] [1781821824.277558844] [robot4.mission_agent]: Waypoint 4/8 reached.
+[mission_agent-3] [INFO] [1781821842.477428872] [robot4.mission_agent]: Waypoint 5/8 reached.
+[mission_agent-3] [INFO] [1781821860.677318639] [robot4.mission_agent]: Waypoint 6/8 reached.
+[mission_agent-3] [INFO] [1781821878.877060009] [robot4.mission_agent]: Waypoint 7/8 reached.

@@ -420,8 +420,6 @@ func RunProverLogicContinuousMode(
 
 		activeAttestations.Store(attestationID, true)
 
-		time.Sleep(500 * time.Millisecond)
-
 		if memStor, ok := store.(*storage.MemoryStorageBackend); ok && config.MemoryStorageFile != "" {
 			memStor.ExportToFile(config.MemoryStorageFile)
 		}
@@ -431,13 +429,21 @@ func RunProverLogicContinuousMode(
 			return
 		}
 
-		// Inter-cycle sleep — preserves the SSP between m_K of this cycle
-		// and m_1 of the next cycle, so the cadence remains constant.
+		// Inter-cycle sleep — the period between m_K of this cycle and m_1 of
+		// the next equals the SSP exactly, with a 500ms floor that only applies
+		// when SSP < 500ms (e.g. SSP=0 back-to-back mode) so consecutive
+		// SendEvidence submissions stay spaced enough to avoid prover-account
+		// nonce races. For SSP >= 500ms the cycle period is precisely the SSP,
+		// so detection latency models can use P = SSP without a +0.5s constant.
+		sleep := attestationInterval()
+		if sleep < 500*time.Millisecond {
+			sleep = 500 * time.Millisecond
+		}
 		select {
 		case <-stopCh:
 			logger.Info("Attestation process stopped")
 			return
-		case <-time.After(attestationInterval()):
+		case <-time.After(sleep):
 		}
 	}
 }
