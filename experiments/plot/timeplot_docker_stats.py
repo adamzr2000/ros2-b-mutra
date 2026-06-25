@@ -16,6 +16,7 @@ TARGET_RUN = 1
 N_ROBOTS   = 4
 MODES      = ["continuous"]
 VARIANT    = "rr"   # ← continuous-mode variant to plot
+FILTER_SSP = None   # set to e.g. 5000 to restrict to one SSP; None = all
 SHOW       = "cpu"  # "cpu" | "net" | "both"
 
 LINE_WIDTH   = 2.6
@@ -73,6 +74,8 @@ def main():
             continue
 
         subset = df[df["n_robots"] == N_ROBOTS].copy()
+        if FILTER_SSP is not None and "ssp_ms" in subset.columns:
+            subset = subset[subset["ssp_ms"] == FILTER_SSP]
         if subset.empty:
             print(f"[WARN] No data for N={N_ROBOTS} mode={mode}, skipping.")
             continue

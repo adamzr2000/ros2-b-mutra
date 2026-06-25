@@ -139,7 +139,7 @@ def main():
                   f"ram={ram_mean:.2f}±{ram_std:.2f} MB")
 
     # ── Top panel (CPU) ────────────────────────────────────────────────────────
-    ax_cpu.set_ylabel("CPU Usage\n(vCPUs, 1.0 = 1 core)")
+    ax_cpu.set_ylabel("CPU usage (vCPUs)")
     ax_cpu.set_ylim(0, max(cpu_tops) * HEADROOM)
     ax_cpu.set_xlim(group_xs[0]  - GROUP_SPACING * 0.55,
                     group_xs[-1] + GROUP_SPACING * 0.55)
@@ -151,7 +151,7 @@ def main():
     ax_cpu.set_axisbelow(True)
 
     # ── Bottom panel (RAM) ─────────────────────────────────────────────────────
-    ax_ram.set_ylabel("RAM (MB)")
+    ax_ram.set_ylabel("RAM usage (MB)")
     ax_ram.set_ylim(0, max(ram_tops) * HEADROOM)
     ax_ram.set_xticks(group_xs)
     ax_ram.set_xticklabels([str(n) for n in n_values])
