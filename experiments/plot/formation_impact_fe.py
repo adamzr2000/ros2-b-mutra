@@ -24,15 +24,15 @@ DATA_SUBDIR = "formation-v4"
 DATA_DIR    = SCRIPT_DIR.parent / "data" / DATA_SUBDIR
 OUT_PDF     = SCRIPT_DIR / "formation_impact_fe.pdf"
 
-FONT_SCALE = 1.8
+FONT_SCALE = 2.0
 sns.set_theme(context="paper", style="ticks",
               rc={"xtick.direction": "out", "ytick.direction": "out"},
               font_scale=FONT_SCALE)
 plt.rcParams.update({"font.family": "serif", "pdf.fonttype": 42, "ps.fonttype": 42})
 
 C_BASELINE    = "#888888"
-C_UNMITIGATED = "#C44E52"
-C_MITIGATED   = "#1f77b4"
+C_UNMITIGATED = "#FF0000"
+C_MITIGATED   = "#0000FF"
 LW = 2.2
 
 SSP_PICK = 10
@@ -99,9 +99,9 @@ peak_idx = int(np.argmax(fe_mit))
 t_peak   = float(t_mit[peak_idx])
 fe_peak  = float(fe_mit[peak_idx])
 
-fs_ann = plt.rcParams.get("axes.labelsize", 10) * 0.9
+fs_ann = plt.rcParams.get("axes.labelsize", 10) * 0.8
 ax.annotate(
-    "Attack detected;\nMalicious robot isolated",
+    "Attack detected;\Compromised robot isolated",
     xy=(16, 0.2), xycoords="data",
     xytext=(10, 0.7), textcoords="data",
     va="bottom", ha="center", fontsize=fs_ann,
@@ -117,7 +117,7 @@ ax.set_ylim(0, 1.40)
 ax.set_xlabel("Time since attack injection (s)")
 ax.set_ylabel("Swarm Formation Error (m)")
 ax.legend(loc="upper right", frameon=True, framealpha=0.9, fancybox=False,
-          edgecolor="black", handlelength=1.6, fontsize="medium")
+          edgecolor="black", handlelength=1.6, fontsize="small")
 
 ax.spines["top"].set_visible(True)
 ax.spines["right"].set_visible(True)

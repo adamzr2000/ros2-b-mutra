@@ -18,17 +18,26 @@ ITERQ_VALS = [1, 2, 4, 8]
 INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
 IDLE_FILE  = "../data/blockchain-stats/_summary/blockchain_stats_idle.csv"
 
-FONT_SCALE = 1.45
-LINEWIDTH  = 1.8
-MARKERSIZE = 7
+FONT_SCALE = 1.9
+LINEWIDTH  = 2.0
+MARKERSIZE = 8
 COLOR_IDLE = "gray"
 
-_PALETTE = ["#b0a2d8", "#8e7dbb", "#6a5d99", "#3d3460"]  # light→dark: IterQ 1→2→4→8
+PALETTE = "D"
+
+_PALETTES = {
+    "A": ["#b0a2d8", "#8e7dbb", "#6a5d99", "#3d3460"],  # purple  light→dark
+    "B": ["#c8c8c8", "#989898", "#686868", "#383838"],  # grey    light→dark
+    "C": ["#DCC7B8", "#b08060", "#8B5E3C", "#5C3317"],  # brown   light→dark
+    "D": ["#bdd7e7", "#6baed6", "#2171b5", "#084594"],  # blue    light→dark
+}
+
+_PAL = _PALETTES[PALETTE]
 STYLES = {
-    1: {"color": _PALETTE[0], "marker": "o"},
-    2: {"color": _PALETTE[1], "marker": "s"},
-    4: {"color": _PALETTE[2], "marker": "^"},
-    8: {"color": _PALETTE[3], "marker": "D"},
+    1: {"color": _PAL[0], "marker": "o"},
+    2: {"color": _PAL[1], "marker": "s"},
+    4: {"color": _PAL[2], "marker": "^"},
+    8: {"color": _PAL[3], "marker": "D"},
 }
 
 def main():
@@ -79,7 +88,7 @@ def main():
                zorder=2, label="Idle")
 
     ax.set_xlabel("Number of robots (N)")
-    ax.set_ylabel("Blockchain growth rate (KB/s)")
+    ax.set_ylabel("Growth rate (KB/s)")
     ax.set_xticks(n_vals)
     ax.set_xticklabels([str(n) for n in n_vals])
     ax.set_ylim(bottom=0)
@@ -88,7 +97,7 @@ def main():
     ax.set_axisbelow(True)
 
     ax.legend(loc="upper left", frameon=True, framealpha=0.9, fancybox=False,
-              edgecolor="black", borderpad=0.4, handlelength=1.5, fontsize="small")
+              edgecolor="black", borderpad=0.4, handlelength=1.5, fontsize="x-small")
 
     out_path = script_dir / "lineplot_blockchain_growth.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")

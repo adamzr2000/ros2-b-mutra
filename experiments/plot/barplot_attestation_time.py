@@ -14,7 +14,6 @@ import pandas as pd
 import seaborn as sns
 
 INPUT_STARTUP    = "../data/attestation-times/_summary/durations_per_run_startup_v1.csv"
-# INPUT_STARTUP    = "../data/attestation-times/_summary/durations_per_run_startup.csv"
 INPUT_CONTINUOUS = "../data/attestation-times/_summary/durations_per_run_{VARIANT}.csv"
 VARIANT    = "lv"
 SSP_MS     = 20000
@@ -29,19 +28,18 @@ BAR_WIDTH  = 0.42
 HEADROOM   = 1.10
 EPS        = 1e-4
 
-PALETTE = "C"
+PALETTE = "D"
 
-# _PALETTES = {
-#     "A": dict(sha256="#336699", oracle="#9A7B3F", verifier="#228888", blockchain="#993333"),
-#     "B": dict(sha256="#4C72B0", oracle="#55A868", verifier="#C8A83E", blockchain="#C44E52"),
-#     "C": dict(sha256="#4B9FCC", oracle="#E8883A", verifier="#59c396", blockchain="#6a5d99"),
-# }
-
-# 1. Corrected Palette: Mapped to create a bottom-to-top visual gradient
 _PALETTES = {
     "A": dict(sha256="#336699", oracle="#9A7B3F", verifier="#228888", blockchain="#993333"),
     "B": dict(sha256="#4C72B0", oracle="#55A868", verifier="#C8A83E", blockchain="#C44E52"),
     "C": dict(sha256="#4B9FCC", oracle="#59c396", verifier="#f8eb4f", blockchain="#6a5d99"),
+    "D": dict(sha256="#B3B3B3", oracle="#FFB3B3", verifier="#DCC7B8", blockchain="#B3B3FF"),
+}
+
+# Explicit edge colors (pgfplots-style fill+edge pairs). Palettes not listed fall back to _darken().
+_PALETTE_EDGES = {
+    "D": dict(sha256="#000000", oracle="#FF0000", verifier="#8B4513", blockchain="#0000FF"),
 }
 
 C_SHA256   = _PALETTES[PALETTE]["sha256"]
@@ -57,12 +55,15 @@ LABELS = {
 }
 COLORS = {"sha256": C_SHA256, "oracle": C_ORACLE, "verifier": C_VERIFIER, "blockchain": C_BC}
 
-# 2. Fixed Legend Order: Matches the bottom-to-top physical stacking order of continuous mode
 ORDER  = ["sha256", "oracle", "verifier", "blockchain"]
 
 
 def _darken(color, factor=0.65):
     return tuple(c * factor for c in mcolors.to_rgb(color))
+
+
+_explicit_edges = _PALETTE_EDGES.get(PALETTE, {})
+EDGE_COLORS = {k: _explicit_edges.get(k) or _darken(COLORS[k]) for k in ORDER}
 
 
 def _agg(df, n, group, role, metric):
@@ -100,28 +101,28 @@ def build_segments(df, n, mode):
         verifier   = _central(df, n, "Robot",  "verifier", "total_lifecycle")
         blockchain = max(0.0, prover_total - oracle - verifier - sha256)
         segs = [
-            ("sha256",     sha256,     C_SHA256),
-            ("oracle",     oracle,     C_ORACLE),
-            ("verifier",   verifier,   C_VERIFIER),
-            ("blockchain", blockchain, C_BC),
+            ("sha256",     sha256,     C_SHA256, EDGE_COLORS["sha256"]),
+            ("oracle",     oracle,     C_ORACLE, EDGE_COLORS["oracle"]),
+            ("verifier",   verifier,   C_VERIFIER, EDGE_COLORS["verifier"]),
+            ("blockchain", blockchain, C_BC,     EDGE_COLORS["blockchain"]),
         ]
     else:
         verifier   = _central(df, n, "SECaaS", "verifier", "total_lifecycle")
         blockchain = max(0.0, prover_total - verifier - sha256)
         segs = [
-            ("sha256",     sha256,     C_SHA256),
-            ("verifier",   verifier,   C_VERIFIER),
-            ("blockchain", blockchain, C_BC),
+            ("sha256",     sha256,     C_SHA256, EDGE_COLORS["sha256"]),
+            ("verifier",   verifier,   C_VERIFIER, EDGE_COLORS["verifier"]),
+            ("blockchain", blockchain, C_BC,     EDGE_COLORS["blockchain"]),
         ]
     return segs, err_lo, err_hi
 
 
 def draw_stack(ax, x, segments, err_lo, err_hi):
     bottom = 0.0
-    for _, val, color in segments:
+    for _, val, color, edge in segments:
         if val > EPS:
             ax.bar(x, val, bottom=bottom, width=BAR_WIDTH,
-                   color=color, edgecolor=_darken(color), linewidth=0.8, zorder=3)
+                   color=color, edgecolor=edge, linewidth=1.0, zorder=3)
             bottom += val
     if err_lo > 0 or err_hi > 0:
         ax.errorbar(x, bottom, yerr=[[err_lo], [err_hi]], fmt="none",
@@ -139,14 +140,14 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
     for i, n in enumerate(n_values):
         segs, err_lo, err_hi = build_segments(sub, n, mode)
         all_segs[n] = (segs, err_lo, err_hi)
-        sec_parts = [f"{key}={val:.6f}s" for key, val, _ in segs]
-        total_s = sum(val for _, val, _ in segs)
+        sec_parts = [f"{key}={val:.6f}s" for key, val, *_ in segs]
+        total_s = sum(val for _, val, *_ in segs)
         sec_parts.append(f"total={total_s:.6f}s")
         sec_parts.append(f"err=-{err_lo:.6f}s/+{err_hi:.6f}s")
         print(f"[DEBUG] {panel_label} | mode={mode} | N={n} | seconds: " + ", ".join(sec_parts))
         top = draw_stack(ax, i, segs, err_lo, err_hi)
         max_top = max(max_top, top)
-        used.update(k for k, v, _ in segs if v > EPS)
+        used.update(k for k, v, *_ in segs if v > EPS)
 
     ax.set_xticks(range(len(n_values)))
     ax.set_xlim(-0.6, len(n_values) - 0.4)
@@ -171,14 +172,14 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
         segs, err_lo, err_hi = all_segs[n]
         bottom = 0.0
         ms_parts = []
-        for key, val, color in segs:
+        for key, val, color, edge in segs:
             if key not in zoom_keys:
                 continue
             val_ms = val * 1000.0
             ms_parts.append(f"{key}={val_ms:.6f}ms")
             if val_ms > EPS:
                 ax_z.bar(i, val_ms, bottom=bottom, width=BAR_WIDTH,
-                         color=color, edgecolor=_darken(color), linewidth=0.8, zorder=3)
+                         color=color, edgecolor=edge, linewidth=1.0, zorder=3)
                 bottom += val_ms
         ms_parts.append(f"total={bottom:.6f}ms")
         err_lo_ms = err_lo * 1000.0
@@ -280,7 +281,7 @@ def main():
 
     # Shared legend at top — continuous mode covers all segments
     legend_handles = [
-        mpatches.Patch(facecolor=COLORS[k], edgecolor=_darken(COLORS[k]), linewidth=0.8, label=LABELS[k])
+        mpatches.Patch(facecolor=COLORS[k], edgecolor=EDGE_COLORS[k], linewidth=1.0, label=LABELS[k])
         for k in ORDER
     ]
     fig.legend(handles=legend_handles, loc="upper center", bbox_to_anchor=(0.5, 0.99),

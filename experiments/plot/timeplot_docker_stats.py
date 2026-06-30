@@ -18,14 +18,28 @@ MODES      = ["continuous"]
 VARIANT    = "rr"   # ← continuous-mode variant to plot
 FILTER_SSP = None   # set to e.g. 5000 to restrict to one SSP; None = all
 SHOW       = "cpu"  # "cpu" | "net" | "both"
+PLOT_END_S = 120
+
+# Attestation-cycle spans (t_start_s, t_end_s) — robot sidecar rises → SECaaS drops.
+# Cycle 1 fires immediately at t=0; first blockchain round-trip ~8 s.
+# Subsequent cycles start every SSP=10 s after completion: 18, 28, 38, …
+CYCLE_SPANS = [
+    (0, 4), (8, 14), (18, 24), (28, 34), (38, 44), (48, 54),
+    (58, 64), (68, 74), (78, 84), (88, 94), (98, 104), (108, 114),
+]
 
 LINE_WIDTH   = 2.6
-FONT_SCALE   = 2.0
+FONT_SCALE   = 2.2
 WINDOW_S     = 1      # rolling-mean smoothing window (seconds)
 BAND_ALPHA   = 0.25   # opacity of ±std shaded band
 
-COLOR_ROBOT  = "#3BA774"
-COLOR_SECAAS = "#3B3177"
+# Color palette 1 (green→purple)
+# COLOR_ROBOT  = "#3BA774"
+# COLOR_SECAAS = "#3B3177"
+
+# Color palette 2 (blue→red)
+COLOR_ROBOT = "#0000FF"
+COLOR_SECAAS   = "#FF0000"
 
 def _clean_container_label(raw: str) -> str:
     name = str(raw).replace("-sidecar", "").strip()
@@ -84,6 +98,7 @@ def main():
 
 def generate_plot(df, n_robots, mode, script_dir):
     df = df.copy()
+    df = df[df["t_rel_s"] <= PLOT_END_S].copy()
     df["Container"] = df["container"].apply(_clean_container_label)
 
     # CPU % → vCPUs
@@ -204,61 +219,19 @@ def generate_plot(df, n_robots, mode, script_dir):
                 else:
                     print(f"  t={tt:.1f}s  robot={r_mean:.1f}±{r_std:.1f} kbit/s  secaas={s_val:.1f} kbit/s")
 
-    axes[0].set_xlim(left=0, right=df["t_rel_s"].max())
+    axes[0].set_xlim(left=0, right=PLOT_END_S)
     for ax in axes[:-1]:
         ax.tick_params(axis="x", labelbottom=False)
     axes[-1].set_xlabel("Time (s)")
+    from matplotlib.ticker import MultipleLocator
+    axes[-1].xaxis.set_major_locator(MultipleLocator(10))
+    axes[-1].xaxis.set_minor_locator(MultipleLocator(5))
 
-    # ── Attestation-cycle grey bands on ALL peaks ─────────────────────────────
-    # Detect all SECaaS CPU spike centres, then shade a ±half-width window on
-    # every panel in light grey.  Uses the same smoothed series already computed
-    # for plotting; falls back to a simple periodic grid if detection fails.
-    C_ATT_BAND = "#bbbbbb"   # light grey fill
-    att_peak_times: list[float] = []
-
-    if has_secaas:
-        sub_s   = df[df["Container"] == "SECaaS"].sort_values("t_rel_s")
-        sm_s    = _rolling(sub_s["cpu_vcpus"], sub_s["t_rel_s"])
-        t_s_arr = sub_s["t_rel_s"].values
-        if sm_s.size:
-            baseline   = np.percentile(sm_s, 25) or 1e-6
-            spike_mask = (sm_s > 2.0 * baseline) & (t_s_arr > 3.0)
-            try:
-                from scipy.signal import find_peaks
-                peak_idxs, _ = find_peaks(sm_s * spike_mask, distance=5)
-            except ImportError:
-                # scipy unavailable — use simple local-max detection
-                masked = sm_s * spike_mask
-                peak_idxs = np.where(
-                    (masked[1:-1] > masked[:-2]) & (masked[1:-1] > masked[2:])
-                )[0] + 1
-            att_peak_times = [float(t_s_arr[i]) for i in peak_idxs]
-
-    # fallback: if too few peaks found, guess from the SSP (if detectable)
-    if len(att_peak_times) < 2 and has_secaas:
-        t_max = float(df["t_rel_s"].max())
-        ssp_guess = 20.0
-        att_peak_times = list(np.arange(ssp_guess, t_max, ssp_guess))
-
-    if att_peak_times:
-        # Estimate spacing from detected peaks.
-        if len(att_peak_times) >= 2:
-            spacing = float(np.median(np.diff(att_peak_times)))
-        else:
-            spacing = 20.0
-        # Extrapolate the first cycle backward: the initial attestation fires
-        # immediately at startup but has lower magnitude (startup noise suppresses
-        # the spike), so find_peaks misses it.  Prepend one period before the
-        # earliest detected peak, clamped to t ≥ 0.
-        first_extrap = att_peak_times[0] - spacing
-        if first_extrap >= 0:
-            att_peak_times = [first_extrap] + att_peak_times
-
-        half_w = min(spacing * 0.20, 3.0)
-        for t_pk in att_peak_times:
-            for ax in axes:
-                ax.axvspan(t_pk - half_w, t_pk + half_w,
-                           color=C_ATT_BAND, alpha=0.55, zorder=1, linewidth=0)
+    # ── Attestation-cycle grey bands (hardcoded from printed time series) ────────
+    C_ATT_BAND = "#d5d5d5"
+    for t0, t1 in CYCLE_SPANS:
+        for ax in axes:
+            ax.axvspan(t0, t1, color=C_ATT_BAND, alpha=0.50, zorder=1, linewidth=0)
 
     # ── Figure legend (top right) ─────────────────────────────────────────────
     legend_handles = []
@@ -272,9 +245,9 @@ def generate_plot(df, n_robots, mode, script_dir):
             mlines.Line2D([], [], color=COLOR_SECAAS, linewidth=LINE_WIDTH,
                           label="SECaaS")
         )
-    if att_peak_times:
+    if CYCLE_SPANS:
         legend_handles.append(
-            mpatches.Patch(facecolor=C_ATT_BAND, alpha=0.55, edgecolor="none",
+            mpatches.Patch(facecolor=C_ATT_BAND, alpha=0.50, edgecolor="none",
                            label="Attestation cycle")
         )
 

@@ -16,7 +16,8 @@ import seaborn as sns
 def _darken(color, factor=0.65):
     return tuple(c * factor for c in mcolors.to_rgb(color))
 
-INPUT_FILE = "../data/docker-stats/_summary/overall_resource_usage_{VARIANT}.csv"
+# INPUT_FILE = "../data/docker-stats/_summary/overall_resource_usage_{VARIANT}.csv"
+INPUT_FILE = "../data/docker-stats-SSP20000ms/_summary/overall_resource_usage_{VARIANT}.csv"
 MODE      = "continuous"
 VARIANT    = "lv"   # ← continuous-mode variant to plot
 SSP_MS     = 20000           # sidecar sleep period (ms)
@@ -29,11 +30,23 @@ BAR_WIDTH     = 0.32
 GROUP_SPACING = 1.0
 HEADROOM      = 1.15
 
-# COLOR_ROBOT  = "#993333"
-# COLOR_SECAAS = "#336699"
+PALETTE = "B"
 
-COLOR_ROBOT  = "#59c396"
-COLOR_SECAAS = "#6a5d99"
+_PALETTES = {
+    "A": dict(robot="#59c396",  secaas="#6a5d99"),
+    "B": dict(robot="#B3B3FF",  secaas="#FFB3B3"),
+}
+
+_PALETTE_EDGES = {
+    "B": dict(robot="#0000FF", secaas="#FF0000"),
+}
+
+COLOR_ROBOT  = _PALETTES[PALETTE]["robot"]
+COLOR_SECAAS = _PALETTES[PALETTE]["secaas"]
+
+_explicit_edges = _PALETTE_EDGES.get(PALETTE, {})
+EDGE_ROBOT  = _explicit_edges.get("robot")  or _darken(COLOR_ROBOT)
+EDGE_SECAAS = _explicit_edges.get("secaas") or _darken(COLOR_SECAAS)
 
 
 def _clean_label(raw: str) -> str:
@@ -97,7 +110,8 @@ def main():
     step    = BAR_WIDTH
     offsets = {"Robot sidecar": -step / 2, "SECaaS": step / 2}
     groups  = ["Robot sidecar", "SECaaS"]
-    colors  = {"Robot sidecar": COLOR_ROBOT, "SECaaS": COLOR_SECAAS}
+    colors  = {"Robot sidecar": COLOR_ROBOT,  "SECaaS": COLOR_SECAAS}
+    edges   = {"Robot sidecar": EDGE_ROBOT,   "SECaaS": EDGE_SECAAS}
 
     fig = plt.figure(figsize=(12, 5.5))
     gs  = fig.add_gridspec(
@@ -116,6 +130,7 @@ def main():
                 continue
             x     = group_xs[i] + offsets[grp]
             color = colors[grp]
+            edge  = edges[grp]
 
             cpu_mean = float(row["cpu_mean"].iloc[0])
             cpu_std  = float(row["cpu_std"].iloc[0])
@@ -127,7 +142,7 @@ def main():
                 (ax_ram, ram_mean, ram_std, ram_tops),
             ]:
                 ax.bar(x, mean, width=BAR_WIDTH,
-                       color=color, edgecolor=_darken(color), linewidth=0.8, zorder=3)
+                       color=color, edgecolor=edge, linewidth=1.0, zorder=3)
                 if std > 0:
                     ax.errorbar(x, mean, yerr=std,
                                 fmt="none", color="black",
@@ -162,8 +177,8 @@ def main():
 
     # ── Shared legend ──────────────────────────────────────────────────────────
     patches = [
-        mpatches.Patch(facecolor=COLOR_ROBOT,  edgecolor=_darken(COLOR_ROBOT),  linewidth=0.8, label="Robot sidecar"),
-        mpatches.Patch(facecolor=COLOR_SECAAS, edgecolor=_darken(COLOR_SECAAS), linewidth=0.8, label="SECaaS"),
+        mpatches.Patch(facecolor=COLOR_ROBOT,  edgecolor=EDGE_ROBOT,  linewidth=1.0, label="Robot sidecar"),
+        mpatches.Patch(facecolor=COLOR_SECAAS, edgecolor=EDGE_SECAAS, linewidth=1.0, label="SECaaS"),
     ]
     fig.legend(handles=patches, loc="upper center", bbox_to_anchor=(0.5, 1.01),
                ncol=2, frameon=True, framealpha=0.9, fancybox=False,

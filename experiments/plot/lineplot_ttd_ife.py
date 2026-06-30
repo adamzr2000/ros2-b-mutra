@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-IFE (bars) + TTD (line) combined plot — D-MUTRA mitigated attack scenarios.
+TTD (bars) + IFE (line) combined plot — D-MUTRA mitigated attack scenarios.
 
-Left y-axis  (green, bars):  Integrated Formation Error from formation-v4.
-Right y-axis (blue,  line):  Time to Detection from tamper-detection CSVs.
-X-axis: SSP in seconds, high→low (60 → 5 s).
+Left y-axis  (green, bars):  Time to Detection from tamper-detection CSVs.
+Right y-axis (red, line):    Cumulative Formation Error from formation-v4.
+X-axis: SSP in seconds, low→high (5 → 60 s).
 Axis labels and tick values coloured to match their metric.
 """
 
@@ -15,7 +15,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from matplotlib.lines import Line2D
+
 import numpy as np
 import seaborn as sns
 
@@ -25,8 +25,13 @@ FORMATION_DIR = SCRIPT_DIR.parent / "data" / "formation-v4"
 OUT_PDF       = SCRIPT_DIR / "lineplot_ttd_ife.pdf"
 
 FONT_SCALE = 1.7
-C_IFE = "#31a354"   # green — IFE bars  (left axis)
-C_TTD = "#1f6eb5"   # blue  — TTD line  (right axis)
+
+C_TTD = "#0000FF"      # blue  — TTD bars border (left axis)
+C_TTD_FILL = "#B3B3FF" # light blue — TTD bar fill
+C_IFE = "#FF0000"      # red   — IFE line  (right axis)
+
+# C_TTD = "#009E73"
+# C_IFE = "#D55E00"
 BAR_W = 0.5
 
 SSP_S = [60, 30, 20, 10, 5]   # high → low
@@ -83,41 +88,36 @@ ttd_maxs  = np.array([max(ttd_raw.get(s,     [np.nan])) for s in SSP_S])
 fig, ax1 = plt.subplots(figsize=(7.5, 4.8))
 ax2 = ax1.twinx()
 
-# ── IFE bars — left, green ────────────────────────────────────────────────────
-ax1.bar(x, ife_means, width=BAR_W, color=C_IFE,
-        edgecolor=_darken(C_IFE), linewidth=0.8, zorder=3)
-ax1.errorbar(x, ife_means, yerr=ife_sds, fmt="none",
+# ── TTD bars — left, blue ────────────────────────────────────────────────────
+ax1.bar(x, ttd_means, width=BAR_W, color=C_TTD_FILL,
+        edgecolor=C_TTD, linewidth=1.0, zorder=3)
+ax1.errorbar(x, ttd_means, yerr=[ttd_means - ttd_mins, ttd_maxs - ttd_means], fmt="none",
              color="black", elinewidth=1.3, capsize=4, capthick=1.3, zorder=4)
 
-# ── TTD line — right, blue ────────────────────────────────────────────────────
-ax2.errorbar(x, ttd_means,
-             yerr=[ttd_means - ttd_mins, ttd_maxs - ttd_means],
-             fmt="none", color=C_TTD, linewidth=1.4,
-             capsize=5, capthick=1.4, zorder=5)
-ax2.plot(x, ttd_means, color=C_TTD, linewidth=2.0, zorder=4)
-ax2.plot(x, ttd_means, "o",
-         color=C_TTD, markersize=8,
-         markerfacecolor=C_TTD, markeredgecolor=C_TTD, 
+# ── IFE line — right, red ────────────────────────────────────────────────────
+ax2.plot(x, ife_means, color=C_IFE, linewidth=2.0, zorder=4)
+ax2.plot(x, ife_means, "o",
+         color=C_IFE, markersize=8,
+         markerfacecolor=C_IFE, markeredgecolor=C_IFE, 
          zorder=6)
 
 # ── Axis colouring ─────────────────────────────────────────────────────────────
-dark_green = _darken(C_IFE)
 
-# Main axis (ax1) - Handles Left (Green), Top (Black), Bottom (Black)
-ax1.set_ylabel("Integrated Formation Error (m·s)", color=dark_green)
-ax1.tick_params(axis="y", colors=dark_green, which="both", length=5, width=1.0)
+# Main axis (ax1) - Handles Left (Blue), Top (Black), Bottom (Black)
+ax1.set_ylabel("Time to Detection (s)", color=C_TTD)
+ax1.tick_params(axis="y", colors=C_TTD, which="both", length=5, width=1.0)
 
-ax1.spines["left"].set_color(dark_green)
+ax1.spines["left"].set_color(C_TTD)
 ax1.spines["left"].set_linewidth(1.2)
 ax1.spines["bottom"].set_linewidth(1.2) # Match thickness to sides
 ax1.spines["top"].set_linewidth(1.2)    # Match thickness to sides
-ax1.spines["right"].set_visible(False)  # Hide so ax2's blue spine renders cleanly
+ax1.spines["right"].set_visible(False)  # Hide so ax2's red spine renders cleanly
 
-# Twin axis (ax2) - Handles Right (Blue)
-ax2.set_ylabel("Time to Detection (s)", color=C_TTD)
-ax2.tick_params(axis="y", colors=C_TTD, which="both", length=5, width=1.0)
+# Twin axis (ax2) - Handles Right (Red)
+ax2.set_ylabel("Cumulative Formation Error (m·s)", color=C_IFE)
+ax2.tick_params(axis="y", colors=C_IFE, which="both", length=5, width=1.0)
 
-ax2.spines["right"].set_color(C_TTD)
+ax2.spines["right"].set_color(C_IFE)
 ax2.spines["right"].set_linewidth(1.2)
 ax2.spines["bottom"].set_visible(False) # Prevent double-drawing over ax1
 ax2.spines["top"].set_visible(False)    # Prevent double-drawing over ax1
@@ -127,31 +127,20 @@ ax1.set_xlabel("SSP (s)")
 ax1.set_xticks(x)
 ax1.set_xticklabels(labels)
 ax1.set_xlim(-0.55, x[-1] + 0.55)
-ax1.set_ylim(0, 14) 
-ax2.set_ylim(0, 100)
+
+# ── Axis Limits ────────────────────────────────────────────────────────────────
+ax1.set_ylim(0, 75)   # TTD limits (bars stretch higher to fill space)
+ax2.set_ylim(0, 35)   # IFE limits (line compresses lower below bars)
+
 ax1.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.4)
 ax1.set_axisbelow(True)
-
-# ── Legend ─────────────────────────────────────────────────────────────────────
-# legend_handles = [
-#     plt.Rectangle((0, 0), 1, 1, facecolor=C_IFE,
-#                   edgecolor=_darken(C_IFE), linewidth=0.8,
-#                   label="Integrated Formation Error (IFE)"),
-#     Line2D([0], [0], color=C_TTD, linewidth=2.0,
-#             marker="o", markersize=8,
-#             markerfacecolor=C_TTD, markeredgecolor=C_TTD, 
-#             label="Time to Detection (TTD)"),
-# ]
-# ax1.legend(handles=legend_handles, loc="upper right",
-#            frameon=True, framealpha=0.9, fancybox=False,
-#            edgecolor="black", handlelength=1.6,
-#            fontsize=plt.rcParams["font.size"] * 0.82)
 
 fig.tight_layout()
 fig.savefig(OUT_PDF, bbox_inches="tight")
 print(f"Saved → {OUT_PDF}")
-print(f"\n{'SSP(s)':<8} {'IFE mean':>10} {'IFE sd':>8} {'TTD mean':>10} {'TTD min':>9} {'TTD max':>9}")
-print("-" * 60)
-for s, im, isd, tm, tmin, tmax in zip(
-        SSP_S, ife_means, ife_sds, ttd_means, ttd_mins, ttd_maxs):
-    print(f"{s:<8} {im:>10.3f} {isd:>8.3f} {tm:>10.2f} {tmin:>9.2f} {tmax:>9.2f}")
+print(f"\n── TTD+IFE plot values ──────────────────────────────────")
+print(f"  {'SSP(s)':<8} {'TTD mean':>10} {'TTD min':>9} {'TTD max':>9} {'IFE mean':>10} {'IFE sd':>8}")
+print(f"  {'-'*58}")
+for s, tm, tmin, tmax, im, isd in zip(
+        SSP_S, ttd_means, ttd_mins, ttd_maxs, ife_means, ife_sds):
+    print(f"  {s:<8} {tm:>10.2f} {tmin:>9.2f} {tmax:>9.2f} {im:>10.3f} {isd:>8.3f}")

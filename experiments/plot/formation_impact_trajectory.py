@@ -28,8 +28,8 @@ SSP_PICK    = 10
 GOAL        = (60.0, 0.0)
 D           = 2.0
 
-C_HEALTHY   = "#1f77b4"
-C_TARGET    = "#d62728"
+C_HEALTHY   = "#0000FF"
+C_TARGET    = "#FF0000"
 C_YAW = "#FFD700"   # gold — rotation intensity overlay
 
 RC = {
@@ -39,7 +39,7 @@ RC = {
     "robot4": C_HEALTHY,
 }
 C_CENTROID  = "black"
-C_SNAP_EDGE = "dimgrey"
+C_SNAP_EDGE = "#505050"
 LW_ROBOT    = 2.2
 LW_CENTROID = 2.2
 
@@ -101,7 +101,7 @@ def draw_snapshot(ax, df, t_s, active_robots, dot_ms=8, alpha=0.85, fill_alpha=0
     pts = [pos[r] for r in active_robots]
     px, py = [p[0] for p in pts], [p[1] for p in pts]
     if fill_alpha > 0:
-        ax.fill(px, py, color="silver", alpha=fill_alpha, zorder=7)
+        ax.fill(px, py, color="#A0A0A0", alpha=fill_alpha, zorder=7)
     xs = px + [px[0]]; ys = py + [py[0]]
     ax.plot(xs, ys, color=C_SNAP_EDGE, lw=1.4, alpha=alpha, zorder=8)
     for r in active_robots:
