@@ -11,6 +11,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
+import plot_style
 
 
 def _darken(color, factor=0.65):
@@ -20,9 +21,6 @@ def _darken(color, factor=0.65):
 INPUT_FILE = "../data/docker-stats-SSP20000ms/_summary/overall_resource_usage_{VARIANT}.csv"
 MODE      = "continuous"
 VARIANT    = "lv"   # ← continuous-mode variant to plot
-SSP_MS     = 20000           # sidecar sleep period (ms)
-ITERQ    = 1            # rolling-hash queue depth
-CPU_LIMIT = None         # None = no cap (cpuNC)
 N_VALUES  = [4, 8, 16, 32, 64]
 
 FONT_SCALE    = 2.6
@@ -30,15 +28,17 @@ BAR_WIDTH     = 0.32
 GROUP_SPACING = 1.0
 HEADROOM      = 1.15
 
-PALETTE = "B"
+PALETTE = "C"
 
 _PALETTES = {
     "A": dict(robot="#59c396",  secaas="#6a5d99"),
     "B": dict(robot="#B3B3FF",  secaas="#FFB3B3"),
+    "C": dict(robot="#AFCEB4",  secaas="#E4BD95"),
 }
 
 _PALETTE_EDGES = {
     "B": dict(robot="#0000FF", secaas="#FF0000"),
+    "C": dict(robot="#5E9C68", secaas="#C97A2B"),
 }
 
 COLOR_ROBOT  = _PALETTES[PALETTE]["robot"]
@@ -98,10 +98,7 @@ def main():
     if mode_df.empty:
         raise SystemExit(f"No data for mode={MODE} variant={VARIANT}")
 
-    sns.set_theme(context="paper", style="ticks",
-                  rc={"xtick.direction": "out", "ytick.direction": "out"},
-                  font_scale=FONT_SCALE)
-    plt.rcParams.update({"font.family": "serif"})
+    plot_style.apply(FONT_SCALE)
 
     n_values = sorted(mode_df["n_robots"].unique())
     agg      = _aggregate(mode_df, n_values)
@@ -162,7 +159,7 @@ def main():
     ax_cpu.set_xticklabels([str(n) for n in n_values])
     ax_cpu.set_xlabel("Number of robots (N)")
     ax_cpu.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
-    ax_cpu.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
+    ax_cpu.grid(axis="y", **plot_style.GRID_KW)
     ax_cpu.set_axisbelow(True)
 
     # ── Bottom panel (RAM) ─────────────────────────────────────────────────────
@@ -172,7 +169,7 @@ def main():
     ax_ram.set_xticklabels([str(n) for n in n_values])
     ax_ram.set_xlabel("Number of robots (N)")
     ax_ram.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
-    ax_ram.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
+    ax_ram.grid(axis="y", **plot_style.GRID_KW)
     ax_ram.set_axisbelow(True)
 
     # ── Shared legend ──────────────────────────────────────────────────────────

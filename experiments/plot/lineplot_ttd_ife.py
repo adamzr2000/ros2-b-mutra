@@ -18,28 +18,24 @@ import matplotlib.colors as mcolors
 
 import numpy as np
 import seaborn as sns
+import plot_style
 
 SCRIPT_DIR    = Path(__file__).parent
 TAMPER_DIR    = SCRIPT_DIR.parent / "data" / "tamper-detection" / "results" / "state_publisher"
 FORMATION_DIR = SCRIPT_DIR.parent / "data" / "formation-v4"
 OUT_PDF       = SCRIPT_DIR / "lineplot_ttd_ife.pdf"
 
-FONT_SCALE = 1.7
+FONT_SCALE = 1.8
 
-C_TTD = "#0000FF"      # blue  — TTD bars border (left axis)
-C_TTD_FILL = "#B3B3FF" # light blue — TTD bar fill
-C_IFE = "#FF0000"      # red   — IFE line  (right axis)
+C_TTD      = "#2E72B8"   # blue       — TTD bars border (left axis)
+C_TTD_FILL = "#B9CDE5"   # light blue — TTD bar fill
+C_IFE      = "#C97A2B"   # orange     — IFE line (right axis)
 
-# C_TTD = "#009E73"
-# C_IFE = "#D55E00"
 BAR_W = 0.5
 
 SSP_S = [60, 30, 20, 10, 5]   # high → low
 
-sns.set_theme(context="paper", style="ticks",
-              rc={"xtick.direction": "out", "ytick.direction": "out"},
-              font_scale=FONT_SCALE)
-plt.rcParams.update({"font.family": "serif", "pdf.fonttype": 42, "ps.fonttype": 42})
+plot_style.apply(FONT_SCALE)
 
 
 def _darken(color, f=0.65):
@@ -105,7 +101,7 @@ ax2.plot(x, ife_means, "o",
 
 # Main axis (ax1) - Handles Left (Blue), Top (Black), Bottom (Black)
 ax1.set_ylabel("Time to Detection (s)", color=C_TTD)
-ax1.tick_params(axis="y", colors=C_TTD, which="both", length=5, width=1.0)
+ax1.tick_params(axis="y", colors=C_TTD, which="both", length=6, width=1.0)
 
 ax1.spines["left"].set_color(C_TTD)
 ax1.spines["left"].set_linewidth(1.2)
@@ -114,8 +110,8 @@ ax1.spines["top"].set_linewidth(1.2)    # Match thickness to sides
 ax1.spines["right"].set_visible(False)  # Hide so ax2's red spine renders cleanly
 
 # Twin axis (ax2) - Handles Right (Red)
-ax2.set_ylabel("Cumulative Formation Error (m·s)", color=C_IFE)
-ax2.tick_params(axis="y", colors=C_IFE, which="both", length=5, width=1.0)
+ax2.set_ylabel("Cum. Formation Error (m·s)", color=C_IFE)
+ax2.tick_params(axis="y", colors=C_IFE, which="both", length=6, width=1.0)
 
 ax2.spines["right"].set_color(C_IFE)
 ax2.spines["right"].set_linewidth(1.2)
@@ -132,10 +128,10 @@ ax1.set_xlim(-0.55, x[-1] + 0.55)
 ax1.set_ylim(0, 75)   # TTD limits (bars stretch higher to fill space)
 ax2.set_ylim(0, 35)   # IFE limits (line compresses lower below bars)
 
-ax1.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.4)
+ax1.grid(axis="y", **plot_style.GRID_KW)
 ax1.set_axisbelow(True)
 
-fig.tight_layout()
+plt.subplots_adjust(left=0.11, right=0.89, top=0.97, bottom=0.13)
 fig.savefig(OUT_PDF, bbox_inches="tight")
 print(f"Saved → {OUT_PDF}")
 print(f"\n── TTD+IFE plot values ──────────────────────────────────")

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import seaborn as sns
+import plot_style
 import re
 import numpy as np
 from pathlib import Path
@@ -33,13 +34,8 @@ FONT_SCALE   = 2.2
 WINDOW_S     = 1      # rolling-mean smoothing window (seconds)
 BAND_ALPHA   = 0.25   # opacity of ±std shaded band
 
-# Color palette 1 (green→purple)
-# COLOR_ROBOT  = "#3BA774"
-# COLOR_SECAAS = "#3B3177"
-
-# Color palette 2 (blue→red)
-COLOR_ROBOT = "#0000FF"
-COLOR_SECAAS   = "#FF0000"
+COLOR_ROBOT  = "#3E8A52"
+COLOR_SECAAS = "#C97A2B"
 
 def _clean_container_label(raw: str) -> str:
     name = str(raw).replace("-sidecar", "").strip()
@@ -119,10 +115,7 @@ def generate_plot(df, n_robots, mode, script_dir):
     robot_containers = [c for c in containers if c.startswith("Robot")]
     has_secaas       = "SECaaS" in containers
 
-    sns.set_theme(context="paper", style="ticks",
-                  rc={"xtick.direction": "out", "ytick.direction": "out"},
-                  font_scale=FONT_SCALE)
-    plt.rcParams.update({"font.family": "serif", "pdf.fonttype": 42, "ps.fonttype": 42})
+    plot_style.apply(FONT_SCALE)
 
     _all_panels = [
         ("cpu", "cpu_vcpus",   "CPU (vCPUs)"),
@@ -183,7 +176,7 @@ def generate_plot(df, n_robots, mode, script_dir):
 
         ax.set_ylabel(ylabel)
         ax.set_axisbelow(True)
-        ax.grid(axis="both", linestyle="-", linewidth=0.7, alpha=0.75)
+        ax.grid(axis="both", **plot_style.GRID_KW)
         y_max = y_max if not pd.isna(y_max) and y_max > 0 else 1.0
         ax.set_ylim(0, y_max * 1.10)
 
@@ -228,10 +221,10 @@ def generate_plot(df, n_robots, mode, script_dir):
     axes[-1].xaxis.set_minor_locator(MultipleLocator(5))
 
     # ── Attestation-cycle grey bands (hardcoded from printed time series) ────────
-    C_ATT_BAND = "#d5d5d5"
+    C_ATT_BAND = "#b8b8b8"
     for t0, t1 in CYCLE_SPANS:
         for ax in axes:
-            ax.axvspan(t0, t1, color=C_ATT_BAND, alpha=0.50, zorder=1, linewidth=0)
+            ax.axvspan(t0, t1, color=C_ATT_BAND, alpha=0.65, zorder=1, linewidth=0)
 
     # ── Figure legend (top right) ─────────────────────────────────────────────
     legend_handles = []
@@ -247,7 +240,7 @@ def generate_plot(df, n_robots, mode, script_dir):
         )
     if CYCLE_SPANS:
         legend_handles.append(
-            mpatches.Patch(facecolor=C_ATT_BAND, alpha=0.50, edgecolor="none",
+            mpatches.Patch(facecolor=C_ATT_BAND, alpha=0.65, edgecolor="none",
                            label="Attestation cycle")
         )
 

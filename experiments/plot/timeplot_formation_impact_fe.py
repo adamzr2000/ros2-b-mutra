@@ -18,21 +18,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import plot_style
 
 SCRIPT_DIR  = Path(__file__).parent
 DATA_SUBDIR = "formation-v4"
 DATA_DIR    = SCRIPT_DIR.parent / "data" / DATA_SUBDIR
-OUT_PDF     = SCRIPT_DIR / "formation_impact_fe.pdf"
+OUT_PDF     = SCRIPT_DIR / "timeplot_formation_impact_fe.pdf"
 
-FONT_SCALE = 2.0
-sns.set_theme(context="paper", style="ticks",
-              rc={"xtick.direction": "out", "ytick.direction": "out"},
-              font_scale=FONT_SCALE)
-plt.rcParams.update({"font.family": "serif", "pdf.fonttype": 42, "ps.fonttype": 42})
+FONT_SCALE = 1.8
+plot_style.apply(FONT_SCALE)
 
 C_BASELINE    = "#888888"
-C_UNMITIGATED = "#FF0000"
-C_MITIGATED   = "#0000FF"
+C_UNMITIGATED = "#C97A2B"
+C_MITIGATED   = "#2E72B8"
 LW = 2.2
 
 SSP_PICK = 10
@@ -85,10 +83,10 @@ t_base, fe_base = load_fe_aligned(base_rep, t_inject_override=mit_rep["t_inject_
 t_det_rel = mit_rep["ife_window_s"]
 
 # ── Figure ────────────────────────────────────────────────────────────────────
-fig, ax = plt.subplots(figsize=(8.2, 4.8))
+fig, ax = plt.subplots(figsize=(7.5, 4.8))
 
 ax.plot(t_base, fe_base, color=C_BASELINE,    lw=2.0, ls="--", zorder=4,
-        label="Baseline")
+        label="No attack (baseline)")
 ax.plot(t_unm,  fe_unm,  color=C_UNMITIGATED, lw=LW,  zorder=5,
         label="Unmitigated")
 ax.plot(t_mit,  fe_mit,  color=C_MITIGATED,   lw=LW,  zorder=6,
@@ -101,9 +99,9 @@ fe_peak  = float(fe_mit[peak_idx])
 
 fs_ann = plt.rcParams.get("axes.labelsize", 10) * 0.8
 ax.annotate(
-    "Attack detected;\Compromised robot isolated",
+    "Attack detected:\ncompromised robot isolated",
     xy=(16, 0.2), xycoords="data",
-    xytext=(10, 0.7), textcoords="data",
+    xytext=(8, 0.52), textcoords="data",
     va="bottom", ha="center", fontsize=fs_ann,
     arrowprops=dict(arrowstyle="-|>", color="black", lw=0.9,
                     mutation_scale=8, connectionstyle="arc3,rad=-0.3"),
@@ -116,13 +114,13 @@ ax.set_xlim(T_LO, T_HI)
 ax.set_ylim(0, 1.40)
 ax.set_xlabel("Time since attack injection (s)")
 ax.set_ylabel("Swarm Formation Error (m)")
-ax.legend(loc="upper right", frameon=True, framealpha=0.9, fancybox=False,
-          edgecolor="black", handlelength=1.6, fontsize="small")
+ax.legend(loc="upper left", frameon=True, framealpha=0.9, fancybox=False,
+          edgecolor="black", handlelength=1.6, fontsize=plt.rcParams.get("axes.labelsize", 10) * 0.8)
 
 ax.spines["top"].set_visible(True)
 ax.spines["right"].set_visible(True)
 
-ax.grid(axis="both", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
+ax.grid(axis="both", **plot_style.GRID_KW)
 
 fig.tight_layout()
 fig.savefig(OUT_PDF, bbox_inches="tight")

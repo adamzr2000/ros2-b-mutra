@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plot_style
 
 SSP_MS    = 20000
 ITERQ_VALS = [1, 2, 4, 8]
@@ -18,15 +19,15 @@ ITERQ_VALS = [1, 2, 4, 8]
 INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
 IDLE_FILE  = "../data/blockchain-stats/_summary/blockchain_stats_idle.csv"
 
-FONT_SCALE = 1.9
+FONT_SCALE = 1.8
 LINEWIDTH  = 2.0
 MARKERSIZE = 8
 COLOR_IDLE = "gray"
 
-PALETTE = "D"
+PALETTE = "A"
 
 _PALETTES = {
-    "A": ["#b0a2d8", "#8e7dbb", "#6a5d99", "#3d3460"],  # purple  light→dark
+    "A": ["#CAC1E3", "#C4B4E8", "#7A63B8", "#52408A"],  # purple ramp  light→dark
     "B": ["#c8c8c8", "#989898", "#686868", "#383838"],  # grey    light→dark
     "C": ["#DCC7B8", "#b08060", "#8B5E3C", "#5C3317"],  # brown   light→dark
     "D": ["#bdd7e7", "#6baed6", "#2171b5", "#084594"],  # blue    light→dark
@@ -56,12 +57,9 @@ def main():
 
     df = df[df["ssp_ms"] == SSP_MS].sort_values(["iterq", "N"])
 
-    sns.set_theme(context="paper", style="ticks",
-                  rc={"xtick.direction": "out", "ytick.direction": "out"},
-                  font_scale=FONT_SCALE)
-    plt.rcParams.update({"font.family": "serif"})
+    plot_style.apply(FONT_SCALE)
 
-    fig, ax = plt.subplots(figsize=(7, 3.4))
+    fig, ax = plt.subplots(figsize=(7.5, 3.4))
     plt.subplots_adjust(left=0.12, right=0.97, top=0.97, bottom=0.16)
 
     n_vals = sorted(df["N"].unique())
@@ -93,11 +91,11 @@ def main():
     ax.set_xticklabels([str(n) for n in n_vals])
     ax.set_ylim(bottom=0)
     ax.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
-    ax.grid(axis="both", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
+    ax.grid(axis="both", **plot_style.GRID_KW)
     ax.set_axisbelow(True)
 
     ax.legend(loc="upper left", frameon=True, framealpha=0.9, fancybox=False,
-              edgecolor="black", borderpad=0.4, handlelength=1.5, fontsize="x-small")
+              edgecolor="black", borderpad=0.4, handlelength=1.5, fontsize=plt.rcParams.get("axes.labelsize", 10) * 0.8)
 
     out_path = script_dir / "lineplot_blockchain_growth.pdf"
     fig.savefig(out_path, dpi=300, bbox_inches="tight")

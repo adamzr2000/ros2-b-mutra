@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import ConnectionPatch
 import pandas as pd
 import seaborn as sns
+import plot_style
 
 INPUT_STARTUP    = "../data/attestation-times/_summary/durations_per_run_startup_v1.csv"
 INPUT_CONTINUOUS = "../data/attestation-times/_summary/durations_per_run_{VARIANT}.csv"
@@ -28,18 +29,20 @@ BAR_WIDTH  = 0.42
 HEADROOM   = 1.10
 EPS        = 1e-4
 
-PALETTE = "D"
+PALETTE = "E"
 
 _PALETTES = {
     "A": dict(sha256="#336699", oracle="#9A7B3F", verifier="#228888", blockchain="#993333"),
     "B": dict(sha256="#4C72B0", oracle="#55A868", verifier="#C8A83E", blockchain="#C44E52"),
     "C": dict(sha256="#4B9FCC", oracle="#59c396", verifier="#f8eb4f", blockchain="#6a5d99"),
     "D": dict(sha256="#B3B3B3", oracle="#FFB3B3", verifier="#DCC7B8", blockchain="#B3B3FF"),
+    "E": dict(sha256="#AFCEB4", oracle="#E4BD95", verifier="#A7C0DE", blockchain="#BDB1DC"),
 }
 
 # Explicit edge colors (pgfplots-style fill+edge pairs). Palettes not listed fall back to _darken().
 _PALETTE_EDGES = {
     "D": dict(sha256="#000000", oracle="#FF0000", verifier="#8B4513", blockchain="#0000FF"),
+    "E": dict(sha256="#5E9C68", oracle="#C97A2B", verifier="#4F81BD", blockchain="#7A63B8"),
 }
 
 C_SHA256   = _PALETTES[PALETTE]["sha256"]
@@ -154,7 +157,7 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
     ax.set_ylim(0, max_top * HEADROOM)
     ax.set_ylabel("Time (s)")
     ax.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
-    ax.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
+    ax.grid(axis="y", **plot_style.GRID_KW)
     ax.set_axisbelow(True)
 
     if is_bottom:
@@ -195,7 +198,7 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
     ax_z.margins(y=0)
     ax_z.set_ylabel("Time (ms)")
     ax_z.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
-    ax_z.grid(axis="y", which="major", linestyle="-", linewidth=0.7, alpha=0.75)
+    ax_z.grid(axis="y", **plot_style.GRID_KW)
     ax_z.set_axisbelow(True)
     ax_z.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -230,10 +233,7 @@ def draw_row(ax, ax_z, sub, mode, n_values, fig, is_bottom, panel_label):
 def main():
     script_dir = Path(__file__).parent.resolve()
 
-    sns.set_theme(context="paper", style="ticks",
-                  rc={"xtick.direction": "out", "ytick.direction": "out"},
-                  font_scale=FONT_SCALE)
-    plt.rcParams.update({"font.family": "serif", "pdf.fonttype": 42, "ps.fonttype": 42})
+    plot_style.apply(FONT_SCALE)
 
     startup_path    = (script_dir / INPUT_STARTUP).resolve()
     continuous_path = (script_dir / INPUT_CONTINUOUS.format(VARIANT=VARIANT)).resolve()
@@ -262,13 +262,13 @@ def main():
     n_s = sorted(df_s["n_robots"].unique().tolist())
     n_c = sorted(df_c["n_robots"].unique().tolist())
 
-    fig = plt.figure(figsize=(11, 9))
+    fig = plt.figure(figsize=(11, 8.5))
     gs  = fig.add_gridspec(
         2, 2,
         width_ratios=[3, 2],
         hspace=0.12,
-        wspace=0.30,
-        left=0.08, right=0.97, top=0.84, bottom=0.07,
+        wspace=0.32,
+        left=0.10, right=0.97, top=0.84, bottom=0.09,
     )
 
     ax_s  = fig.add_subplot(gs[0, 0])

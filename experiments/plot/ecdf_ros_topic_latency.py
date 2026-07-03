@@ -21,9 +21,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+import plot_style
 
 RESULTS_BASE = Path(__file__).parent.parent / "data/robot-stats/results"
-FONT_SCALE   = 1.7
+FONT_SCALE   = 1.8
 
 SSP_MS_LIST  = [10000, 5000, 1000, 10]   # 5 s, 1 s, 0.1 s, 0.01 s
 SSP_LABELS   = ["10", "5", "1", "0.01"]
@@ -31,7 +32,7 @@ SSP_LABELS   = ["10", "5", "1", "0.01"]
 # Sequential blue ramp — light→dark maps SSP 5s→0.01s (slow→fast polling).
 # Avoids semantic collision with paper palette (green=robot, purple=SECaaS,
 # orange=oracle, dark-blue=#4B9FCC=SHA-256 in barplot).
-_COLORS = ["#bdd7e7", "#6baed6", "#2171b5", "#084594"]   # ColorBrewer Blues-4
+_COLORS = ["#B9CDE5", "#9DC3E6", "#4F81BD", "#2E5F8A"]   # blue ramp light→dark
 SSP_STYLES = [
     dict(color=_COLORS[0], linewidth=2.0, linestyle="solid"),
     dict(color=_COLORS[1], linewidth=2.0, linestyle="solid"),
@@ -120,12 +121,9 @@ def main():
     x_hi += margin
 
     # ── plot ────────────────────────────────────────────────────────────────────
-    sns.set_theme(context="paper", style="ticks",
-                  rc={"xtick.direction": "out", "ytick.direction": "out"},
-                  font_scale=FONT_SCALE)
-    plt.rcParams.update({"font.family": "serif", "pdf.fonttype": 42, "ps.fonttype": 42})
+    plot_style.apply(FONT_SCALE)
 
-    fig, ax = plt.subplots(figsize=(6.5, 4.2))
+    fig, ax = plt.subplots(figsize=(7.5, 4.2))
     plt.subplots_adjust(left=0.13, right=0.97, top=0.95, bottom=0.18)
 
     # baseline
@@ -145,12 +143,12 @@ def main():
     ax.set_xlabel("Robot message inter-arrival time (ms)")
     ax.set_ylabel("ECDF")
     ax.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
-    ax.grid(axis="both", linestyle="-", linewidth=0.6, alpha=0.6)
+    ax.grid(axis="both", **plot_style.GRID_KW)
     ax.set_axisbelow(True)
 
     ax.legend(loc="lower left", frameon=True, framealpha=0.9,
               fancybox=False, edgecolor="black",
-              borderpad=0.5, handlelength=1.8, fontsize="x-small")
+              borderpad=0.5, handlelength=1.8, fontsize=plt.rcParams.get("axes.labelsize", 10) * 0.7)
 
     # ── zoom inset: right tail where curves separate ───────────────────────────
     # focus on the p80–p95 region (y = 0.80 – 0.95)
@@ -175,7 +173,7 @@ def main():
     axins.set_ylim(0.79, 0.96)
     axins.tick_params(labelsize=plt.rcParams["font.size"] * 0.8,
                       length=4, width=0.8, direction="out")
-    axins.grid(axis="both", linestyle="-", linewidth=0.5, alpha=0.5)
+    axins.grid(axis="both", **plot_style.GRID_KW)
     axins.set_axisbelow(True)
     axins.xaxis.set_major_locator(plt.MaxNLocator(4))
     axins.yaxis.set_major_locator(plt.MaxNLocator(4))
