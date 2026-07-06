@@ -30,8 +30,8 @@ SSP_PICK    = 10
 GOAL        = (60.0, 0.0)
 D           = 2.0
 
-C_HEALTHY   = "#2E72B8"
-C_TARGET    = "#C97A2B"
+C_HEALTHY   = "#2C7FB8"
+C_TARGET    = "#E6862A"
 C_YAW = "#FFD700"   # gold — rotation intensity overlay
 
 RC = {
@@ -95,7 +95,7 @@ def robot_pos_at(df, t_s, robot):
     return float(df[f"x_{robot}"].iloc[idx]), float(df[f"y_{robot}"].iloc[idx])
 
 
-def draw_snapshot(ax, df, t_s, active_robots, dot_ms=8, fill_alpha=0.20):
+def draw_snapshot(ax, df, t_s, active_robots, dot_ms=7, fill_alpha=0.3):
     pos = {r: robot_pos_at(df, t_s, r) for r in active_robots}
     pts = [pos[r] for r in active_robots]
     px, py = [p[0] for p in pts], [p[1] for p in pts]
@@ -228,7 +228,7 @@ for row, (title, df, rep, mode) in enumerate(ROWS):
         if t_det is not None:
             for r in SQ_ORDER:
                 xi, yi = robot_pos_at(df, t_det, r)
-                ax.plot(xi, yi, "o", color=RC[r], ms=8, mew=0.7, zorder=15)
+                ax.plot(xi, yi, "o", color=RC[r], ms=7, mew=0.7, zorder=15)
 
     # ── Text annotations ─────────────────────────────────────────────────────────
     # "Attack injected": ha="right" puts text LEFT of xytext so the arrow exits
@@ -267,8 +267,8 @@ for row, (title, df, rep, mode) in enumerate(ROWS):
                         zorder=14)
 
     # ── Goal and start markers ────────────────────────────────────────────────
-    ax.plot(GOAL[0], GOAL[1], "*", color="black", ms=12, mew=0.7, zorder=8)
-    ax.plot(0, 0, "o", color="black", ms=7, mew=0, zorder=8, alpha=0.70)
+    ax.plot(GOAL[0], GOAL[1], "*", color="black", ms=11, mew=0.7, zorder=8)
+    ax.plot(0, 0, "o", color="black", ms=6, mew=0, zorder=8, alpha=0.70)
 
     # ── Axes styling ──────────────────────────────────────────────────────────
     ax.set_xlim(XLO, XHI)

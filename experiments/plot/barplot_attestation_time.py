@@ -29,7 +29,7 @@ BAR_WIDTH  = 0.42
 HEADROOM   = 1.10
 EPS        = 1e-4
 
-PALETTE = "E"
+PALETTE = "F"
 
 _PALETTES = {
     "A": dict(sha256="#336699", oracle="#9A7B3F", verifier="#228888", blockchain="#993333"),
@@ -37,12 +37,14 @@ _PALETTES = {
     "C": dict(sha256="#4B9FCC", oracle="#59c396", verifier="#f8eb4f", blockchain="#6a5d99"),
     "D": dict(sha256="#B3B3B3", oracle="#FFB3B3", verifier="#DCC7B8", blockchain="#B3B3FF"),
     "E": dict(sha256="#AFCEB4", oracle="#E4BD95", verifier="#A7C0DE", blockchain="#BDB1DC"),
+    "F": dict(sha256="#B6DEBF", oracle="#F5CAA0", verifier="#B7D8EE", blockchain="#D3C0EA"),
 }
 
 # Explicit edge colors (pgfplots-style fill+edge pairs). Palettes not listed fall back to _darken().
 _PALETTE_EDGES = {
     "D": dict(sha256="#000000", oracle="#FF0000", verifier="#8B4513", blockchain="#0000FF"),
     "E": dict(sha256="#5E9C68", oracle="#C97A2B", verifier="#4F81BD", blockchain="#7A63B8"),
+    "F": dict(sha256="#3A9D5D", oracle="#E6862A", verifier="#2C7FB8", blockchain="#8A5FBF"),
 }
 
 C_SHA256   = _PALETTES[PALETTE]["sha256"]
@@ -125,11 +127,11 @@ def draw_stack(ax, x, segments, err_lo, err_hi):
     for _, val, color, edge in segments:
         if val > EPS:
             ax.bar(x, val, bottom=bottom, width=BAR_WIDTH,
-                   color=color, edgecolor=edge, linewidth=1.0, zorder=3)
+                   color=color, edgecolor=edge, linewidth=1.5, zorder=3)
             bottom += val
     if err_lo > 0 or err_hi > 0:
         ax.errorbar(x, bottom, yerr=[[err_lo], [err_hi]], fmt="none",
-                    color="black", capsize=4.0, linewidth=1.4, zorder=5)
+                    color="black", capsize=3.0, linewidth=1.2, zorder=5)
     return bottom + err_hi
 
 

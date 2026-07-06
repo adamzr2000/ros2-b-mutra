@@ -28,17 +28,15 @@ BAR_WIDTH     = 0.32
 GROUP_SPACING = 1.0
 HEADROOM      = 1.15
 
-PALETTE = "C"
+PALETTE = "B"
 
 _PALETTES = {
     "A": dict(robot="#59c396",  secaas="#6a5d99"),
-    "B": dict(robot="#B3B3FF",  secaas="#FFB3B3"),
-    "C": dict(robot="#AFCEB4",  secaas="#E4BD95"),
+    "B": dict(robot="#B6DEBF",  secaas="#F5CAA0"),
 }
 
 _PALETTE_EDGES = {
-    "B": dict(robot="#0000FF", secaas="#FF0000"),
-    "C": dict(robot="#5E9C68", secaas="#C97A2B"),
+    "B": dict(robot="#3A9D5D", secaas="#E6862A"),
 }
 
 COLOR_ROBOT  = _PALETTES[PALETTE]["robot"]
@@ -139,7 +137,7 @@ def main():
                 (ax_ram, ram_mean, ram_std, ram_tops),
             ]:
                 ax.bar(x, mean, width=BAR_WIDTH,
-                       color=color, edgecolor=edge, linewidth=1.0, zorder=3)
+                       color=color, edgecolor=edge, linewidth=1.5, zorder=3)
                 if std > 0:
                     ax.errorbar(x, mean, yerr=std,
                                 fmt="none", color="black",

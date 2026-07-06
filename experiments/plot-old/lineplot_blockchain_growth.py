@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""
+Blockchain chain growth rate (KB/s) vs fleet size — one line per ITERQ value.
+
+N ∈ {4, 8, 16, 32, 64}, ITERQ ∈ {1, 2, 4, 8}, SSP = 20 s.
+Dashed gray line shows the idle (no-attestation) baseline.
+"""
+
+from pathlib import Path
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plot_style
+
+SSP_MS    = 20000
+ITERQ_VALS = [1, 2, 4, 8]
+
+INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
+IDLE_FILE  = "../data/blockchain-stats/_summary/blockchain_stats_idle.csv"
+
+FONT_SCALE = 1.8
+LINEWIDTH  = 2.0
+MARKERSIZE = 8
+COLOR_IDLE = "gray"
+
+PALETTE = "A"
+
+_PALETTES = {
+    "A": ["#CAC1E3", "#C4B4E8", "#7A63B8", "#52408A"],  # purple ramp  light→dark
+    "B": ["#c8c8c8", "#989898", "#686868", "#383838"],  # grey    light→dark
+    "C": ["#DCC7B8", "#b08060", "#8B5E3C", "#5C3317"],  # brown   light→dark
+    "D": ["#bdd7e7", "#6baed6", "#2171b5", "#084594"],  # blue    light→dark
+}
+
+_PAL = _PALETTES[PALETTE]
+STYLES = {
+    1: {"color": _PAL[0], "marker": "o"},
+    2: {"color": _PAL[1], "marker": "s"},
+    4: {"color": _PAL[2], "marker": "^"},
+    8: {"color": _PAL[3], "marker": "D"},
+}
+
+def main():
+    script_dir = Path(__file__).parent.resolve()
+
+    csv_path = (script_dir / INPUT_FILE).resolve()
+    if not csv_path.exists():
+        raise SystemExit(f"Summary CSV not found: {csv_path}")
+
+    idle_path = (script_dir / IDLE_FILE).resolve()
+    if not idle_path.exists():
+        raise SystemExit(f"Idle CSV not found: {idle_path}")
+
+    df        = pd.read_csv(csv_path)
+    idle_kbps = pd.read_csv(idle_path).iloc[0]["bytes_per_s"] / 1e3
+
+    df = df[df["ssp_ms"] == SSP_MS].sort_values(["iterq", "N"])
+
+    plot_style.apply(FONT_SCALE)
+
+    fig, ax = plt.subplots(figsize=(7.5, 3.4))
+    plt.subplots_adjust(left=0.12, right=0.97, top=0.97, bottom=0.16)
+
+    n_vals = sorted(df["N"].unique())
+
+    print(f"{'IterQ':<8} {'N':<6} {'KB/s':>10}")
+    print("-" * 26)
+    for iterq in ITERQ_VALS:
+        sub = df[df["iterq"] == iterq].sort_values("N")
+        if sub.empty:
+            continue
+        x = sub["N"].to_numpy()
+        y = sub["bytes_per_s"].to_numpy() / 1e3
+        st = STYLES[iterq]
+        ax.plot(x, y, color=st["color"], marker=st["marker"], markersize=MARKERSIZE,
+                markeredgecolor="none",
+                linewidth=LINEWIDTH, zorder=3, label=f"IterQ = {iterq}")
+        for n, kbps in zip(x, y):
+            print(f"{iterq:<8} {n:<6} {kbps:>10.4f}")
+
+    print("-" * 26)
+    print(f"{'Idle':<8} {'—':<6} {idle_kbps:>10.4f}")
+
+    ax.axhline(idle_kbps, color=COLOR_IDLE, linewidth=1.4, linestyle="--",
+               zorder=2, label="Idle")
+
+    ax.set_xlabel("Number of robots (N)")
+    ax.set_ylabel("Growth rate (KB/s)")
+    ax.set_xticks(n_vals)
+    ax.set_xticklabels([str(n) for n in n_vals])
+    ax.set_ylim(bottom=0)
+    ax.tick_params(axis="both", which="major", length=6, width=1.0, direction="out")
+    ax.grid(axis="both", **plot_style.GRID_KW)
+    ax.set_axisbelow(True)
+
+    ax.legend(loc="upper left", frameon=True, framealpha=0.9, fancybox=False,
+              edgecolor="black", borderpad=0.4, handlelength=1.5, fontsize=plt.rcParams.get("axes.labelsize", 10) * 0.8)
+
+    out_path = script_dir / "lineplot_blockchain_growth.pdf"
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    print(f"[OK] Saved: {out_path}")
+    plt.close(fig)
+
+
+if __name__ == "__main__":
+    main()

@@ -29,10 +29,13 @@ FONT_SCALE   = 1.8
 SSP_MS_LIST  = [10000, 5000, 1000, 10]   # 5 s, 1 s, 0.1 s, 0.01 s
 SSP_LABELS   = ["10", "5", "1", "0.01"]
 
-# Sequential blue ramp — light→dark maps SSP 5s→0.01s (slow→fast polling).
-# Avoids semantic collision with paper palette (green=robot, purple=SECaaS,
-# orange=oracle, dark-blue=#4B9FCC=SHA-256 in barplot).
-_COLORS = ["#B9CDE5", "#9DC3E6", "#4F81BD", "#2E5F8A"]   # blue ramp light→dark
+_COLORS = [
+    "#B9CDE5",
+    "#9DC3E6",
+    "#4F81BD",
+    "#2E5F8A",
+]
+
 SSP_STYLES = [
     dict(color=_COLORS[0], linewidth=2.0, linestyle="solid"),
     dict(color=_COLORS[1], linewidth=2.0, linestyle="solid"),
@@ -148,7 +151,7 @@ def main():
 
     ax.legend(loc="lower left", frameon=True, framealpha=0.9,
               fancybox=False, edgecolor="black",
-              borderpad=0.5, handlelength=1.8, fontsize=plt.rcParams.get("axes.labelsize", 10) * 0.7)
+              borderpad=0.5, handlelength=1.8, fontsize=plt.rcParams.get("axes.labelsize", 10) * 0.75)
 
     # ── zoom inset: right tail where curves separate ───────────────────────────
     # focus on the p80–p95 region (y = 0.80 – 0.95)

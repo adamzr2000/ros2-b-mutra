@@ -27,9 +27,9 @@ OUT_PDF       = SCRIPT_DIR / "lineplot_ttd_ife.pdf"
 
 FONT_SCALE = 1.8
 
-C_TTD      = "#2E72B8"   # blue       — TTD bars border (left axis)
-C_TTD_FILL = "#B9CDE5"   # light blue — TTD bar fill
-C_IFE      = "#C97A2B"   # orange     — IFE line (right axis)
+C_TTD      = "#2C7FB8"   # blue       — TTD bars border (left axis)
+C_TTD_FILL = "#B7D8EE"   # light blue — TTD bar fill
+C_IFE      = "#E6862A"   # orange     — IFE line (right axis)
 
 BAR_W = 0.5
 
@@ -86,7 +86,7 @@ ax2 = ax1.twinx()
 
 # ── TTD bars — left, blue ────────────────────────────────────────────────────
 ax1.bar(x, ttd_means, width=BAR_W, color=C_TTD_FILL,
-        edgecolor=C_TTD, linewidth=1.0, zorder=3)
+        edgecolor=C_TTD, linewidth=1.5, zorder=3)
 ax1.errorbar(x, ttd_means, yerr=[ttd_means - ttd_mins, ttd_maxs - ttd_means], fmt="none",
              color="black", elinewidth=1.3, capsize=4, capthick=1.3, zorder=4)
 

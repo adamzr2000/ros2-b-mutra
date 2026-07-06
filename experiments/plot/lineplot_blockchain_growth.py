@@ -27,7 +27,7 @@ COLOR_IDLE = "gray"
 PALETTE = "A"
 
 _PALETTES = {
-    "A": ["#CAC1E3", "#C4B4E8", "#7A63B8", "#52408A"],  # purple ramp  light→dark
+    "A": ["#D9CFF0", "#B89CDC", "#7A63B8", "#52408A"],  # purple ramp  light→dark
     "B": ["#c8c8c8", "#989898", "#686868", "#383838"],  # grey    light→dark
     "C": ["#DCC7B8", "#b08060", "#8B5E3C", "#5C3317"],  # brown   light→dark
     "D": ["#bdd7e7", "#6baed6", "#2171b5", "#084594"],  # blue    light→dark

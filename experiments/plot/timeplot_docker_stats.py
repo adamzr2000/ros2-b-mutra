@@ -32,10 +32,10 @@ CYCLE_SPANS = [
 LINE_WIDTH   = 2.6
 FONT_SCALE   = 2.2
 WINDOW_S     = 1      # rolling-mean smoothing window (seconds)
-BAND_ALPHA   = 0.25   # opacity of ±std shaded band
+BAND_ALPHA   = 0.1   # opacity of ±std shaded band
 
-COLOR_ROBOT  = "#3E8A52"
-COLOR_SECAAS = "#C97A2B"
+COLOR_ROBOT  = "#3A9D5D"
+COLOR_SECAAS = "#E6862A"
 
 def _clean_container_label(raw: str) -> str:
     name = str(raw).replace("-sidecar", "").strip()
@@ -221,10 +221,10 @@ def generate_plot(df, n_robots, mode, script_dir):
     axes[-1].xaxis.set_minor_locator(MultipleLocator(5))
 
     # ── Attestation-cycle grey bands (hardcoded from printed time series) ────────
-    C_ATT_BAND = "#b8b8b8"
+    C_ATT_BAND = "#C8C8C8"
     for t0, t1 in CYCLE_SPANS:
         for ax in axes:
-            ax.axvspan(t0, t1, color=C_ATT_BAND, alpha=0.65, zorder=1, linewidth=0)
+            ax.axvspan(t0, t1, color=C_ATT_BAND, alpha=0.45, zorder=1, linewidth=0)
 
     # ── Figure legend (top right) ─────────────────────────────────────────────
     legend_handles = []
