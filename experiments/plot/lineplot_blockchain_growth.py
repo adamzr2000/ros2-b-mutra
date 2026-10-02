@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plot_style
 
-SSP_MS    = 20000
+SSP_MS    = 10000
 ITERQ_VALS = [1, 2, 4, 8]
 
 INPUT_FILE = "../data/blockchain-stats/_summary/blockchain_stats_summary.csv"
