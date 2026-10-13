@@ -39,29 +39,22 @@ run_suite "Python rolling_hash" \
 run_suite "Go RollingHash" \
   docker run --rm \
     -v "$REPO_DIR":/repo \
-    -w /repo/dockerfiles/attestation-sidecar-optimized/app \
+    -w /repo/dockerfiles/attestation-sidecar/app \
     golang:1.25-bookworm \
-    bash -c '
-      set -e
-      [ ! -f go.mod ] && go mod init app >/dev/null
-      go get github.com/ethereum/go-ethereum@v1.14.12 >/dev/null 2>&1
-      go mod tidy >/dev/null 2>&1
-      go test ./internal/compute/ -count=1
-      rm -f go.mod go.sum
-    '
+    go test ./internal/compute/ -count=1
 
 # ---------------------------------------------------------------------------
 # Suite 3 — Hardhat smart-contract tests
 # ---------------------------------------------------------------------------
 # Requires the project's hardhat:latest image (built by `cd dockerfiles && make hardhat`).
-run_suite "Hardhat AttestationManagerLV" \
+run_suite "Hardhat contracts (LV, V2)" \
   docker run --rm \
     -v "$REPO_DIR/smart-contracts/contracts":/smart-contracts/contracts:ro \
     -v "$REPO_DIR/smart-contracts/test":/smart-contracts/test:ro \
     -v "$REPO_DIR/smart-contracts/scripts":/smart-contracts/scripts:ro \
     -v "$REPO_DIR/smart-contracts/hardhat.config.js":/smart-contracts/hardhat.config.js:ro \
     hardhat:latest \
-    bash -c "cd /smart-contracts && npx hardhat test test/AttestationManagerLV.test.js"
+    bash -c "cd /smart-contracts && npx hardhat test"
 
 if (( fail )); then
   red "Some suites failed."
