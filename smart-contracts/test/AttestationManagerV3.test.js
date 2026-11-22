@@ -1,14 +1,20 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
+// The prover binds its evidence to a recent block, read before measuring.
+const latest = () => ethers.provider.getBlockNumber();
+// A reference bound to the hash of block n, as the verifier computes it.
+const bound = async (ref, n) => ethers.sha256(ethers.concat([ref, (await ethers.provider.getBlock(n)).hash]));
+
 // Closes a cycle with verdict: by the SECaaS when it is the verifier,
-// otherwise by juryThreshold jurors. A call sees the latest block as the
-// current one, so a block is mined before the jury can be read.
+// otherwise by its jurors, until the cycle closes. A call sees the latest
+// block as the current one, so a block is mined before the jury can be read.
+const CLOSED = 2n;
 async function settle(am, secaas, signers, id, verdict) {
-  if (await am.IsVerifier(id, secaas.address)) return am.connect(secaas).ResolveAttestationSECaaS(id, verdict);
+  if (await am.IsVerifier(id, secaas.address)) return am.connect(secaas).VerifyBySECaaS(id, verdict);
   await ethers.provider.send("evm_mine", []);
-  const jury = await am.PreviewJury(id);
-  for (const j of jury.slice(0, Number(await am.juryThreshold()))) {
+  for (const j of await am.PreviewJury(id)) {
+    if ((await am.GetAttestationState(id)) === CLOSED) return;
     await am.connect(signers.find((s) => s.address === j)).Vote(id, verdict);
   }
 }
@@ -21,17 +27,71 @@ describe("AttestationManagerV3: jury parameters", function () {
     AM = await ethers.getContractFactory("AttestationManagerV3", secaas);
   });
 
-  it("stores the jury size, threshold and timeout", async () => {
-    const am = await AM.deploy([a1.address], 1, 3, 2, 5);
-    expect(await am.jurySize()).to.equal(3);
-    expect(await am.juryThreshold()).to.equal(2);
+  it("exposes the jury timeout and the freshness window only", async () => {
+    const am = await AM.deploy([a1.address], 1, 3, 2, 5, 10);
     expect(await am.juryTimeoutBlocks()).to.equal(5);
+    expect(await am.freshnessBlocks()).to.equal(10);
+    for (const hidden of ["jurySize", "juryThreshold", "isAdmin", "adminThreshold", "referenceOf", "referenceVersion", "resetVersion"]) {
+      expect(am.interface.getFunction(hidden), hidden).to.equal(null);
+    }
   });
 
   it("rejects a threshold of 0 or above the jury size, and a timeout of 0", async () => {
-    await expect(AM.deploy([a1.address], 1, 3, 0, 5)).to.be.revertedWith("Invalid jury threshold");
-    await expect(AM.deploy([a1.address], 1, 3, 4, 5)).to.be.revertedWith("Invalid jury threshold");
-    await expect(AM.deploy([a1.address], 1, 3, 2, 0)).to.be.revertedWith("Invalid jury timeout");
+    await expect(AM.deploy([a1.address], 1, 3, 0, 5, 10)).to.be.revertedWith("Invalid jury threshold");
+    await expect(AM.deploy([a1.address], 1, 3, 4, 5, 10)).to.be.revertedWith("Invalid jury threshold");
+    await expect(AM.deploy([a1.address], 1, 3, 2, 0, 10)).to.be.revertedWith("Invalid jury timeout");
+  });
+
+  it("rejects a jury larger than its 8-bit counters", async () => {
+    await expect(AM.deploy([a1.address], 1, 256, 2, 5, 10)).to.be.revertedWith("Invalid jury size");
+    await AM.deploy([a1.address], 1, 255, 2, 5, 10);
+  });
+});
+
+describe("AttestationManagerV3: registration and round ids", function () {
+  const REF = ethers.encodeBytes32String("ref");
+  let secaas, a1, robots, am;
+
+  beforeEach(async () => {
+    [secaas, a1, ...robots] = await ethers.getSigners();
+    am = await (await ethers.getContractFactory("AttestationManagerV3", secaas)).deploy([a1.address], 1, 2, 2, 5, 10);
+  });
+
+  it("rejects a second registration, which would raise the agent's chance to be drawn", async () => {
+    await am.connect(robots[0]).RegisterAgent("r");
+    await expect(am.connect(robots[0]).RegisterAgent("r")).to.be.revertedWith("RegisterAgent : already registered");
+    await am.connect(robots[0]).RemoveAgent();
+    await am.connect(robots[0]).RegisterAgent("r"); // allowed again after leaving
+  });
+
+  it("rejects round id 0, so it cannot block the first round of other agents", async () => {
+    for (const r of robots.slice(0, 2)) {
+      await am.connect(r).RegisterAgent("r");
+      await am.connect(a1).SetReference(r.address, REF);
+    }
+    await expect(am.connect(robots[0]).Prove(ethers.ZeroHash, REF, 1, await latest())).to.be.revertedWith("Prove : empty id");
+    await expect(am.connect(robots[1]).Prove(ethers.encodeBytes32String("first"), REF, 1, await latest())).to.emit(am, "AttestationStarted");
+  });
+
+  it("never draws the SECaaS, and draws every eligible agent", async () => {
+    const pool = robots.slice(0, 4);
+    for (const r of pool) {
+      await am.connect(r).RegisterAgent("r");
+      await am.connect(a1).SetReference(r.address, REF);
+    }
+    let n = 0;
+    for (const r of pool) await settle(am, secaas, pool, await prove(r), true);
+    const seen = new Set();
+    for (let s = 0; s < 40; s++) {
+      for (const j of await am.DrawJury(ethers.encodeBytes32String(`s${s}`), pool[0].address)) seen.add(j);
+    }
+    expect([...seen].sort()).to.deep.equal(pool.slice(1).map((r) => r.address).sort());
+
+    async function prove(r) {
+      const id = ethers.encodeBytes32String(`c${n++}`);
+      await am.connect(r).Prove(id, REF, 1, await latest());
+      return id;
+    }
   });
 });
 
@@ -42,7 +102,7 @@ describe("AttestationManagerV3: eligible agents", function () {
   // Two agents only: no jury can be drawn, the SECaaS closes every cycle.
   async function cycle(prover, verified) {
     const id = ethers.encodeBytes32String(`c${n++}`);
-    await am.connect(prover).SendEvidence(id, REF, 1);
+    await am.connect(prover).Prove(id, REF, 1, await latest());
     await settle(am, secaas, [robotA, robotB], id, verified);
   }
   const eligible = async () => [...(await am.GetEligibleAgents())].sort();
@@ -50,7 +110,7 @@ describe("AttestationManagerV3: eligible agents", function () {
   beforeEach(async () => {
     [secaas, a1, robotA, robotB] = await ethers.getSigners();
     const AM = await ethers.getContractFactory("AttestationManagerV3", secaas);
-    am = await AM.deploy([a1.address], 1, 3, 2, 5);
+    am = await AM.deploy([a1.address], 1, 3, 2, 5, 10);
     for (const r of [robotA, robotB]) {
       await am.connect(r).RegisterAgent("r");
       await am.connect(a1).SetReference(r.address, REF);
@@ -97,7 +157,7 @@ describe("AttestationManagerV3: jury draw", function () {
 
   async function cycle(prover, verified) {
     const id = ethers.encodeBytes32String(`c${n++}`);
-    const receipt = await (await am.connect(prover).SendEvidence(id, REF, 1)).wait();
+    const receipt = await (await am.connect(prover).Prove(id, REF, 1, await latest())).wait();
     await settle(am, secaas, robots, id, verified);
     return { id, block: receipt.blockNumber };
   }
@@ -105,7 +165,7 @@ describe("AttestationManagerV3: jury draw", function () {
   // Deploys with a jury of 3, threshold 2, and makes the first k robots eligible.
   async function setup(k) {
     const AM = await ethers.getContractFactory("AttestationManagerV3", secaas);
-    am = await AM.deploy([a1.address], 1, 3, 2, 5);
+    am = await AM.deploy([a1.address], 1, 3, 2, 5, 10);
     for (const r of robots) {
       await am.connect(r).RegisterAgent("r");
       await am.connect(a1).SetReference(r.address, REF);
@@ -165,7 +225,7 @@ describe("AttestationManagerV3: vote", function () {
   const close = (id, verified) => settle(am, secaas, robots, id, verified);
   async function evidence(prover) {
     const id = ethers.encodeBytes32String(`c${n++}`);
-    await am.connect(prover).SendEvidence(id, REF, 1);
+    await am.connect(prover).Prove(id, REF, 1, await latest());
     return id;
   }
   const signer = (address) => robots.find((r) => r.address === address);
@@ -177,7 +237,7 @@ describe("AttestationManagerV3: vote", function () {
     [secaas, a1] = signers;
     robots = signers.slice(2, 10);
     const AM = await ethers.getContractFactory("AttestationManagerV3", secaas);
-    am = await AM.deploy([a1.address], 1, 3, 2, 5);
+    am = await AM.deploy([a1.address], 1, 3, 2, 5, 10);
     for (const r of robots) {
       await am.connect(r).RegisterAgent("r");
       await am.connect(a1).SetReference(r.address, REF);
@@ -202,7 +262,7 @@ describe("AttestationManagerV3: vote", function () {
     const fresh = ethers.encodeBytes32String("same-block");
     let sent, vote;
     try {
-      sent = await am.connect(robots[1]).SendEvidence(fresh, REF, 1, { gasLimit: 1_000_000 });
+      sent = await am.connect(robots[1]).Prove(fresh, REF, 1, await latest(), { gasLimit: 1_000_000 });
       vote = await am.connect(robots[2]).Vote(fresh, true, { gasLimit: 1_000_000 });
       await ethers.provider.send("evm_mine", []);
     } finally {
@@ -248,7 +308,7 @@ describe("AttestationManagerV3: closure and expiry", function () {
   const signer = (address) => robots.find((r) => r.address === address);
   async function evidence(prover) {
     const id = ethers.encodeBytes32String(`c${n++}`);
-    await am.connect(prover).SendEvidence(id, REF, 1);
+    await am.connect(prover).Prove(id, REF, 1, await latest());
     return id;
   }
 
@@ -256,7 +316,7 @@ describe("AttestationManagerV3: closure and expiry", function () {
   // eligible, then robot 0 sends evidence. Returns the cycle and its jury.
   async function setup(size, quorum) {
     const AM = await ethers.getContractFactory("AttestationManagerV3", secaas);
-    am = await AM.deploy([a1.address], 1, size, quorum, 5);
+    am = await AM.deploy([a1.address], 1, size, quorum, 5, 10);
     for (const r of robots) {
       await am.connect(r).RegisterAgent("r");
       await am.connect(a1).SetReference(r.address, REF);
@@ -279,7 +339,7 @@ describe("AttestationManagerV3: closure and expiry", function () {
 
   it("goes to the SECaaS until a jury can be drawn, then to the jury", async () => {
     const AM = await ethers.getContractFactory("AttestationManagerV3", secaas);
-    am = await AM.deploy([a1.address], 1, 3, 2, 5);
+    am = await AM.deploy([a1.address], 1, 3, 2, 5, 10);
     for (const r of robots.slice(0, 3)) {
       await am.connect(r).RegisterAgent("r");
       await am.connect(a1).SetReference(r.address, REF);
@@ -289,9 +349,9 @@ describe("AttestationManagerV3: closure and expiry", function () {
     for (const r of robots.slice(0, 2)) {
       const id = await evidence(r);
       expect(await am.IsVerifier(id, secaas.address)).to.equal(true);
-      await am.connect(secaas).ResolveAttestationSECaaS(id, true);
+      await am.connect(secaas).VerifyBySECaaS(id, true);
     }
-    await expect(am.connect(robots[2]).SendEvidence(ethers.encodeBytes32String("j"), REF, 1))
+    await expect(am.connect(robots[2]).Prove(ethers.encodeBytes32String("j"), REF, 1, await latest()))
       .to.emit(am, "ReadyForEvaluation");
     expect(await am.IsVerifier(ethers.encodeBytes32String("j"), secaas.address)).to.equal(false);
   });
@@ -303,13 +363,13 @@ describe("AttestationManagerV3: closure and expiry", function () {
     const other = robots.find((r) => r !== robots[0] && !jury.includes(r));
     await settle(am, secaas, robots, await evidence(other), false); // other leaves the eligible list
     await am.connect(jury[0]).Vote(id, true);
-    await expect(am.connect(jury[1]).Vote(id, true)).to.emit(am, "AttestationCompleted").withArgs(id);
+    await expect(am.connect(jury[1]).Vote(id, true)).to.emit(am, "AttestationCompleted").withArgs(id, robots[0].address, true);
   });
 
   it("closes on 2 votes for", async () => {
     const { id, jury } = await setup(3, 2);
     await am.connect(jury[0]).Vote(id, true);
-    await expect(am.connect(jury[1]).Vote(id, true)).to.emit(am, "AttestationCompleted").withArgs(id);
+    await expect(am.connect(jury[1]).Vote(id, true)).to.emit(am, "AttestationCompleted").withArgs(id, robots[0].address, true);
     expect(await result(id)).to.equal(SUCCESS);
     expect(await eligible(robots[0])).to.equal(true);
   });
@@ -339,7 +399,7 @@ describe("AttestationManagerV3: closure and expiry", function () {
     await am.connect(jury[0]).Vote(id, true);
     await expect(am.connect(jury[1]).Vote(id, false)).to.emit(am, "AttestationStarted").withArgs(id, 1);
     expect(await am.IsVerifier(id, secaas.address)).to.equal(true);
-    await am.connect(secaas).ResolveAttestationSECaaS(id, false);
+    await am.connect(secaas).VerifyBySECaaS(id, false);
     expect(await result(id)).to.equal(FAILURE);
   });
 
@@ -349,7 +409,7 @@ describe("AttestationManagerV3: closure and expiry", function () {
     await am.connect(jury[0]).Vote(id, true);
     await am.connect(jury[1]).Vote(id, true);
     expect(await am.GetAttestationState(id)).to.equal(1n); // ReadyForEvaluation
-    await expect(am.connect(jury[2]).Vote(id, true)).to.emit(am, "AttestationCompleted").withArgs(id);
+    await expect(am.connect(jury[2]).Vote(id, true)).to.emit(am, "AttestationCompleted").withArgs(id, robots[0].address, true);
     expect(await result(id)).to.equal(SUCCESS);
   });
 
@@ -359,7 +419,7 @@ describe("AttestationManagerV3: closure and expiry", function () {
     await expect(am.connect(jury[1]).Vote(id, false)).to.emit(am, "AttestationStarted").withArgs(id, 1);
     expect(await am.IsVerifier(id, secaas.address)).to.equal(true);
     await expect(am.connect(jury[2]).Vote(id, true)).to.be.revertedWith("Vote : cycle is with the SECaaS");
-    await expect(am.connect(secaas).ResolveAttestationSECaaS(id, true)).to.emit(am, "JurorDissent").withArgs(id, jury[1].address);
+    await expect(am.connect(secaas).VerifyBySECaaS(id, true)).to.emit(am, "JurorDissent").withArgs(id, jury[1].address);
     expect(await result(id)).to.equal(SUCCESS);
     expect(await eligible(jury[1])).to.equal(false);
     expect(await eligible(jury[0])).to.equal(true);
@@ -368,10 +428,43 @@ describe("AttestationManagerV3: closure and expiry", function () {
 
   it("lets a juror read the evidence before voting", async () => {
     const { id, jury } = await setup(3, 2);
-    const [fresh, ref, iter] = await am.GetAttestationSignatures(id, jury[0].address);
-    expect([fresh, ref, iter]).to.deep.equal([REF, REF, 1n]);
+    const signatures = await am.connect(jury[0]).GetAttestationSignatures(id, jury[0].address);
+    const boundBlock = (await am.queryFilter(am.filters.ReadyForEvaluation(), 0)).find((e) => e.args[0] === id).blockNumber - 1;
+    expect([...signatures]).to.deep.equal([REF, REF, 1n, BigInt(boundBlock)]);
     await expect(am.GetAttestationSignatures(ethers.encodeBytes32String("none"), jury[0].address))
       .to.be.revertedWith("Unknown attestation");
+  });
+
+  it("serves the evidence of a jury cycle to its candidate jurors only", async () => {
+    const { id } = await setup(3, 2);
+    const read = (who) => am.connect(who).GetAttestationSignatures(id, who.address);
+    const denied = "GetAttestationSignatures : caller does not judge this cycle";
+    // Any agent eligible at the evidence may read, drawn or not: the jury is
+    // known from the next block only.
+    for (const r of robots.slice(1)) await read(r);
+    await expect(read(robots[0])).to.be.revertedWith(denied); // the prover
+    await expect(read(secaas)).to.be.revertedWith(denied); // not the verifier here
+    const [, , , , , , , , , , outsider] = await ethers.getSigners();
+    await expect(read(outsider)).to.be.revertedWith(denied);
+  });
+
+  it("serves the evidence of a cycle with the SECaaS to the SECaaS only", async () => {
+    const { id } = await setup(3, 2);
+    await ethers.provider.send("hardhat_mine", ["0x10"]);
+    await am.connect(robots[0]).Expire(id);
+    await am.connect(secaas).GetAttestationSignatures(id, secaas.address);
+    await expect(am.connect(robots[1]).GetAttestationSignatures(id, robots[1].address))
+      .to.be.revertedWith("GetAttestationSignatures : caller does not judge this cycle");
+  });
+
+  it("gives agent names to registered agents and the SECaaS only", async () => {
+    await setup(3, 2);
+    expect((await am.connect(robots[1]).GetAgentInfo(robots[0].address, robots[1].address))[0]).to.equal("r");
+    await am.connect(secaas).GetAgentInfo(robots[0].address, secaas.address);
+    const [, , , , , , , , , , outsider] = await ethers.getSigners();
+    // The address argument does not grant access: the caller does.
+    await expect(am.connect(outsider).GetAgentInfo(robots[0].address, robots[1].address))
+      .to.be.revertedWith("GetAgentInfo : caller is not registered");
   });
 
   it("gives the jurors and their votes, and the closing juror as verifier", async () => {
@@ -404,16 +497,16 @@ describe("AttestationManagerV3: closure and expiry", function () {
     expect(await am.IsVerifier(id, secaas.address)).to.equal(true);
     await expect(am.connect(jury[1]).Vote(id, true)).to.be.revertedWith("Vote : cycle is with the SECaaS");
     await expect(am.connect(robots[0]).Expire(id)).to.be.revertedWith("Expire : cycle is with the SECaaS");
-    await am.connect(secaas).ResolveAttestationSECaaS(id, true);
+    await am.connect(secaas).VerifyBySECaaS(id, true);
     expect(await result(id)).to.equal(SUCCESS);
   });
 
   it("refuses a second round while the prover's round is open", async () => {
     const { id, jury } = await setup(3, 2);
-    const again = (k) => am.connect(robots[0]).SendEvidence(ethers.encodeBytes32String(k), REF, 1);
-    await expect(again("again")).to.be.revertedWith("SendEvidence : prover has an open round");
-    await expect(am.connect(robots[0]).SendEvidence(id, REF, 1)).to.be.revertedWith("SendEvidence : prover has an open round");
-    await expect(am.connect(robots[1]).SendEvidence(ethers.encodeBytes32String("other"), REF, 1)).to.emit(am, "ReadyForEvaluation");
+    const again = async (k) => am.connect(robots[0]).Prove(ethers.encodeBytes32String(k), REF, 1, await latest());
+    await expect(again("again")).to.be.revertedWith("Prove : prover has an open round");
+    await expect(am.connect(robots[0]).Prove(id, REF, 1, await latest())).to.be.revertedWith("Prove : prover has an open round");
+    await expect(am.connect(robots[1]).Prove(ethers.encodeBytes32String("other"), REF, 1, await latest())).to.emit(am, "ReadyForEvaluation");
     await am.connect(jury[0]).Vote(id, true);
     await am.connect(jury[1]).Vote(id, true);
     await expect(again("after close")).to.emit(am, "ReadyForEvaluation");
@@ -423,15 +516,37 @@ describe("AttestationManagerV3: closure and expiry", function () {
     const { id, jury } = await setup(3, 2);
     await am.connect(jury[0]).Vote(id, true);
     await am.connect(jury[1]).Vote(id, true);
-    await expect(am.connect(robots[0]).SendEvidence(id, REF, 1)).to.be.revertedWith("SendEvidence : id already used");
-    await expect(am.connect(robots[1]).SendEvidence(id, REF, 1)).to.be.revertedWith("SendEvidence : id already used");
+    await expect(am.connect(robots[0]).Prove(id, REF, 1, await latest())).to.be.revertedWith("Prove : id already used");
+    await expect(am.connect(robots[1]).Prove(id, REF, 1, await latest())).to.be.revertedWith("Prove : id already used");
   });
 
   it("lets the prover open a new round once its round is with the SECaaS", async () => {
     const { id } = await setup(3, 2);
     await ethers.provider.send("hardhat_mine", ["0x10"]);
     await am.connect(robots[0]).Expire(id);
-    await expect(am.connect(robots[0]).SendEvidence(ethers.encodeBytes32String("next"), REF, 1)).to.emit(am, "ReadyForEvaluation");
+    await expect(am.connect(robots[0]).Prove(ethers.encodeBytes32String("next"), REF, 1, await latest())).to.emit(am, "ReadyForEvaluation");
+  });
+
+  it("hands a cycle whose jury cannot be drawn to the SECaaS on expiry", async () => {
+    const AM = await ethers.getContractFactory("AttestationManagerV3", secaas);
+    am = await AM.deploy([a1.address], 1, 2, 2, 5, 10);
+    const [p, b, c, d] = robots;
+    for (const r of [p, b, c]) {
+      await am.connect(r).RegisterAgent("r");
+      await am.connect(a1).SetReference(r.address, REF);
+    }
+    n = 0;
+    for (const r of [p, b, c]) await settle(am, secaas, robots, await evidence(r), true);
+    const id = await evidence(p); // jury of 2 from b and c
+    // d takes c's place in participants: only b is left to draw.
+    await am.connect(d).RegisterAgent("d");
+    await am.connect(c).RemoveAgent();
+    await ethers.provider.send("evm_mine", []);
+    await expect(am.PreviewJury(id)).to.be.revertedWith("PreviewJury : jury cannot be drawn");
+    await ethers.provider.send("hardhat_mine", ["0x5"]);
+    await expect(am.connect(p).Expire(id)).to.emit(am, "AttestationStarted").and.not.to.emit(am, "JurorAbsent");
+    await am.connect(secaas).VerifyBySECaaS(id, true);
+    expect(await result(id)).to.equal(SUCCESS);
   });
 
   it("does not expire a closed or unknown cycle", async () => {
@@ -467,7 +582,7 @@ describe("AttestationManagerV3: closure and expiry", function () {
     const { id, jury } = await setup(2, 2);
     await am.connect(jury[0]).Vote(id, true);
     await am.connect(jury[1]).Vote(id, false); // a tie goes to the SECaaS
-    await expect(am.connect(secaas).ResolveAttestationSECaaS(id, false)).to.emit(am, "JurorDissent").withArgs(id, jury[0].address);
+    await expect(am.connect(secaas).VerifyBySECaaS(id, false)).to.emit(am, "JurorDissent").withArgs(id, jury[0].address);
     expect(await eligible(jury[0])).to.equal(false);
     expect(await eligible(jury[1])).to.equal(true);
   });
@@ -494,5 +609,99 @@ describe("AttestationManagerV3: closure and expiry", function () {
     await am.connect(robots[0]).Expire(id);
     expect([...(await am.GetJury(id))[0]]).to.deep.equal(jury.map((j) => j.address));
     for (const j of jury) expect(await eligible(j)).to.equal(false);
+  });
+});
+
+describe("AttestationManagerV3: evidence freshness", function () {
+  const REF = ethers.encodeBytes32String("ref");
+  const WINDOW = 10;
+  let secaas, a1, robot, AM, am, n;
+
+  // robot alone: the SECaaS closes every round.
+  async function round(boundBlock) {
+    const id = ethers.encodeBytes32String(`f${n++}`);
+    await am.connect(robot).Prove(id, REF, 1, boundBlock);
+    return id;
+  }
+
+  beforeEach(async () => {
+    [secaas, a1, robot] = await ethers.getSigners();
+    AM = await ethers.getContractFactory("AttestationManagerV3", secaas);
+    am = await AM.deploy([a1.address], 1, 2, 2, 5, WINDOW);
+    await am.connect(robot).RegisterAgent("r");
+    await am.connect(a1).SetReference(robot.address, REF);
+    n = 0;
+  });
+
+  it("rejects a window of 0 or above 255", async () => {
+    await expect(AM.deploy([a1.address], 1, 2, 2, 5, 0)).to.be.revertedWith("Invalid freshness window");
+    await expect(AM.deploy([a1.address], 1, 2, 2, 5, 256)).to.be.revertedWith("Invalid freshness window");
+    await AM.deploy([a1.address], 1, 2, 2, 5, 255);
+  });
+
+  it("accepts evidence bound to a block up to the window old, not older, not the current one", async () => {
+    await ethers.provider.send("hardhat_mine", ["0x20"]);
+    const id = ethers.encodeBytes32String("x");
+    // The transaction goes into block latest + 1.
+    await expect(am.connect(robot).Prove(id, REF, 1, (await latest()) + 1 - WINDOW - 1))
+      .to.be.revertedWith("Prove : evidence outside the freshness window");
+    await expect(am.connect(robot).Prove(id, REF, 1, (await latest()) + 1))
+      .to.be.revertedWith("Prove : evidence outside the freshness window");
+    await expect(am.connect(robot).Prove(id, REF, 1, (await latest()) + 1 - WINDOW)).to.emit(am, "AttestationStarted");
+  });
+
+  it("rejects evidence not newer than the prover's last round", async () => {
+    await ethers.provider.send("hardhat_mine", ["0x5"]);
+    const boundBlock = await latest();
+    await am.connect(secaas).VerifyBySECaaS(await round(boundBlock), true);
+    await expect(round(boundBlock)).to.be.revertedWith("Prove : evidence not newer than the last round");
+    await expect(round(boundBlock - 1)).to.be.revertedWith("Prove : evidence not newer than the last round");
+    await round(boundBlock + 1);
+  });
+
+  it("gives the anchored reference and the block the evidence is bound to", async () => {
+    const boundBlock = await latest();
+    const id = await round(boundBlock);
+    const [, ref, , bound] = await am.GetAttestationSignatures(id, secaas.address);
+    expect([ref, bound]).to.deep.equal([REF, BigInt(boundBlock)]);
+  });
+
+  it("does not let an old rolling hash pass in a later round", async () => {
+    // Round 1: the evidence of an unmodified agent (K = 1) is the reference
+    // bound to the hash of its block, which is what the verifier expects.
+    const n1 = await latest();
+    const old = await bound(REF, n1);
+    const id1 = ethers.encodeBytes32String("r1");
+    await am.connect(robot).Prove(id1, old, 1, n1);
+    const [fresh1, ref1, , b1] = await am.GetAttestationSignatures(id1, secaas.address);
+    expect(fresh1).to.equal(await bound(ref1, Number(b1)));
+    await am.connect(secaas).VerifyBySECaaS(id1, true);
+
+    // Later, the same evidence with its old block is stale...
+    await ethers.provider.send("hardhat_mine", ["0x20"]);
+    const replay = ethers.encodeBytes32String("replay");
+    await expect(am.connect(robot).Prove(replay, old, 1, n1))
+      .to.be.revertedWith("Prove : evidence outside the freshness window");
+    // ...and with a recent block it no longer matches what the verifier expects.
+    await am.connect(robot).Prove(replay, old, 1, await latest());
+    const [fresh2, ref2, , b2] = await am.GetAttestationSignatures(replay, secaas.address);
+    expect(fresh2).to.equal(old);
+    expect(fresh2).to.not.equal(await bound(ref2, Number(b2)));
+  });
+});
+
+describe("AttestationManagerV3: reference events", function () {
+  it("records approvals and versions, not the reference values", async () => {
+    const [secaas, a1, a2, robot] = await ethers.getSigners();
+    const am = await (await ethers.getContractFactory("AttestationManagerV3", secaas)).deploy([a1.address, a2.address], 2, 2, 2, 5, 10);
+    const REF = ethers.encodeBytes32String("ref");
+    await expect(am.connect(a1).SetReference(robot.address, REF))
+      .to.emit(am, "ReferenceApproved").withArgs(robot.address, a1.address, 0)
+      .and.not.to.emit(am, "ReferenceSet");
+    await expect(am.connect(a2).SetReference(robot.address, REF))
+      .to.emit(am, "ReferenceSet").withArgs(robot.address, 1);
+    for (const name of ["ReferenceApproved", "ReferenceSet"]) {
+      expect(am.interface.getEvent(name).inputs.map((i) => i.type)).to.not.include("bytes32");
+    }
   });
 });

@@ -2,7 +2,7 @@
 """
 TOCTOU detection rate against tau/SSP, fixed and exponential measurement delay.
 
-Reads the CSVs of run_experiments_toctou.py (one row per tamper-run-restore
+Reads the CSVs of experiment_toctou.py (one row per tamper-run-restore
 trial) and plots, for each SSP and mode, the share of detected attacks with its
 95 % Wilson interval. Theory: 1 - exp(-tau/SSP) for the exponential delay, and
 for the fixed delay, nothing before tau = SSP and everything after.

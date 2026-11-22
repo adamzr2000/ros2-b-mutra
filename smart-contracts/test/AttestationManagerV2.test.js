@@ -73,8 +73,8 @@ describe("AttestationManagerV2: anchored reference", function () {
 // Brings a contract to the point where robot A is an eligible peer verifier:
 // A's first attestation has no peer available, so the SECaaS resolves it.
 async function makePeerVerifier(am, secaas, robotA, ref) {
-  await am.connect(robotA).SendEvidence(b32("boot"), ref, 1);
-  await am.connect(secaas).ResolveAttestationSECaaS(b32("boot"), true);
+  await am.connect(robotA).Prove(b32("boot"), ref, 1);
+  await am.connect(secaas).VerifyBySECaaS(b32("boot"), true);
 }
 
 const gasOf = async (txPromise) => (await (await txPromise).wait()).gasUsed;
@@ -97,30 +97,30 @@ describe("AttestationManagerV2: two-transaction cycle", function () {
   it("rejects evidence from an agent without an anchored reference", async () => {
     const [, , , , robotC] = await ethers.getSigners();
     await am.connect(robotC).RegisterAgent("c");
-    await expect(am.connect(robotC).SendEvidence(b32("x"), REF, 1))
-      .to.be.revertedWith("SendEvidence : no reference anchored for this agent");
+    await expect(am.connect(robotC).Prove(b32("x"), REF, 1))
+      .to.be.revertedWith("Prove : no reference anchored for this agent");
   });
 
   it("notifies the SECaaS only when it is the elected verifier", async () => {
-    await expect(am.connect(robotA).SendEvidence(b32("boot"), REF, 1))
+    await expect(am.connect(robotA).Prove(b32("boot"), REF, 1))
       .to.emit(am, "AttestationStarted").withArgs(b32("boot"), 1)
       .and.not.to.emit(am, "ReadyForEvaluation");
-    await am.connect(secaas).ResolveAttestationSECaaS(b32("boot"), true);
+    await am.connect(secaas).VerifyBySECaaS(b32("boot"), true);
 
-    await expect(am.connect(robotB).SendEvidence(b32("id"), REF, 1))
+    await expect(am.connect(robotB).Prove(b32("id"), REF, 1))
       .to.emit(am, "ReadyForEvaluation").withArgs(b32("id"))
       .and.not.to.emit(am, "AttestationStarted");
   });
 
   it("closes a peer-verified cycle in two transactions, with the anchored reference", async () => {
     await makePeerVerifier(am, secaas, robotA, REF);
-    await am.connect(robotB).SendEvidence(b32("id"), REF, 3);
+    await am.connect(robotB).Prove(b32("id"), REF, 3);
 
     const [fresh, ref, k] = await am.GetAttestationSignatures(b32("id"), robotA.address);
     expect([fresh, ref, k]).to.deep.equal([REF, REF, 3n]);
 
-    await expect(am.connect(robotA).CloseAttestationProcess(b32("id"), true))
-      .to.emit(am, "AttestationCompleted").withArgs(b32("id"));
+    await expect(am.connect(robotA).Verify(b32("id"), true))
+      .to.emit(am, "AttestationCompleted").withArgs(b32("id"), robotB.address, true);
     const [prover, verifier, result] = await am.GetAttestationInfo(b32("id"));
     expect([prover, verifier, result]).to.deep.equal([robotB.address, robotA.address, 2n]);
   });
@@ -128,9 +128,42 @@ describe("AttestationManagerV2: two-transaction cycle", function () {
   it("uses a reference changed by the admin from the next cycle on", async () => {
     await makePeerVerifier(am, secaas, robotA, REF);
     await am.connect(a1).SetReference(robotB.address, b32("new"));
-    await am.connect(robotB).SendEvidence(b32("id"), REF, 1);
+    await am.connect(robotB).Prove(b32("id"), REF, 1);
     const [, ref] = await am.GetAttestationSignatures(b32("id"), robotA.address);
     expect(ref).to.equal(b32("new"));
+  });
+
+  // A is verified by the SECaaS, then B by A: B is the verifier, A the fallback.
+  async function verifierBFallbackA() {
+    await makePeerVerifier(am, secaas, robotA, REF);
+    await am.connect(robotB).Prove(b32("b1"), REF, 1);
+    await am.connect(robotA).Verify(b32("b1"), true);
+  }
+
+  it("sends the round of the current verifier to the previous one, not to the SECaaS", async () => {
+    await verifierBFallbackA();
+    await expect(am.connect(robotB).Prove(b32("b2"), REF, 1))
+      .to.emit(am, "ReadyForEvaluation").withArgs(b32("b2"))
+      .and.not.to.emit(am, "AttestationStarted");
+    expect(await am.IsVerifier(b32("b2"), robotA.address)).to.equal(true);
+    await expect(am.connect(robotA).Verify(b32("b2"), true))
+      .to.emit(am, "AttestationCompleted").withArgs(b32("b2"), robotB.address, true);
+    // B stays the verifier and A the fallback: A's next round goes to B.
+    await am.connect(robotA).Prove(b32("a2"), REF, 1);
+    expect(await am.IsVerifier(b32("a2"), robotB.address)).to.equal(true);
+  });
+
+  it("sends the round to the SECaaS when the only fallback is the prover itself", async () => {
+    await makePeerVerifier(am, secaas, robotA, REF); // A verifier, the SECaaS before it
+    await expect(am.connect(robotA).Prove(b32("a2"), REF, 1)).to.emit(am, "AttestationStarted");
+    expect(await am.IsVerifier(b32("a2"), secaas.address)).to.equal(true);
+  });
+
+  it("drops the fallback on ResetChain", async () => {
+    await verifierBFallbackA();
+    await am.connect(a1).ResetChain();
+    await expect(am.connect(robotB).Prove(b32("b2"), REF, 1)).to.emit(am, "AttestationStarted");
+    expect(await am.IsVerifier(b32("b2"), secaas.address)).to.equal(true);
   });
 
   it("costs less gas per peer-verified cycle than LV", async () => {
@@ -142,12 +175,12 @@ describe("AttestationManagerV2: two-transaction cycle", function () {
     await makePeerVerifier(am, secaas, robotA, REF);
 
     const lvGas =
-      (await gasOf(lv.connect(robotB).SendEvidence(b32("id"), REF, 1))) +
-      (await gasOf(lv.connect(secaas).SendRefSignature(b32("id"), REF))) +
-      (await gasOf(lv.connect(robotA).CloseAttestationProcess(b32("id"), true)));
+      (await gasOf(lv.connect(robotB).Prove(b32("id"), REF, 1))) +
+      (await gasOf(lv.connect(secaas).SubmitReference(b32("id"), REF))) +
+      (await gasOf(lv.connect(robotA).Verify(b32("id"), true)));
     const v2Gas =
-      (await gasOf(am.connect(robotB).SendEvidence(b32("id"), REF, 1))) +
-      (await gasOf(am.connect(robotA).CloseAttestationProcess(b32("id"), true)));
+      (await gasOf(am.connect(robotB).Prove(b32("id"), REF, 1))) +
+      (await gasOf(am.connect(robotA).Verify(b32("id"), true)));
 
     console.log(`      gas per cycle: LV ${lvGas} (3 tx), V2 ${v2Gas} (2 tx), ${(100n * (lvGas - v2Gas)) / lvGas}% less`);
     expect(v2Gas).to.be.lessThan(lvGas);

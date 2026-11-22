@@ -30,7 +30,6 @@ type EventWatcher struct {
 	checkpointPath string
 	confirmations  uint64
 	batchSize      uint64
-	pollInterval   time.Duration
 
 	// State
 	fromBlock *big.Int
@@ -49,7 +48,6 @@ func NewEventWatcher(
 	checkpointPath string,
 	confirmations uint64,
 	batchSize uint64,
-	pollIntervalSec float64,
 ) (*EventWatcher, error) {
 
 	// 1. Find Event ABI
@@ -72,7 +70,6 @@ func NewEventWatcher(
 		checkpointPath: checkpointPath,
 		confirmations:  confirmations,
 		batchSize:      batchSize,
-		pollInterval:   time.Duration(pollIntervalSec * float64(time.Second)),
 		seenKeys:       make(map[string]bool),
 		fromBlock:      big.NewInt(0),
 	}
@@ -92,11 +89,12 @@ func (ew *EventWatcher) loadCheckpoint() {
 				loaded := big.NewInt(int64(cp.FromBlock))
 
 				// Guard against stale checkpoints from a previous chain instance.
-				// If from_block is ahead of the current tip the chain was restarted
-				// and this checkpoint is from a different run — scanning from the
+				// from_block is the next block to read: tip+1 once the watcher
+				// read up to the tip. Further ahead, the chain was restarted and
+				// this checkpoint is from a different run — scanning from the
 				// stale offset would cause the watcher to wait forever.
 				header, herr := ew.client.client.HeaderByNumber(context.Background(), nil)
-				if herr == nil && header != nil && loaded.Cmp(header.Number) > 0 {
+				if herr == nil && header != nil && loaded.Cmp(new(big.Int).Add(header.Number, big.NewInt(1))) > 0 {
 					logger.Warn("Checkpoint from_block=%d is ahead of chain tip=%d — stale chain detected, resetting to 0",
 						cp.FromBlock, header.Number.Uint64())
 					// fromBlock stays at 0 (initialised in NewEventWatcher)
@@ -141,11 +139,15 @@ func (ew *EventWatcher) saveCheckpoint() {
 }
 
 func (ew *EventWatcher) latestSafeBlock() *big.Int {
-	header, err := ew.client.client.HeaderByNumber(context.Background(), nil)
-	if err != nil {
-		return big.NewInt(0)
+	// The block just notified, else asked to the node.
+	current, _, live := ew.client.LastHead()
+	if !live {
+		header, err := ew.client.client.HeaderByNumber(context.Background(), nil)
+		if err != nil {
+			return big.NewInt(0)
+		}
+		current = header.Number.Uint64()
 	}
-	current := header.Number.Uint64()
 	if current < ew.confirmations {
 		return big.NewInt(0)
 	}
@@ -156,20 +158,20 @@ func (ew *EventWatcher) uniqueKey(log types.Log) string {
 	return fmt.Sprintf("%s-%d", log.BlockHash.Hex(), log.Index)
 }
 
-// Run starts the infinite polling loop. It blocks until ctx is cancelled.
+// Run reads the new events at each new block (see FollowHeads). It blocks
+// until ctx is cancelled.
 func (ew *EventWatcher) Run(ctx context.Context, handler EventHandler) {
 	logger.Info("EventWatcher start: event=%s address=%s from_block=%s confirm=%d",
 		ew.eventName, ew.address.Hex(), ew.fromBlock.String(), ew.confirmations)
 
 	for {
+		next := ew.client.NextHead()
 		safeTo := ew.latestSafeBlock()
 
 		// If fromBlock > safeTo, we are ahead of safe chain, wait.
 		if ew.fromBlock.Cmp(safeTo) > 0 {
-			select {
-			case <-ctx.Done():
+			if !WaitHead(next, ctx.Done()) {
 				return
-			case <-time.After(ew.pollInterval):
 			}
 			continue
 		}
@@ -274,10 +276,8 @@ func (ew *EventWatcher) Run(ctx context.Context, handler EventHandler) {
 			safeTo = ew.latestSafeBlock()
 		}
 
-		select {
-		case <-ctx.Done():
+		if !WaitHead(next, ctx.Done()) {
 			return
-		case <-time.After(ew.pollInterval):
 		}
 	}
 }

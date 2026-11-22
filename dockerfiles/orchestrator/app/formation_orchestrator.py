@@ -218,7 +218,7 @@ class FormationOrchestrator(Node):
 
     def _handle_completed(self, att_id):
         try:
-            prover, _verifier, result, _ts = self.contract.functions.\
+            prover, _verifier, result = self.contract.functions.\
                 GetAttestationInfo(att_id).call()
         except Exception:
             return

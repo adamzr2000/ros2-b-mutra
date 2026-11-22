@@ -22,7 +22,7 @@ The mitigation flag / compromised robot / scale are read from the orchestrator's
 events-<tag>.json when available (falls back to CLI args).
 
 Run inside the ROS image (has rosbag2_py + message types), e.g.:
-  docker run --rm -v "$PWD:/w" -w /w turtlebot3-gazebo \\
+  docker run --rm -v "$PWD:/w" -w /w robot-simulation \\
     bash -lc 'source /opt/ros/humble/setup.bash &&
       python3 tools/formation_metrics.py \\
         --bag experiments/data/formation/bags/<tag> \\
@@ -374,7 +374,7 @@ def main():
         # Injection timing — t_inject_wall is ms-precision host UTC (from inject JSON);
         # t_inject_s is derived by correlating that wall time with the /clock stream
         # in the bag. t_attack_to_detect_s should ≈ SSP + B (cross-check against
-        # the micro-benchmark in run_experiments_and_collect_tamper_detection.py).
+        # the micro-benchmark in experiment_tamper_detection.py).
         "t_inject_wall": t_inject_wall,
         "t_inject_s": t_inject_s,
         "t_detect_s": round(t_detect_rel, 2) if t_detect_rel is not None else None,

@@ -14,9 +14,7 @@ WORKDIR /src/app
 
 # Dependencies are pinned in app/go.mod and app/go.sum.
 RUN go mod download \
-    && CGO_ENABLED=0 go build -o /bin/attestation-sidecar . \
-    && CGO_ENABLED=0 go build -o /bin/txbench ./cmd/txbench \
-    && CGO_ENABLED=0 go build -o /bin/txbench-parallel ./cmd/txbench-parallel
+    && CGO_ENABLED=0 go build -o /bin/attestation-sidecar .
 
 # ---------------------------------------------------------
 # Stage 2: Runtime
@@ -42,8 +40,6 @@ WORKDIR /app
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /bin/attestation-sidecar .
-COPY --from=builder /bin/txbench .
-COPY --from=builder /bin/txbench-parallel .
 
 # Expose the port configured in main.go (Default 8000)
 # Note: Your Python version used 8080, but your Go main.go uses 8000.

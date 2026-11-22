@@ -52,7 +52,7 @@ services:
   # bag is recomputed into FE / cumulative-damage / TTE offline by
   # tools/formation_metrics.py — no live math in the orchestrator.
   bag-recorder:
-    image: turtlebot3-gazebo
+    image: robot-simulation
     container_name: bag-recorder
     hostname: bag-recorder
     # Run as root so it can create the bag under the (root-owned, docker-created)

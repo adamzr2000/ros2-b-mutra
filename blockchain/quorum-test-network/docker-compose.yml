@@ -17,8 +17,7 @@ x-besu-def:
       /opt/besu/bin/besu \
       --config-file=/config/config.toml \
       --p2p-host=$$(hostname -i) \
-      --rpc-http-api=EEA,WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PRIV,PERM,${BESU_CONS_ALGO:-QBFT} \
-      --rpc-ws-api=EEA,WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PRIV,PERM,${BESU_CONS_ALGO:-QBFT} ;
+      --rpc-http-api=WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PERM,${BESU_CONS_ALGO:-QBFT} ;
 
 
 x-tessera-def:
@@ -72,6 +71,7 @@ services:
     << : *besu-def
     ports:
       - "21001:8545"
+      - "22001:8546"
       - 30303
       - 9545
     environment:
@@ -90,6 +90,7 @@ services:
     << : *besu-def
     ports:
       - "21002:8545"
+      - "22002:8546"
       - 30303
       - 9545
     environment:
@@ -110,6 +111,7 @@ services:
     << : *besu-def
     ports:
       - "21003:8545"
+      - "22003:8546"
       - 30303
       - 9545
     environment:
@@ -130,6 +132,7 @@ services:
     << : *besu-def
     ports:
       - "21004:8545"
+      - "22004:8546"
       - 30303
       - 9545
     environment:
@@ -206,8 +209,8 @@ services:
   #       --privacy-url=http://member1tessera:9101 \
   #       --privacy-public-key-file=/opt/besu/keys/tm.pub \
   #       --privacy-onchain-groups-enabled=${PRIVACY_ONCHAIN_GROUPS_ENABLED:-false} \
-  #       --rpc-http-api=EEA,WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PRIV,PERM,${BESU_CONS_ALGO:-QBFT} \
-  #       --rpc-ws-api=EEA,WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PRIV,PERM,${BESU_CONS_ALGO:-QBFT} ;
+  #       --rpc-http-api=WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PERM,${BESU_CONS_ALGO:-QBFT} \
+  #       --rpc-ws-api=WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PERM,${BESU_CONS_ALGO:-QBFT} ;
   #   volumes:
   #     - ./config/besu/:/config
   #     - ./config/nodes/member1:/opt/besu/keys
@@ -249,8 +252,8 @@ services:
   #       --privacy-url=http://member2tessera:9101 \
   #       --privacy-public-key-file=/opt/besu/keys/tm.pub \
   #       --privacy-onchain-groups-enabled=${PRIVACY_ONCHAIN_GROUPS_ENABLED:-false} \
-  #       --rpc-http-api=EEA,WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PRIV,PERM,${BESU_CONS_ALGO:-QBFT} \
-  #       --rpc-ws-api=EEA,WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PRIV,PERM,${BESU_CONS_ALGO:-QBFT} ;
+  #       --rpc-http-api=WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PERM,${BESU_CONS_ALGO:-QBFT} \
+  #       --rpc-ws-api=WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PERM,${BESU_CONS_ALGO:-QBFT} ;
   #   volumes:
   #     - ./config/besu/:/config
   #     - ./config/nodes/member2:/opt/besu/keys
@@ -292,8 +295,8 @@ services:
   #       --privacy-url=http://member3tessera:9101 \
   #       --privacy-public-key-file=/opt/besu/keys/tm.pub \
   #       --privacy-onchain-groups-enabled=${PRIVACY_ONCHAIN_GROUPS_ENABLED:-false} \
-  #       --rpc-http-api=EEA,WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PRIV,PERM,${BESU_CONS_ALGO:-QBFT} \
-  #       --rpc-ws-api=EEA,WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PRIV,PERM,${BESU_CONS_ALGO:-QBFT} ;
+  #       --rpc-http-api=WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PERM,${BESU_CONS_ALGO:-QBFT} \
+  #       --rpc-ws-api=WEB3,ETH,NET,TRACE,DEBUG,ADMIN,TXPOOL,PERM,${BESU_CONS_ALGO:-QBFT} ;
   #   volumes:
   #     - ./config/besu/:/config
   #     - ./config/nodes/member3:/opt/besu/keys
@@ -310,8 +313,16 @@ services:
 
 
 
+
+
+
+
+
+
   explorer:
-    image: consensys/quorum-explorer:${QUORUM_EXPLORER_VERSION:-latest}
+    profiles: ["dashboards"]   # ./start.sh --dashboards
+    image: quorum-explorer:${QUORUM_EXPLORER_VERSION}
+    pull_policy: never   # built locally: cd dockerfiles && make quorum-explorer
     volumes:
       - ./quorum-explorer/config.json:/app/config.json
       - ./quorum-explorer/env:/app/.env.production
@@ -323,13 +334,8 @@ services:
       quorum-dev-quickstart:
         ipv4_address: 172.16.239.31
 
-
-
-
-
-
-
   prometheus:
+    profiles: ["dashboards"]   # ./start.sh --dashboards
     image: "prom/prometheus:v2.46.0"
     volumes:
       - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
@@ -343,6 +349,7 @@ services:
         ipv4_address: 172.16.239.32
 
   grafana:
+    profiles: ["dashboards"]   # ./start.sh --dashboards
     image: "grafana/grafana:10.1.0"
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -357,6 +364,7 @@ services:
         ipv4_address: 172.16.239.33
 
   loki:
+    profiles: ["dashboards"]   # ./start.sh --dashboards
     image: "grafana/loki:2.8.4"
     volumes:
       - ./loki/loki.yml:/etc/loki/local-config.yaml
@@ -368,6 +376,7 @@ services:
         ipv4_address: 172.16.239.34
 
   promtail:
+    profiles: ["dashboards"]   # ./start.sh --dashboards
     image: "grafana/promtail:2.8.4"
     volumes:
       - ./logs:/var/log

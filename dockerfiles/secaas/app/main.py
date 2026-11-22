@@ -10,8 +10,10 @@ from fastapi.responses import JSONResponse
 from app.internal.logger import init_logging, info, warn, error, debug, green_text
 from app.internal.utils import helpers
 from app.internal.blockchain.client import BlockchainClient
+from app.internal.blockchain.heads import Heads
 from app.internal.attestation.oracle_verifier import run_secaas_logic, run_expiry_logic
 from app.internal.database.client import DatabaseClient
+from app.internal import results
 
 # -----------------------------------------------------------------------------
 # Logging init (custom logger)
@@ -20,30 +22,9 @@ init_logging()
 
 app = FastAPI()
 
-_config_lock = threading.Lock()
-
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
-def _next_run_json(results_dir: str, participant: str) -> str:
-    os.makedirs(results_dir, exist_ok=True)
-    base = results_dir.rstrip("/")
-    safe = participant  # names already controlled; adjust if needed
-    pattern = os.path.join(base, f"{safe}-run*.json")
-    existing = glob.glob(pattern)
-    max_idx = 0
-    rx = re.compile(rf"{re.escape(safe)}-run(\d+)\.json$")
-    for p in existing:
-        m = rx.search(os.path.basename(p))
-        if m:
-            try:
-                idx = int(m.group(1))
-                if idx > max_idx:
-                    max_idx = idx
-            except ValueError:
-                pass
-    return os.path.join(base, f"{safe}-run{max_idx+1}.json")
-
 def start_attestation(app: FastAPI):
     # Create stop event / threads list if not present (idempotent)
     if not hasattr(app.state, "stop_event"):
@@ -53,19 +34,6 @@ def start_attestation(app: FastAPI):
 
     # If we’re restarting, make sure stop is cleared
     app.state.stop_event.clear()
-
-    if app.state.export_enabled:
-        # Ensure per-run JSON path is set, then init file
-        if not getattr(app.state, "results_file", None):
-            # Fallback only (should rarely happen now)
-            app.state.results_file = _next_run_json(app.state.results_dir, app.state.participant_name)
-            info(f"Results file selected (new run): {app.state.results_file}")
-
-        helpers.ensure_results_initialized(
-            app.state.results_dir,
-            app.state.participant_name,
-            json_path=app.state.results_file
-        )
 
     info("SECaaS attestation loop started")
     t = threading.Thread(target=run_secaas_logic, args=(app, app.state.stop_event), name="SECaaS", daemon=True)
@@ -82,9 +50,8 @@ def stop_attestation(app: FastAPI):
     if hasattr(app.state, "stop_event"):
         app.state.stop_event.set()
 
-    # Best-effort join of all tracked threads.
-    # run_secaas_logic internally drains work_q before returning, so this
-    # join guarantees all exports are written before mark_experiment_stop fires.
+    # Best-effort join of all tracked threads. run_secaas_logic drains its
+    # queue before returning, so every verdict is recorded.
     for t in getattr(app.state, "threads", []):
         try:
             t.join(timeout=30)
@@ -94,15 +61,6 @@ def stop_attestation(app: FastAPI):
     # Reset the thread list after stopping
     if hasattr(app.state, "threads"):
         app.state.threads.clear()
-
-    if app.state.export_enabled:
-        helpers.mark_experiment_stop(
-            app.state.results_dir, 
-            app.state.participant_name, 
-            json_path=getattr(app.state, "results_file", None)
-        )
-        # Reset filename so next start() calculates a new one
-        app.state.results_file = None
 
 
 # -----------------------------------------------------------------------------
@@ -158,8 +116,6 @@ async def startup():
     # App state
     app.state.participant = "secaas"
     app.state.participant_name = data.get("name", "secaas")
-    app.state.export_enabled = os.getenv("EXPORT_RESULTS", "false").lower() == "true"
-    app.state.results_dir = helpers.get_env_str("RESULTS_DIR", default="/experiments/data/attestation-times")
     contract_abi = data.get("contract_abi")
 
     if not contract_abi:
@@ -188,25 +144,15 @@ async def startup():
     app.state.event_lookback_blocks = helpers.get_env_int("EVENT_LOOKBACK_BLOCKS", default=0)
     app.state.event_checkpoint_dir = helpers.get_env_str("EVENT_CHECKPOINT_DIR", default="/checkpoints")
 
+    # New blocks are notified over WebSocket; without one, polled.
+    app.state.heads = Heads()
+    app.state.heads.start(data.get("eth_ws_url", ""), app.state.event_poll_interval)
+
     # Thread tracking
     app.state.stop_event = threading.Event()
     app.state.threads = []
 
     auto_start = os.getenv("AUTO_START", "false").lower() == "true"
-
-    # Precompute results file
-    app.state.results_file = None
-    if app.state.export_enabled:
-        run_id = os.getenv("RUN_ID", "").strip()
-        if run_id:
-            app.state.results_file = os.path.join(
-                app.state.results_dir,
-                f"{app.state.participant_name}-run{run_id}.json"
-            )
-            info(f"Preselected results file (RUN_ID={run_id}): {app.state.results_file}")
-        else:
-            app.state.results_file = _next_run_json(app.state.results_dir, app.state.participant_name)
-            info(f"Preselected results file (auto): {app.state.results_file}")
 
     if auto_start:
         start_attestation(app)
@@ -219,7 +165,7 @@ async def startup():
 # -----------------------------------------------------------------------------
 @app.get("/")
 def root_endpoint():
-    return {"message": "SECaaS running."}
+    return {"message": "SECaaS running.", "block_notifications": app.state.heads.mode()}
 
 @app.post("/start")
 def start_endpoint():
@@ -240,60 +186,15 @@ def reset_attestation_chain():
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.post("/secaas-only")
-async def set_secaas_only(enabled: bool):
-    """
-    Toggle secaasOnly mode on the contract.
-    POST /secaas-only?enabled=true  → SECaaS is sole verifier (startup mode)
-    POST /secaas-only?enabled=false → normal RR verifier election (mutual attestation)
-    ResetChain() sets this to true automatically; call with enabled=false to enable mutual attestation.
-    """
-    try:
-        tx_hash = app.state.blockchain_client.set_secaas_only(enabled, wait=True, timeout=30)
-        return {"secaas_only": enabled, "tx_hash": tx_hash}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+@app.get("/results")
+def results_endpoint():
+    """The verdict rows recorded since the last DELETE /results."""
+    return {"verifier": results.snapshot()}
 
-@app.post("/config")
-async def config_endpoint(body: dict):
-    """Partial runtime config update. Accepted fields: results_dir, results_file, export_enabled.
-    Rejected while an attestation is in progress.
-    results_dir change also clears results_file so the next /start picks a fresh run number.
-    results_file, if set, pins the output path for the next run (cleared automatically after the run).
-    """
-    results_dir    = body.get("results_dir")
-    results_file   = body.get("results_file")
-    export_enabled = body.get("export_enabled")
-
-    if results_dir is None and results_file is None and export_enabled is None:
-        return JSONResponse(status_code=400, content={"error": "no recognized fields: use results_dir, results_file, export_enabled"})
-
-    with _config_lock:
-        running = any(t.is_alive() for t in getattr(app.state, "threads", []))
-        if running:
-            return JSONResponse(status_code=409, content={"error": "cannot change config while attestation is running"})
-
-        applied = {}
-
-        if results_dir is not None:
-            if not results_dir:
-                return JSONResponse(status_code=400, content={"error": "results_dir must not be empty"})
-            app.state.results_dir = results_dir
-            app.state.results_file = None  # force fresh run-number selection on next /start
-            applied["results_dir"] = results_dir
-            info(f"Results dir set to: {results_dir}")
-
-        if results_file is not None:
-            app.state.results_file = results_file or None
-            applied["results_file"] = results_file
-            info(f"Results file set to: {results_file}")
-
-        if export_enabled is not None:
-            app.state.export_enabled = bool(export_enabled)
-            applied["export_enabled"] = bool(export_enabled)
-            info(f"Export enabled set to: {export_enabled}")
-
-    return {"applied": applied}
+@app.delete("/results")
+def clear_results_endpoint():
+    results.clear()
+    return {"message": "Results cleared."}
 
 @app.post("/sync-agents")
 async def sync_agents_endpoint(n_robots: int = 0):
@@ -388,4 +289,4 @@ async def shutdown():
     
     if hasattr(app.state, "db_client"):
         app.state.db_client.close()
-        info("Database connection closed during shutdown.")
+        info("Database connection closed during shutdown.")

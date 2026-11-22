@@ -27,8 +27,9 @@ echo "Quorum Dev Quickstart "
 echo "*************************************${normal}"
 echo "Stop and remove network..."
 
-docker compose down -v
-docker compose rm -sfv
+# The dashboards profile is listed so that its services go too when they ran.
+docker compose --profile dashboards down -v
+docker compose --profile dashboards rm -sfv
 
 if [ -f "docker-compose-deps.yml" ]; then
     echo "Stopping dependencies..."

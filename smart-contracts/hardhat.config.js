@@ -7,6 +7,9 @@ module.exports = {
   // The optimizer keeps V3 under the 24576-byte limit on deployed code (#95).
   solidity: { version: "0.8.28", settings: { optimizer: { enabled: true, runs: 200 } } },
   networks: {
+    // The in-memory network (tests, gas characterization) follows the Besu
+    // genesis: London rules, so its gas equals the gas on the chain.
+    hardhat: { hardfork: "london" },
     besu: {
       url: RPC_URL || "http://localhost:8545",
       chainId: CHAIN_ID ? parseInt(CHAIN_ID) : 1337,

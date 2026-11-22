@@ -2,6 +2,7 @@ package attestation
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"app/internal/blockchain"
 	"app/internal/compute"
 	"app/internal/logger"
+	"app/internal/results"
 	"app/internal/utils"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,16 +21,12 @@ import (
 // VerifierConfig holds all configuration required by the Verifier.
 type VerifierConfig struct {
 	ParticipantName        string
-	ResultsDir             string
-	ResultsFile            string
-	ExportEnabled          bool
 	WaitForTxConfirmations bool
 
 	// Event Watcher Config
 	EventCheckpointDir string
 	EventConfirmations uint64
 	EventBatchSize     uint64
-	EventPollInterval  float64
 	EventLookback      uint64
 
 	ForceVerdict *bool // experiment only: vote this verdict without comparing
@@ -37,9 +35,9 @@ type VerifierConfig struct {
 // verificationJob represents a task in the worker queue
 type verificationJob struct {
 	AttestationID string
-	SeedTs        map[string]interface{}
-	Juror         bool   // V3: vote if drawn in the jury of the cycle
-	EvidenceBlock uint64 // block of the ReadyForEvaluation event
+	Detected      time.Time // event seen
+	DetectMs      *float64  // block with the event imported -> event seen; nil when not known
+	Juror         bool      // V3: vote if drawn in the jury of the cycle
 }
 
 // RunVerifierLogicSequential starts the verifier event loop and worker.
@@ -64,7 +62,6 @@ func RunVerifierLogicSequential(
 		cpPath,
 		cfg.EventConfirmations,
 		cfg.EventBatchSize,
-		cfg.EventPollInterval,
 	)
 	if err != nil {
 		logger.Error("Verifier failed to create EventWatcher: %v", err)
@@ -79,7 +76,9 @@ func RunVerifierLogicSequential(
 
 	// Worker Queue (Channel)
 	// Python: work_q = Queue()
-	workChan := make(chan verificationJob, 100) // Buffer 100
+	// Rounds wait here for the worker; a full queue drops them, so it holds
+	// far more than a block brings even with many robots.
+	workChan := make(chan verificationJob, 4096)
 
 	// Deduplication Set
 	enqueuedIDs := make(map[string]bool)
@@ -101,19 +100,10 @@ func RunVerifierLogicSequential(
 				}
 				start := time.Now()
 
-				selected := true
-				if job.Juror {
-					var err error
-					selected, err = inJury(ctx, client, job.AttestationID, job.EvidenceBlock)
-					if err != nil {
-						logger.Error("[Juror-%s] Failed to read the jury: %v", utils.ShortAttID(job.AttestationID, 4), err)
-						selected = false
-					}
-				}
-				if selected {
-					logger.Info("Processing attestation '%s'", job.AttestationID)
-					processVerifierAttestation(ctx, client, cfg, job.AttestationID, job.SeedTs, job.Juror)
-
+				// A prover is never in its own jury.
+				_, own := ownRounds.Load(job.AttestationID)
+				if !(job.Juror && own) &&
+					processVerifierAttestation(ctx, client, cfg, job, start) {
 					elapsed := time.Since(start).Seconds()
 					logPrefix := fmt.Sprintf("[Verifier-%s]", utils.ShortAttID(job.AttestationID, 4))
 					logger.Info("%s", logger.GreenText(fmt.Sprintf("%s completed in %.2fs", logPrefix, elapsed)))
@@ -131,8 +121,11 @@ func RunVerifierLogicSequential(
 	// Event Handler Callback
 	// ---------------------------------------------------------
 	handle := func(log types.Log, parsedData map[string]interface{}) error {
-		arrivalTs := utils.NowMs()
-		arrivalP := utils.PerfNs()
+		detected := time.Now()
+		var detectMs *float64
+		if num, at, live := client.LastHead(); live && log.BlockNumber == num {
+			detectMs = results.Dur(detected.Sub(at))
+		}
 
 		// Extract Attestation ID
 		// It usually comes as [32]byte from the watcher. Convert to string.
@@ -151,29 +144,25 @@ func RunVerifierLogicSequential(
 			return fmt.Errorf("could not extract attestation ID from event")
 		}
 
-		// Check if I am the verifier
-		isVerifier, err := client.IsVerifier(attID)
-		if err != nil {
-			logger.Error("IsVerifier check failed for %s: %v", attID, err)
-			return nil // Don't crash handler
+		// With a jury (V3) no single verifier is elected: the vote itself tells
+		// whether this agent was drawn.
+		juror := client.HasJury()
+		isVerifier := false
+		if !juror {
+			var err error
+			if isVerifier, err = client.IsVerifier(attID); err != nil {
+				logger.Error("IsVerifier check failed for %s: %v", attID, err)
+				return nil // Don't crash handler
+			}
 		}
-
-		// With a jury (V3) no single verifier is elected: the worker checks
-		// whether this agent was drawn once the evidence block is sealed.
-		juror := !isVerifier && client.HasJury()
 		if isVerifier || juror {
 			enqLock.Lock()
 			if !enqueuedIDs[attID] {
 				enqueuedIDs[attID] = true
 
-				seed := map[string]interface{}{
-					"ready_for_evaluation_received": arrivalTs,
-					"p_ready_for_evaluation_received": arrivalP,
-				}
-
 				// Non-blocking send to avoid stalling watcher if queue is full
 				select {
-				case workChan <- verificationJob{AttestationID: attID, SeedTs: seed, Juror: juror, EvidenceBlock: log.BlockNumber}:
+				case workChan <- verificationJob{AttestationID: attID, Detected: detected, DetectMs: detectMs, Juror: juror}:
 				default:
 					logger.Warn("Verifier queue full, dropping %s", attID)
 				}
@@ -199,93 +188,143 @@ func RunVerifierLogicSequential(
 	logger.Info("Verifier logic stopped")
 }
 
-// inJury waits until the evidence block is sealed, since the contract only
-// draws the jury from the next block on, then tells whether this agent is in it.
-func inJury(ctx context.Context, client *blockchain.BlockchainClient, attID string, evidenceBlock uint64) (bool, error) {
-	for {
-		head, err := client.BlockNumber()
-		if err != nil {
-			return false, err
+// mayVote tells a juror (V3), before it verifies, whether it may vote in the
+// cycle: the rehearsal of its vote runs the contract's jury draw in the next
+// block, and the jury does not depend on the verdict. A node that rehearses
+// in the latest block cannot draw before the evidence block is sealed: the
+// rehearsal is then tried once more a block later.
+//
+// Returns "" when it may vote, else why not, as a row outcome: not_drawn,
+// late (closed or with the SECaaS), error; stopped when the agent stops.
+func mayVote(ctx context.Context, client *blockchain.BlockchainClient, attID, logPrefix string) string {
+	err := client.CheckVote(attID)
+	if blockchain.IsRevert(err, "evidence block not sealed yet") {
+		if werr := waitNextBlock(ctx, client); werr != nil {
+			return "stopped"
 		}
-		if head > evidenceBlock {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		case <-time.After(proverPollInterval()):
-		}
+		err = client.CheckVote(attID)
 	}
-	jury, err := client.PreviewJury(attID)
+	switch {
+	case err == nil:
+		return ""
+	case blockchain.IsRevert(err, "caller is not in the jury"):
+		logger.Debug("%s Not drawn in the jury", logPrefix)
+		return "not_drawn"
+	case blockchain.IsRevert(err, "cycle closed"), blockchain.IsRevert(err, "cycle is with the SECaaS"):
+		logger.Debug("%s Cycle closed or with the SECaaS, no vote", logPrefix)
+		return "late"
+	default:
+		logger.Error("%s Failed to check the jury: %v", logPrefix, err)
+		counters.errors.Add(1)
+		return "error"
+	}
+}
+
+// waitNextBlock waits until the chain head moves past the current block.
+func waitNextBlock(ctx context.Context, client *blockchain.BlockchainClient) error {
+	start, err := client.BlockNumber()
 	if err != nil {
-		return false, err
+		return err
 	}
-	names := make([]string, len(jury))
-	selected := false
-	for i, j := range jury {
-		names[i] = j.Hex()
-		selected = selected || j == client.Address()
+	for {
+		next := client.NextHead()
+		if head, err := client.BlockNumber(); err == nil && head > start {
+			return nil
+		}
+		if !blockchain.WaitHead(next, ctx.Done()) {
+			return ctx.Err()
+		}
 	}
-	logPrefix := fmt.Sprintf("[Juror-%s]", utils.ShortAttID(attID, 4))
-	if selected {
-		logger.Info("%s Drawn in the jury: %s", logPrefix, strings.Join(names, ", "))
-	} else {
-		logger.Debug("%s Not drawn, jury: %s", logPrefix, strings.Join(names, ", "))
-	}
-	return selected, nil
 }
 
-// cycleLeftJury tells whether the cycle no longer waits for jury votes: the
-// other jurors closed it, or it went to the SECaaS (split vote or expiry).
-func cycleLeftJury(client *blockchain.BlockchainClient, attID string) bool {
-	state, err := client.GetAttestationState(attID)
-	return err == nil && state != blockchain.ReadyForEvaluation
-}
-
-// processVerifierAttestation contains the core business logic
+// processVerifierAttestation evaluates a cycle and sends the verdict. A juror
+// (V3) first checks that it may vote (mayVote), then verifies and votes at
+// once: the vote goes in the next block at best. Returns whether a verdict was
+// sent or attempted, false when this agent is not a juror of the cycle. A
+// verdict sent or attempted is recorded as a row.
 func processVerifierAttestation(
 	ctx context.Context,
 	client *blockchain.BlockchainClient,
 	cfg VerifierConfig,
-	attestationID string,
-	seedTs map[string]interface{},
-	juror bool,
-) {
-	timestamps := make(map[string]interface{})
-	// Copy seed
-	for k, v := range seedTs {
-		timestamps[k] = v
+	job verificationJob,
+	started time.Time,
+) bool {
+	attestationID, juror := job.AttestationID, job.Juror
+	row := results.Verifier{
+		RoundID:     attestationID,
+		Verifier:    cfg.ParticipantName,
+		Role:        "verifier",
+		TDetectedMs: job.Detected.UnixMilli(),
+		DetectMs:    job.DetectMs,
+		QueueMs:     results.Dur(started.Sub(job.Detected)),
 	}
-
-	timestamps["verifier_start"] = utils.NowMs()
-	timestamps["p_verifier_start"] = utils.PerfNs()
+	record := func(outcome string) bool {
+		row.Outcome = outcome
+		row.TotalMs = results.Dur(time.Since(job.Detected))
+		results.AddVerifier(row)
+		return true
+	}
 	logPrefix := fmt.Sprintf("[Verifier-%s]", utils.ShortAttID(attestationID, 4))
 	if juror {
 		logPrefix = fmt.Sprintf("[Juror-%s]", utils.ShortAttID(attestationID, 4))
-		if cycleLeftJury(client, attestationID) {
-			logger.Info("%s Cycle already closed or with the SECaaS, no vote", logPrefix)
-			return
+		t := time.Now()
+		why := mayVote(ctx, client, attestationID, logPrefix)
+		row.CheckMs = results.Dur(time.Since(t))
+		switch why {
+		case "":
+			row.Role = "juror"
+		case "stopped":
+			return false
+		default: // a candidate that does not vote: its check is its work on the round
+			row.Role = "candidate"
+			record(why)
+			return false
 		}
 	}
-	logger.Info("%s SECaaS Oracle finished. Retrieving signatures for evaluation...", logPrefix)
+	logger.Debug("%s Retrieving the evidence and the reference...", logPrefix)
 
-	// 1. Retrieve Signatures
-	timestamps["get_signatures_start"] = utils.NowMs()
-	timestamps["p_get_signatures_start"] = utils.PerfNs()
-
-	freshSig, refSig, iterCount, err := client.GetAttestationSignatures(attestationID)
+	// 1. Read the evidence and the reference
+	t := time.Now()
+	freshSig, refSig, iterCount, boundBlock, err := client.GetAttestationSignatures(attestationID)
 	if err != nil {
+		// A juror catching up on events (after a restart) finds closed cycles;
+		// an agent not eligible at the evidence, or the prover, cannot judge it.
+		if juror && blockchain.IsRevert(err, "not ready for evaluation") {
+			logger.Debug("%s Cycle already closed, no vote", logPrefix)
+			return false
+		}
+		if juror && blockchain.IsRevert(err, "caller does not judge this cycle") {
+			logger.Debug("%s Not a candidate juror of this cycle", logPrefix)
+			return false
+		}
 		logger.Error("%s Failed to get signatures: %v", logPrefix, err)
-		return
+		counters.errors.Add(1)
+		return record("error")
 	}
-
-	timestamps["p_get_signatures_finished"] = utils.PerfNs()
-	timestamps["get_signatures_finished"] = utils.NowMs()
+	// V3: the prover bound each measurement to the hash of block boundBlock;
+	// the reference is bound the same way, sha256(ref || blockhash).
+	var blockHash [32]byte
+	if client.HasFreshness() {
+		if blockHash, err = client.BlockHash(boundBlock); err != nil {
+			logger.Error("%s Failed to read the hash of block %d: %v", logPrefix, boundBlock, err)
+			counters.errors.Add(1)
+			return record("error")
+		}
+	}
+	row.ReadMs = results.Dur(time.Since(t))
 
 	// 2. Evaluation (compute)
-	timestamps["verify_compute_start"] = utils.NowMs()
-	timestamps["p_verify_compute_start"] = utils.PerfNs()
-
+	t = time.Now()
+	if client.HasFreshness() {
+		ref, err := blockchain.AsBytes32(refSig)
+		if err != nil {
+			logger.Error("%s Invalid reference: %v", logPrefix, err)
+			counters.errors.Add(1)
+			return record("error")
+		}
+		bound := compute.BindToBlock(ref, blockHash)
+		refSig = hex.EncodeToString(bound[:])
+	}
 	// Re-derive the chained reference: under the no-tamper hypothesis the
 	// binary is static, so all K m_i = refSig and the prover's H_K equals
 	// chain(refSig, K). For K=1 this is identity. Must stay bit-for-bit
@@ -293,7 +332,8 @@ func processVerifierAttestation(
 	derivedRef, derr := compute.RollingHashHex(refSig, iterCount)
 	if derr != nil {
 		logger.Error("%s Failed to derive rolling reference (K=%d): %v", logPrefix, iterCount, derr)
-		return
+		counters.errors.Add(1)
+		return record("error")
 	}
 	// freshSig is "0x"-prefixed (Web3 convention); derivedRef is bare hex.
 	freshNorm := strings.TrimPrefix(strings.ToLower(freshSig), "0x")
@@ -302,9 +342,8 @@ func processVerifierAttestation(
 		isSuccess = *cfg.ForceVerdict
 		logger.Info("%s Verdict forced to %v (FORCE_VERDICT)", logPrefix, isSuccess)
 	}
-
-	timestamps["p_verify_compute_finished"] = utils.PerfNs()
-	timestamps["verify_compute_finished"] = utils.NowMs()
+	row.ComputeMs = results.Dur(time.Since(t))
+	row.Verdict = results.Verdict(isSuccess)
 
 	// 3. Submit Result
 	statusIcon := "❌ FAILURE"
@@ -315,54 +354,36 @@ func processVerifierAttestation(
 		logger.Info("%s Attestation closed (result: %s)", logPrefix, statusIcon)
 	}
 
-	timestamps["verification_result"] = isSuccess
-	timestamps["result_sent"] = utils.NowMs()
-	timestamps["p_send_result_start"] = utils.PerfNs()
-
-	// Wait logic based on config
-	timeout := 60 // default timeout
+	timeout := 60
+	t = time.Now()
+	row.Attempts = 1
 	if juror {
 		_, err = client.Vote(attestationID, isSuccess, cfg.WaitForTxConfirmations, timeout)
+		row.SendMs = results.Dur(time.Since(t))
 		switch {
 		case err == nil:
-			logger.Info("%s Vote sent (verdict: %s)", logPrefix, statusIcon)
-		case cycleLeftJury(client, attestationID):
+			logger.Info("%s Drawn in the jury, vote sent (verdict: %s)", logPrefix, statusIcon)
+			counters.votes.Add(1)
+		case blockchain.IsRevert(err, "caller is not in the jury"):
+			logger.Debug("%s Not drawn in the jury", logPrefix)
+			return false
+		case blockchain.IsRevert(err, "cycle closed"), blockchain.IsRevert(err, "cycle is with the SECaaS"):
 			logger.Info("%s Cycle closed or handed to the SECaaS before this vote", logPrefix)
+			return record("late")
 		default:
 			logger.Error("%s Failed to vote: %v", logPrefix, err)
+			counters.errors.Add(1)
+			return record("error")
 		}
 	} else {
-		_, err = client.SendAttestationResult(attestationID, isSuccess, cfg.WaitForTxConfirmations, timeout)
+		_, err = client.Verify(attestationID, isSuccess, cfg.WaitForTxConfirmations, timeout)
+		row.SendMs = results.Dur(time.Since(t))
 		if err != nil {
 			logger.Error("%s Failed to send result: %v", logPrefix, err)
-			// We continue to record what we can
+			counters.errors.Add(1)
+			return record("error")
 		}
+		counters.verified.Add(1)
 	}
-
-	timestamps["p_send_result_finished"] = utils.PerfNs()
-
-	if cfg.WaitForTxConfirmations {
-			timestamps["p_send_result_finished_tx_confirmed"] = utils.PerfNs()
-			timestamps["result_sent_tx_confirmed"] = utils.NowMs()
-	}
-
-	timestamps["p_verifier_finished"] = utils.PerfNs()
-	timestamps["verifier_finished"] = utils.NowMs()
-
-	// 5. Summary Log (simplified)
-	logger.Debug("%s summary: result=%v | total_dur=%dms",
-		logPrefix, isSuccess,
-		timestamps["verifier_finished"].(int64)-timestamps["verifier_start"].(int64))
-
-	// 6. Export
-	if cfg.ExportEnabled {
-		utils.ExportAttestationTimesJSON(
-			cfg.ParticipantName,
-			attestationID,
-			"verifier",
-			timestamps,
-			cfg.ResultsDir,
-			cfg.ResultsFile, // Can be empty, helper handles it
-		)
-	}
+	return record("sent")
 }

@@ -17,15 +17,17 @@ import (
 	"app/internal/compute"
 	"app/internal/config"
 	"app/internal/logger"
-	"app/internal/storage"
-	"app/internal/utils"
+	"app/internal/results"
 )
 
 // StatusResponse represents the JSON structure returned by /status
 type StatusResponse struct {
-	Status     string `json:"status"` // "idle", "running", or "finished"
-	OneShot    bool   `json:"oneshot"`
-	LastResult string `json:"last_result,omitempty"`
+	Status     string           `json:"status"` // "idle", "running", or "finished"
+	Rounds     int              `json:"rounds"` // per run, 0 = until stopped
+	LastResult string           `json:"last_result,omitempty"`
+	Counters   map[string]int64 `json:"counters"` // since the sidecar started
+	// websocket: new blocks notified by the node; polling: checked on a timer
+	BlockNotifications string `json:"block_notifications"`
 }
 
 // lastResult tracks the last attestation result for /status
@@ -38,7 +40,6 @@ var lastResult string
 type AppState struct {
 	Config           *config.AppConfig
 	BlockchainClient *blockchain.BlockchainClient
-	Storage          storage.StorageBackend
 
 	// Runtime Control
 	mu                 sync.Mutex
@@ -63,18 +64,6 @@ func startAttestation(state *AppState) {
 		return
 	}
 
-	if state.Config.ExportEnabled {
-		if state.Config.ResultsFile == "" {
-			state.Config.ResultsFile = config.GetNextRunJSON(state.Config.ResultsDir, state.Config.Agent.Name)
-			logger.Info("Results file selected (new run): %s", state.Config.ResultsFile)
-		}
-		if err := utils.EnsureResultsInitialized(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile); err != nil {
-			logger.Error("Failed to initialize results file: %v", err)
-			state.measuring = false
-			return
-		}
-	}
-
 	var salt *[32]byte
 	if state.Config.SaltMeasurement {
 		s, err := compute.MeasurementSalt(state.Config.Agent.PrivateKey)
@@ -91,20 +80,15 @@ func startAttestation(state *AppState) {
 
 	// 1. Map Config -> Prover Config
 	proverCfg := attestation.ProverConfig{
-		Salt:                   salt,
-		CmdName:                state.Config.Agent.CmdName,
-		TextSectionSize:        state.Config.Agent.TextSectionSize,
-		Offset:                 state.Config.Agent.Offset,
-		TextSectionPrefix:      state.Config.Agent.TextSectionPrefix,
-		Threshold:              state.Config.ProverThreshold,
-		IterQThreshold:         state.Config.IterQThreshold,
-		AgentName:              state.Config.Agent.Name,
-		ExportEnabled:          state.Config.ExportEnabled,
-		ResultsDir:             state.Config.ResultsDir,
-		MemoryStorageFile:      state.Config.MemoryStorageFile,
-		ResultsFile:            state.Config.ResultsFile,
-		OneShot:                   state.Config.OneShot,
-		WaitForTxConfirmations:    state.Config.VerifierWaitTx,
+		Salt:                      salt,
+		CmdName:                   state.Config.Agent.CmdName,
+		TextSectionSize:           state.Config.Agent.TextSectionSize,
+		Offset:                    state.Config.Agent.Offset,
+		TextSectionPrefix:         state.Config.Agent.TextSectionPrefix,
+		IterQThreshold:            state.Config.IterQThreshold,
+		AgentName:                 state.Config.Agent.Name,
+		Rounds:                    state.Config.Rounds,
+		StartOffset:               time.Duration(state.Config.StartOffsetMs) * time.Millisecond,
 		WaitForVerificationResult: state.Config.WaitForVerificationResult,
 		SelfIntegrity: attestation.SelfIntegrityInfo{
 			Enabled:           state.Config.SelfIntegrity.Enabled,
@@ -121,33 +105,15 @@ func startAttestation(state *AppState) {
 		attestation.RunProverLogicContinuousMode(
 			ctx.Done(),
 			state.BlockchainClient,
-			state.Storage,
 			proverCfg,
 			state.activeAttestations,
 			&state.workersWg,
 		)
-		// OneShot: prover self-completes — wait for all background attestation
-		// goroutines to finish exporting before marking the file as stopped.
-		// MarkExperimentStop sets Stopped=true in the JSON; ExportAttestationTimesJSON
-		// silently drops writes when Stopped=true, so the order must be:
-		//   all exports done → MarkExperimentStop → transition to "finished"
-		//
-		// We cannot use workersWg.Wait() here because it also includes the verifier
-		// goroutine, which never exits unless context is cancelled — causing a deadlock.
-		// Instead, poll activeAttestations (emptied by RunProverAndCleanup's defer after
-		// ProcessProverAttestation returns) to know when all exports are written.
-		//
-		// IMPORTANT: do NOT cancel the context here. In a multi-robot run the smart
-		// contract may elect THIS robot as the verifier for another robot's attestation
-		// after SECaaS's lastSuccess becomes the most recent timestamp. If we cancel the
-		// context now the verifier goroutine stops and that ReadyForEvaluation event is
-		// never handled, causing the other robot's prover to time out waiting for close.
-		// The context is cancelled later by stopAttestation() when /stop is called.
-		if state.Config.OneShot {
-			// 1. Wait for RunProverAndCleanup goroutines to finish (exports written).
-			//    activeAttestations.Delete is called in RunProverAndCleanup's defer,
-			//    which runs after ProcessProverAttestation (and its export) returns.
-			deadline := time.Now().Add(90 * time.Second)
+		// With a round limit the prover finishes on its own, once its last
+		// round is closed. The verifier keeps running: other robots may still
+		// draw this one in their jury, until /stop.
+		if state.Config.Rounds > 0 {
+			deadline := time.Now().Add(120 * time.Second)
 			for time.Now().Before(deadline) {
 				count := 0
 				state.activeAttestations.Range(func(_, _ interface{}) bool {
@@ -164,24 +130,16 @@ func startAttestation(state *AppState) {
 			defer state.mu.Unlock()
 			lastResult = "success"
 			state.measuring = false
-			if state.Config.ExportEnabled {
-				utils.MarkExperimentStop(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile)
-				state.Config.ResultsFile = ""
-			}
 		}
 	}()
 
 	// 2. Map Config -> Verifier Config
 	verifierCfg := attestation.VerifierConfig{
 		ParticipantName:        state.Config.Agent.Name,
-		ResultsDir:             state.Config.ResultsDir,
-		ResultsFile:            state.Config.ResultsFile,
-		ExportEnabled:          state.Config.ExportEnabled,
 		WaitForTxConfirmations: state.Config.VerifierWaitTx,
 		EventCheckpointDir:     state.Config.EventCheckpointDir,
 		EventConfirmations:     state.Config.EventConfirmations,
 		EventBatchSize:         state.Config.EventBatchSize,
-		EventPollInterval:      state.Config.EventPollInterval,
 		EventLookback:          state.Config.EventLookback,
 		ForceVerdict:           state.Config.ForceVerdict,
 	}
@@ -207,14 +165,14 @@ func stopAttestation(state *AppState) {
 	}
 
 	// Always cancel the context so background goroutines (e.g. RunProverAndCleanup
-	// goroutines that outlive the prover loop in ONE_SHOT mode) are signalled to
+	// goroutines that outlive a prover loop with a round limit) are signalled to
 	// exit immediately rather than running until their 60 s internal timeout.
 	if state.cancelFunc != nil {
 		state.cancelFunc()
 	}
 
-	// In OneShot mode the prover goroutine already set measuring=false and
-	// cleaned up — this guard makes /stop a safe no-op in that case.
+	// With a round limit the prover goroutine may have set measuring=false
+	// already: the context above still stops the verifier.
 	if !state.measuring {
 		return
 	}
@@ -233,11 +191,6 @@ func stopAttestation(state *AppState) {
 	}
 
 	state.measuring = false
-
-	if state.Config.ExportEnabled {
-		utils.MarkExperimentStop(state.Config.ResultsDir, state.Config.Agent.Name, state.Config.ResultsFile)
-		state.Config.ResultsFile = ""
-	}
 }
 
 // -----------------------------------------------------------------------------
@@ -253,7 +206,7 @@ func main() {
 	}
 
 	// Validate IterQ threshold: must match the contract's MAX_ITER_COUNT
-	// otherwise SendEvidence reverts. K=0 is meaningless; K=1 is single-shot.
+	// otherwise Prove reverts. K=0 is meaningless; K=1 is single-shot.
 	if cfg.IterQThreshold < 1 || cfg.IterQThreshold > 10000 {
 		logger.Error("ITERQ_THRESHOLD=%d is out of range [1, 10000]", cfg.IterQThreshold)
 		os.Exit(1)
@@ -320,45 +273,32 @@ func main() {
 		os.Exit(1)
 	}
 	defer bcClient.Close()
-
-	// 3. Initialize Storage
-	var store storage.StorageBackend
-	if cfg.UseRedis {
-		store = storage.NewRedisStorageBackend("localhost", 6379, 0)
-	} else {
-		store = storage.NewMemoryStorageBackend()
-	}
+	// New blocks are notified over WebSocket; without one, polled.
+	bcClient.FollowHeads(cfg.Agent.EthWSURL, time.Duration(cfg.EventPollInterval*float64(time.Second)))
 
 	// 4. Initialize State
 	appState := &AppState{
 		Config:             cfg,
 		BlockchainClient:   bcClient,
-		Storage:            store,
 		activeAttestations: &sync.Map{},
 	}
 
-	// 5. Handle Background Tasks (Registration / Display)
-	if cfg.DisplayMode {
-		n := utils.GetEnvInt("CHAIN_DISPLAY_N", 10)
-		sec := utils.GetEnvInt("CHAIN_DISPLAY_SEC", 30)
-		go bcClient.PeriodicAttestationChainDisplay(n, sec)
-	} else {
-		isReg, err := bcClient.IsRegistered()
+	// 5. Register on chain if needed, then optionally start
+	isReg, err := bcClient.IsRegistered()
+	if err != nil {
+		logger.Error("Failed to check registration: %v", err)
+	} else if !isReg {
+		logger.Info("Registering agent '%s' (%s) ...", cfg.Agent.Name, cfg.Agent.EthAddress)
+		tx, err := bcClient.RegisterAgent(cfg.Agent.Name, true, 30)
 		if err != nil {
-			logger.Error("Failed to check registration: %v", err)
-		} else if !isReg {
-			logger.Info("Registering agent '%s' (%s) ...", cfg.Agent.Name, cfg.Agent.EthAddress)
-			tx, err := bcClient.RegisterAgent(cfg.Agent.Name, true, 30)
-			if err != nil {
-				logger.Error("Registration failed: %v", err)
-				os.Exit(1)
-			}
-			logger.Info("%s registered (Tx: %s)", cfg.Agent.Name, tx)
+			logger.Error("Registration failed: %v", err)
+			os.Exit(1)
 		}
+		logger.Info("%s registered (Tx: %s)", cfg.Agent.Name, tx)
+	}
 
-		if cfg.AutoStart {
-			startAttestation(appState)
-		}
+	if cfg.AutoStart {
+		startAttestation(appState)
 	}
 
 	logger.Info(logger.GreenText("Startup completed for participant '%s'"), cfg.Agent.Name)
@@ -376,12 +316,14 @@ func main() {
 		appState.mu.Lock()
 		defer appState.mu.Unlock()
 		resp := StatusResponse{
-			OneShot:    cfg.OneShot,
-			LastResult: lastResult,
+			Rounds:             cfg.Rounds,
+			LastResult:         lastResult,
+			Counters:           attestation.CountersSnapshot(),
+			BlockNotifications: appState.BlockchainClient.HeadsMode(),
 		}
 		if appState.measuring {
 			resp.Status = "running"
-		} else if cfg.OneShot && lastResult == "success" {
+		} else if cfg.Rounds > 0 && lastResult == "success" {
 			resp.Status = "finished"
 		} else {
 			resp.Status = "idle"
@@ -420,62 +362,35 @@ func main() {
 		c.JSON(200, gin.H{"message": "Attestation stopped."})
 	})
 
-	// POST /mode  {"one_shot": true|false}
-	// Switches between startup (one-shot) and continuous mode at runtime.
-	// Rejected while an attestation is in progress.
-	// Resets lastResult so /status returns "idle" cleanly after a mode change.
-	r.POST("/mode", func(c *gin.Context) {
-		var body struct {
-			OneShot bool `json:"one_shot"`
-		}
-		if err := c.ShouldBindJSON(&body); err != nil {
-			c.JSON(400, gin.H{"error": "invalid body: expected {\"one_shot\": true|false}"})
-			return
-		}
-
-		appState.mu.Lock()
-		defer appState.mu.Unlock()
-
-		if appState.measuring {
-			c.JSON(409, gin.H{"error": "cannot change mode while attestation is running"})
-			return
-		}
-
-		appState.Config.OneShot = body.OneShot
-		lastResult = "" // reset so /status returns "idle" after a mode change
-
-		mode := "continuous"
-		if body.OneShot {
-			mode = "startup"
-		}
-		logger.Info("Mode switched to %s (one_shot=%v)", mode, body.OneShot)
-		c.JSON(200, gin.H{"message": fmt.Sprintf("Mode set to %s.", mode), "one_shot": body.OneShot})
+	// GET /results: the timing rows recorded since the last DELETE /results.
+	r.GET("/results", func(c *gin.Context) {
+		prover, verifier := results.Snapshot()
+		c.JSON(200, gin.H{"prover": prover, "verifier": verifier})
 	})
 
-	// POST /config  {"results_dir": "...", "one_shot": true|false, "export_enabled": true|false, "attestation_interval_ms": N, "iterq_threshold": K}
-	// Partial update — only fields present in the body are applied.
-	// Rejected while an attestation is in progress.
-	// results_dir change also clears ResultsFile so the next /start picks a fresh run number.
-	// one_shot change resets lastResult so /status returns "idle" cleanly.
-	// attestation_interval_ms takes effect on the next measurement cycle (updates ATTESTATION_INTERVAL_MS env var).
-	// attestation_interval_mode (fixed or exp) takes effect on the next wait (updates ATTESTATION_INTERVAL_MODE env var).
-	// iterq_threshold takes effect on the next measurement cycle (updates appState.Config.IterQThreshold in-process).
+	r.DELETE("/results", func(c *gin.Context) {
+		results.Clear()
+		c.JSON(200, gin.H{"message": "Results cleared."})
+	})
+
+	// POST /config {"rounds": N, "start_offset_ms": N, "attestation_interval_ms": N,
+	// "attestation_interval_mode": "fixed"|"exp", "iterq_threshold": K}
+	// Partial update, refused while attestation runs. Applies from the next /start
+	// (the interval and its mode from the next wait).
 	r.POST("/config", func(c *gin.Context) {
 		var body struct {
-			ResultsDir             *string `json:"results_dir"`
-			ResultsFile            *string `json:"results_file"`
-			OneShot                *bool   `json:"one_shot"`
-			ExportEnabled          *bool   `json:"export_enabled"`
-			AttestationIntervalMs  *int    `json:"attestation_interval_ms"`
+			Rounds                  *int    `json:"rounds"`
+			StartOffsetMs           *int    `json:"start_offset_ms"`
+			AttestationIntervalMs   *int    `json:"attestation_interval_ms"`
 			AttestationIntervalMode *string `json:"attestation_interval_mode"`
-			IterQThreshold         *int    `json:"iterq_threshold"`
+			IterQThreshold          *int    `json:"iterq_threshold"`
 		}
 		if err := c.ShouldBindJSON(&body); err != nil {
 			c.JSON(400, gin.H{"error": "invalid body"})
 			return
 		}
-		if body.ResultsDir == nil && body.ResultsFile == nil && body.OneShot == nil && body.ExportEnabled == nil && body.AttestationIntervalMs == nil && body.AttestationIntervalMode == nil && body.IterQThreshold == nil {
-			c.JSON(400, gin.H{"error": "no recognized fields: use results_dir, results_file, one_shot, export_enabled, attestation_interval_ms, attestation_interval_mode, iterq_threshold"})
+		if body.Rounds == nil && body.StartOffsetMs == nil && body.AttestationIntervalMs == nil && body.AttestationIntervalMode == nil && body.IterQThreshold == nil {
+			c.JSON(400, gin.H{"error": "no recognized fields: use rounds, start_offset_ms, attestation_interval_ms, attestation_interval_mode, iterq_threshold"})
 			return
 		}
 
@@ -489,38 +404,25 @@ func main() {
 
 		applied := gin.H{}
 
-		if body.ResultsDir != nil {
-			if *body.ResultsDir == "" {
-				c.JSON(400, gin.H{"error": "results_dir must not be empty"})
+		if body.Rounds != nil {
+			if *body.Rounds < 0 {
+				c.JSON(400, gin.H{"error": "rounds must be >= 0"})
 				return
 			}
-			appState.Config.ResultsDir = *body.ResultsDir
-			appState.Config.ResultsFile = "" // force fresh run-number selection on next /start
-			applied["results_dir"] = *body.ResultsDir
-			logger.Info("Results dir set to: %s", *body.ResultsDir)
-		}
-
-		if body.ResultsFile != nil {
-			appState.Config.ResultsFile = *body.ResultsFile
-			applied["results_file"] = *body.ResultsFile
-			logger.Info("Results file set to: %s", *body.ResultsFile)
-		}
-
-		if body.OneShot != nil {
-			appState.Config.OneShot = *body.OneShot
+			appState.Config.Rounds = *body.Rounds
 			lastResult = ""
-			mode := "continuous"
-			if *body.OneShot {
-				mode = "startup"
-			}
-			applied["one_shot"] = *body.OneShot
-			logger.Info("Mode switched to %s (one_shot=%v)", mode, *body.OneShot)
+			applied["rounds"] = *body.Rounds
+			logger.Info("Rounds per run set to: %d", *body.Rounds)
 		}
 
-		if body.ExportEnabled != nil {
-			appState.Config.ExportEnabled = *body.ExportEnabled
-			applied["export_enabled"] = *body.ExportEnabled
-			logger.Info("Export enabled set to: %v", *body.ExportEnabled)
+		if body.StartOffsetMs != nil {
+			if *body.StartOffsetMs < 0 {
+				c.JSON(400, gin.H{"error": "start_offset_ms must be >= 0"})
+				return
+			}
+			appState.Config.StartOffsetMs = *body.StartOffsetMs
+			applied["start_offset_ms"] = *body.StartOffsetMs
+			logger.Info("Prover start offset set to: %dms", *body.StartOffsetMs)
 		}
 
 		if body.AttestationIntervalMs != nil {
@@ -545,12 +447,8 @@ func main() {
 
 		if body.IterQThreshold != nil {
 			k := *body.IterQThreshold
-			if k < 1 {
-				c.JSON(400, gin.H{"error": "iterq_threshold must be >= 1"})
-				return
-			}
-			if k > 10000 {
-				c.JSON(400, gin.H{"error": "iterq_threshold must be <= 10000"})
+			if k < 1 || k > 10000 {
+				c.JSON(400, gin.H{"error": "iterq_threshold must be in [1, 10000]"})
 				return
 			}
 			appState.Config.IterQThreshold = uint32(k)
@@ -578,4 +476,4 @@ func main() {
 	logger.Info("Shutting down...")
 	stopAttestation(appState)
 	logger.Info("Bye.")
-}
+}

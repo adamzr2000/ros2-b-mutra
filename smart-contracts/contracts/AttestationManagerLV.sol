@@ -13,14 +13,12 @@ contract AttestationManagerLV {
     }
 
     struct MutualAttestation {
-        bytes32 id;
         address verifier;
         address prover;
         bytes32 fresh_signature;
         bytes32 ref_signature;
         AttestationState state;
         AttestationResult result;
-        uint256 timestamp;
         uint32 iterCount; // IterQ depth: number of nested SHA-256 folds
                          // composing fresh_signature. Verifier must apply
                          // the same fold count to ref_signature before
@@ -46,7 +44,7 @@ contract AttestationManagerLV {
     event AgentRemoved(address agent);
     event AttestationStarted(bytes32 id, uint32 iterCount);
     event ReadyForEvaluation(bytes32 id);
-    event AttestationCompleted(bytes32 id);
+    event AttestationCompleted(bytes32 id, address prover, bool success);
     event ChainReset();
 
     constructor() {
@@ -100,27 +98,25 @@ contract AttestationManagerLV {
         return secaas;
     }
 
-    function GetAgentInfo(address agentAddress, address callAddress) public view returns (string memory, bool, bytes32[] memory) {
+    function GetAgentInfo(address agentAddress, address callAddress) public view returns (string memory, bool) {
         Agent storage currentAgent = agent[callAddress];
         Agent storage agentToFind = agent[agentAddress];
         require(currentAgent.registered || callAddress == secaas, "GetAgentInfo : Agent is not registered");
-        return (agentToFind.name, agentToFind.registered, new bytes32[](0));
+        return (agentToFind.name, agentToFind.registered);
     }
 
-    function SendEvidence(bytes32 id, bytes32 freshMeasurement, uint32 iterCount) public {
+    function Prove(bytes32 id, bytes32 freshMeasurement, uint32 iterCount) public {
         Agent storage currentAgent = agent[msg.sender];
-        require(currentAgent.registered, "SendEvidence : Agent is not registered");
-        require(iterCount >= 1 && iterCount <= MAX_ITER_COUNT, "SendEvidence : iterCount out of range");
+        require(currentAgent.registered, "Prove : Agent is not registered");
+        require(iterCount >= 1 && iterCount <= MAX_ITER_COUNT, "Prove : iterCount out of range");
 
         MutualAttestation storage currentAttestation = attestation[id];
-        currentAttestation.id = id;
         currentAttestation.verifier = _assignVerifier(msg.sender);
         currentAttestation.prover = msg.sender;
         currentAttestation.fresh_signature = freshMeasurement;
         currentAttestation.ref_signature = bytes32(0);
         currentAttestation.state = AttestationState.Open;
         currentAttestation.result = AttestationResult.None;
-        currentAttestation.timestamp = 0;
         currentAttestation.iterCount = iterCount;
 
         emit AttestationStarted(id, iterCount);
@@ -133,7 +129,7 @@ contract AttestationManagerLV {
         return currentAttestation.prover;
     }
 
-    function SendRefSignature(bytes32 id, bytes32 refMeasurement) public returns (bool) {
+    function SubmitReference(bytes32 id, bytes32 refMeasurement) public returns (bool) {
         require(msg.sender == secaas, "Only the SECaaS can send the reference signature");
 
         MutualAttestation storage currentAttestation = attestation[id];
@@ -157,23 +153,22 @@ contract AttestationManagerLV {
         return (currentAttestation.fresh_signature, currentAttestation.ref_signature, currentAttestation.iterCount);
     }
 
-    function GetAttestationInfo(bytes32 id) public view returns (address, address, AttestationResult, uint256) {
+    function GetAttestationInfo(bytes32 id) public view returns (address, address, AttestationResult) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.state == AttestationState.Closed, "Attestation process is not closed");
-        return (currentAttestation.prover, currentAttestation.verifier, currentAttestation.result, currentAttestation.timestamp);
+        return (currentAttestation.prover, currentAttestation.verifier, currentAttestation.result);
     }
 
     function GetAttestationState(bytes32 id) public view returns (AttestationState) {
         return attestation[id].state;
     }
 
-    function CloseAttestationProcess(bytes32 id, bool verified) public returns (bool) {
+    function Verify(bytes32 id, bool verified) public returns (bool) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.verifier == msg.sender, "Only the verifier can close the attestation process");
         require(currentAttestation.state == AttestationState.ReadyForEvaluation, "Attestation is not ready for closure");
 
         currentAttestation.state = AttestationState.Closed;
-        currentAttestation.timestamp = block.timestamp;
 
         if (verified) {
             currentAttestation.result = AttestationResult.Success;
@@ -183,11 +178,11 @@ contract AttestationManagerLV {
             currentAttestation.result = AttestationResult.Failure;
         }
 
-        emit AttestationCompleted(id);
+        emit AttestationCompleted(id, currentAttestation.prover, verified);
         return true;
     }
 
-    function ResolveAttestationSECaaS(bytes32 id, bool verified) public {
+    function VerifyBySECaaS(bytes32 id, bool verified) public {
         require(msg.sender == secaas, "Only the SECaaS can resolve attestations");
 
         MutualAttestation storage currentAttestation = attestation[id];
@@ -195,7 +190,6 @@ contract AttestationManagerLV {
         require(currentAttestation.verifier == secaas, "SECaaS not elected as verifier");
 
         currentAttestation.state = AttestationState.Closed;
-        currentAttestation.timestamp = block.timestamp;
 
         if (verified) {
             currentAttestation.result = AttestationResult.Success;
@@ -204,7 +198,7 @@ contract AttestationManagerLV {
             currentAttestation.result = AttestationResult.Failure;
         }
 
-        emit AttestationCompleted(id);
+        emit AttestationCompleted(id, currentAttestation.prover, verified);
     }
 
     function IsProver(bytes32 id, address callAddress) public view returns (bool) {
@@ -221,12 +215,6 @@ contract AttestationManagerLV {
 
     function IsRegistered(address callAddress) public view returns (bool) {
         return agent[callAddress].registered;
-    }
-
-    // Always returns an empty array — LV does not maintain a global chain log.
-    // Present to keep the ABI compatible with AttestationManagerRR.
-    function GetAttestationChain() public pure returns (bytes32[] memory) {
-        return new bytes32[](0);
     }
 
     // Current root-of-trust verifier — restricted to SECaaS to avoid leaking verifier identity.

@@ -36,7 +36,7 @@ upsert FORMATION_SCALE 2.0; upsert K_ATT 0.8; upsert K_FORM 3.0
 upsert GOAL_X 40.0; upsert GOAL_Y 0.0; upsert MITIGATION false
 upsert RUN_DURATION_S 120; upsert RUN_TAG mit-test
 python3 generate_compose.py --robots 4 --world empty --formation --formation-scale 2.0 \
-  --gpu --vnc --mode local --contract AttestationManagerLV --blockchain-host host.docker.internal >/dev/null
+  --gpu --gui --mode local --contract AttestationManagerLV --blockchain-host host.docker.internal >/dev/null
 docker compose -p "$PROJECT" -f docker-compose.robots.yml up -d --force-recreate >/dev/null 2>&1
 echo "   waiting for formation_agent ready..."
 for i in $(seq 1 50); do docker logs robot1 2>&1 | grep -q "formation_agent ready" && break; sleep 3; done
@@ -72,7 +72,7 @@ echo "── 2. baseline travel (${TRAVEL_S}s) — centroid should climb ──�
 for i in $(seq 1 4); do samp "travel"; sleep $((TRAVEL_S/4)); done
 
 echo "── 3. INJECT constant-turn attack on robot3 ─────────────────────────────"
-docker run --rm --pid=container:robot3 --cap-add=SYS_PTRACE --user root turtlebot3-gazebo bash -lc "
+docker run --rm --pid=container:robot3 --cap-add=SYS_PTRACE --user root robot-simulation bash -lc "
   PID=\$(pgrep -f formation_agent | head -1)
   BASE=\$(grep 'r-xp.*formation_agent' /proc/\$PID/maps | head -1 | cut -d- -f1)
   printf '\x90\x90\x90\x90\x90' | dd of=/proc/\$PID/mem bs=1 seek=\$(( 0x\$BASE + $ATTACK_OFFSET )) count=5 conv=notrunc 2>/dev/null

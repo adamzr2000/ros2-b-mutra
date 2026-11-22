@@ -6,11 +6,43 @@
     "text_section_prefix": "",
     "eth_address": "0xd1ad21c56e11aeec3e3429d421004b485d7d866f",
     "private_key": "0xd2c924df1e9b0b072c200842f957c16401c41fbe1d83c698ba15f1a270069f2c",
-    "eth_node_url": "http://10.5.99.99:21003",
+    "eth_node_url": "http://host.docker.internal:21001",
+    "eth_ws_url": "ws://host.docker.internal:22001",
     "contract_address": "0x1932c48b2bF8102Ba33B4A6B545C32236e342f34",
     "contract_abi": [
         {
-            "inputs": [],
+            "inputs": [
+                {
+                    "internalType": "address[]",
+                    "name": "admins",
+                    "type": "address[]"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "threshold",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "size",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "quorum",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "timeoutBlocks",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "freshness",
+                    "type": "uint256"
+                }
+            ],
             "stateMutability": "nonpayable",
             "type": "constructor"
         },
@@ -48,6 +80,18 @@
                     "internalType": "bytes32",
                     "name": "id",
                     "type": "bytes32"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "address",
+                    "name": "prover",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "bool",
+                    "name": "success",
+                    "type": "bool"
                 }
             ],
             "name": "AttestationCompleted",
@@ -82,6 +126,44 @@
             "anonymous": false,
             "inputs": [
                 {
+                    "indexed": true,
+                    "internalType": "bytes32",
+                    "name": "id",
+                    "type": "bytes32"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "juror",
+                    "type": "address"
+                }
+            ],
+            "name": "JurorAbsent",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "bytes32",
+                    "name": "id",
+                    "type": "bytes32"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "juror",
+                    "type": "address"
+                }
+            ],
+            "name": "JurorDissent",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
                     "indexed": false,
                     "internalType": "bytes32",
                     "name": "id",
@@ -92,26 +174,127 @@
             "type": "event"
         },
         {
+            "anonymous": false,
             "inputs": [
                 {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "agent",
+                    "type": "address"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "admin",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "version",
+                    "type": "uint256"
+                }
+            ],
+            "name": "ReferenceApproved",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "agent",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "version",
+                    "type": "uint256"
+                }
+            ],
+            "name": "ReferenceSet",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "admin",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "version",
+                    "type": "uint256"
+                }
+            ],
+            "name": "ResetApproved",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
                     "internalType": "bytes32",
                     "name": "id",
                     "type": "bytes32"
                 },
                 {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "juror",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
                     "internalType": "bool",
-                    "name": "verified",
+                    "name": "verdict",
                     "type": "bool"
                 }
             ],
-            "name": "CloseAttestationProcess",
+            "name": "VoteCast",
+            "type": "event"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "seed",
+                    "type": "bytes32"
+                },
+                {
+                    "internalType": "address",
+                    "name": "prover",
+                    "type": "address"
+                }
+            ],
+            "name": "DrawJury",
             "outputs": [
                 {
-                    "internalType": "bool",
-                    "name": "",
-                    "type": "bool"
+                    "internalType": "address[]",
+                    "name": "jury",
+                    "type": "address[]"
                 }
             ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "id",
+                    "type": "bytes32"
+                }
+            ],
+            "name": "Expire",
+            "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
         },
@@ -124,7 +307,7 @@
                 },
                 {
                     "internalType": "address",
-                    "name": "callAddress",
+                    "name": "",
                     "type": "address"
                 }
             ],
@@ -139,24 +322,6 @@
                     "internalType": "bool",
                     "name": "",
                     "type": "bool"
-                },
-                {
-                    "internalType": "bytes32[]",
-                    "name": "",
-                    "type": "bytes32[]"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "GetAttestationChain",
-            "outputs": [
-                {
-                    "internalType": "bytes32[]",
-                    "name": "",
-                    "type": "bytes32[]"
                 }
             ],
             "stateMutability": "view",
@@ -183,14 +348,9 @@
                     "type": "address"
                 },
                 {
-                    "internalType": "enum AttestationManagerRR.AttestationResult",
+                    "internalType": "enum AttestationManagerV3.AttestationResult",
                     "name": "",
                     "type": "uint8"
-                },
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
                 }
             ],
             "stateMutability": "view",
@@ -205,7 +365,7 @@
                 },
                 {
                     "internalType": "address",
-                    "name": "callAddress",
+                    "name": "",
                     "type": "address"
                 }
             ],
@@ -225,6 +385,11 @@
                     "internalType": "uint32",
                     "name": "",
                     "type": "uint32"
+                },
+                {
+                    "internalType": "uint64",
+                    "name": "",
+                    "type": "uint64"
                 }
             ],
             "stateMutability": "view",
@@ -241,7 +406,7 @@
             "name": "GetAttestationState",
             "outputs": [
                 {
-                    "internalType": "enum AttestationManagerRR.AttestationState",
+                    "internalType": "enum AttestationManagerV3.AttestationState",
                     "name": "",
                     "type": "uint8"
                 }
@@ -250,24 +415,13 @@
             "type": "function"
         },
         {
-            "inputs": [
-                {
-                    "internalType": "bytes32",
-                    "name": "id",
-                    "type": "bytes32"
-                },
-                {
-                    "internalType": "address",
-                    "name": "callAddress",
-                    "type": "address"
-                }
-            ],
-            "name": "GetProverAddress",
+            "inputs": [],
+            "name": "GetEligibleAgents",
             "outputs": [
                 {
-                    "internalType": "address",
+                    "internalType": "address[]",
                     "name": "",
-                    "type": "address"
+                    "type": "address[]"
                 }
             ],
             "stateMutability": "view",
@@ -279,19 +433,19 @@
                     "internalType": "bytes32",
                     "name": "id",
                     "type": "bytes32"
-                },
-                {
-                    "internalType": "address",
-                    "name": "callAddress",
-                    "type": "address"
                 }
             ],
-            "name": "IsProver",
+            "name": "GetJury",
             "outputs": [
                 {
-                    "internalType": "bool",
-                    "name": "",
-                    "type": "bool"
+                    "internalType": "address[]",
+                    "name": "jurors",
+                    "type": "address[]"
+                },
+                {
+                    "internalType": "uint8[]",
+                    "name": "votes",
+                    "type": "uint8[]"
                 }
             ],
             "stateMutability": "view",
@@ -356,6 +510,53 @@
         {
             "inputs": [
                 {
+                    "internalType": "bytes32",
+                    "name": "id",
+                    "type": "bytes32"
+                }
+            ],
+            "name": "PreviewJury",
+            "outputs": [
+                {
+                    "internalType": "address[]",
+                    "name": "",
+                    "type": "address[]"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "id",
+                    "type": "bytes32"
+                },
+                {
+                    "internalType": "bytes32",
+                    "name": "freshMeasurement",
+                    "type": "bytes32"
+                },
+                {
+                    "internalType": "uint32",
+                    "name": "iterCount",
+                    "type": "uint32"
+                },
+                {
+                    "internalType": "uint64",
+                    "name": "boundBlock",
+                    "type": "uint64"
+                }
+            ],
+            "name": "Prove",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
                     "internalType": "string",
                     "name": "name",
                     "type": "string"
@@ -383,6 +584,24 @@
         {
             "inputs": [
                 {
+                    "internalType": "address",
+                    "name": "agentAddress",
+                    "type": "address"
+                },
+                {
+                    "internalType": "bytes32",
+                    "name": "newReference",
+                    "type": "bytes32"
+                }
+            ],
+            "name": "SetReference",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
                     "internalType": "bytes32",
                     "name": "id",
                     "type": "bytes32"
@@ -393,7 +612,7 @@
                     "type": "bool"
                 }
             ],
-            "name": "ResolveAttestationSECaaS",
+            "name": "VerifyBySECaaS",
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
@@ -406,61 +625,19 @@
                     "type": "bytes32"
                 },
                 {
-                    "internalType": "bytes32",
-                    "name": "freshMeasurement",
-                    "type": "bytes32"
-                },
-                {
-                    "internalType": "uint32",
-                    "name": "iterCount",
-                    "type": "uint32"
-                }
-            ],
-            "name": "SendEvidence",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "bytes32",
-                    "name": "id",
-                    "type": "bytes32"
-                },
-                {
-                    "internalType": "bytes32",
-                    "name": "refMeasurement",
-                    "type": "bytes32"
-                }
-            ],
-            "name": "SendRefSignature",
-            "outputs": [
-                {
                     "internalType": "bool",
-                    "name": "",
+                    "name": "verdict",
                     "type": "bool"
                 }
             ],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "bool",
-                    "name": "mode",
-                    "type": "bool"
-                }
-            ],
-            "name": "SetSecaasOnly",
+            "name": "Vote",
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
         },
         {
             "inputs": [],
-            "name": "freshnessWindow",
+            "name": "freshnessBlocks",
             "outputs": [
                 {
                     "internalType": "uint256",
@@ -473,7 +650,7 @@
         },
         {
             "inputs": [],
-            "name": "rrIndex",
+            "name": "juryTimeoutBlocks",
             "outputs": [
                 {
                     "internalType": "uint256",

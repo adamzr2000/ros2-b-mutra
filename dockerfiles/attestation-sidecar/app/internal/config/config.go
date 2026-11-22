@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"regexp"
-	"strconv"
 
 	"app/internal/utils"
 )
@@ -35,6 +32,7 @@ type AgentConfig struct {
 	EthAddress        string      `json:"eth_address"`
 	PrivateKey        string      `json:"private_key"`
 	EthNodeURL        string      `json:"eth_node_url"`
+	EthWSURL          string      `json:"eth_ws_url"` // new-block notifications; empty: polling
 	ContractAddress   string      `json:"contract_address"`
 	ContractABI       interface{} `json:"contract_abi"`
 	CmdName           string      `json:"cmd_name"`
@@ -52,35 +50,27 @@ type AppConfig struct {
 	// Source Data (JSON)
 	Agent AgentConfig
 
-	// File Paths & IO (Env/Calculated)
-	ResultsDir        string
-	ResultsFile       string
-	ExportEnabled     bool
-	MemoryStorageFile string
-
 	// Runtime Flags (Env)
-	UseRedis                  bool
 	AutoStart                 bool
-	OneShot                   bool
-	DisplayMode               bool
+	Rounds                    int // batches per run, then the prover stops; 0 = until stopped
+	StartOffsetMs             int // prover wait after /start, the verifier starts at once
 	WaitForVerificationResult bool
 
 	// Attestation Params (Env)
-	ProverThreshold      int    // legacy, unused
 	IterQThreshold       uint32 // K = number of fresh measurements folded into one on-chain attestation
 	SelfIntegrityEnabled bool
-	SaltMeasurement      bool // send SHA256(m || salt) instead of m (contract V2)
+	SaltMeasurement      bool  // send SHA256(m || salt) instead of m (contract V2)
 	ForceVerdict         *bool // experiment only: vote this verdict without comparing, nil = compare
-	
-	// ADDED: Storage for the auto-discovered integrity info
-	SelfIntegrity SelfIntegrityConfig 
+
+	// Self-integrity info, filled in by main.go
+	SelfIntegrity SelfIntegrityConfig
 
 	// Verifier Params (Env)
 	VerifierWaitTx     bool
 	EventCheckpointDir string
 	EventConfirmations uint64
 	EventBatchSize     uint64
-	EventPollInterval  float64
+	EventPollInterval  float64 // seconds between checks while block notifications are down
 	EventLookback      uint64
 }
 
@@ -116,17 +106,11 @@ func Load() (*AppConfig, error) {
 	}
 
 	appCfg := &AppConfig{
-		Agent:             *agentCfg,
-		ResultsDir:        utils.GetEnvStr("RESULTS_DIR", "/experiments/data/attestation-times"),
-		ExportEnabled:     utils.GetEnvBool("EXPORT_RESULTS", false),
-		MemoryStorageFile: utils.GetEnvStr("MEMORY_STORAGE_FILE", ""),
-		UseRedis:          utils.GetEnvBool("USE_REDIS", false),
-		AutoStart:         utils.GetEnvBool("AUTO_START", false),
-		OneShot:                   utils.GetEnvBool("ONE_SHOT", false),
-		DisplayMode:               utils.GetEnvBool("CHAIN_DISPLAY", false),
+		Agent:                     *agentCfg,
+		AutoStart:                 utils.GetEnvBool("AUTO_START", false),
+		Rounds:                    utils.GetEnvInt("ROUNDS", 0),
 		WaitForVerificationResult: utils.GetEnvBool("WAIT_FOR_VERIFICATION_RESULT", true),
 
-		ProverThreshold:      utils.GetEnvInt("PROVER_THRESHOLD", 300),
 		IterQThreshold:       uint32(utils.GetEnvInt("ITERQ_THRESHOLD", 1)),
 		SelfIntegrityEnabled: utils.GetEnvBool("SELF_INTEGRITY_ENABLED", false),
 		SaltMeasurement:      utils.GetEnvBool("SALT_MEASUREMENT", false),
@@ -153,36 +137,5 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("FORCE_VERDICT must be valid, invalid or unset, got %q", v)
 	}
 
-	if appCfg.ExportEnabled {
-		runID := os.Getenv("RUN_ID")
-		if runID != "" {
-			appCfg.ResultsFile = filepath.Join(appCfg.ResultsDir, fmt.Sprintf("%s-run%s.json", appCfg.Agent.Name, runID))
-		} else {
-			appCfg.ResultsFile = GetNextRunJSON(appCfg.ResultsDir, appCfg.Agent.Name)
-		}
-	}
-
 	return appCfg, nil
-}
-
-func GetNextRunJSON(resultsDir string, participant string) string {
-	utils.EnsureDir(resultsDir)
-	pattern := filepath.Join(resultsDir, fmt.Sprintf("%s-run*.json", participant))
-
-	files, _ := filepath.Glob(pattern)
-	maxIdx := 0
-	re := regexp.MustCompile(fmt.Sprintf(`%s-run(\d+)\.json$`, regexp.QuoteMeta(participant)))
-
-	for _, f := range files {
-		baseName := filepath.Base(f)
-		matches := re.FindStringSubmatch(baseName)
-		if len(matches) == 2 {
-			if idx, err := strconv.Atoi(matches[1]); err == nil {
-				if idx > maxIdx {
-					maxIdx = idx
-				}
-			}
-		}
-	}
-	return filepath.Join(resultsDir, fmt.Sprintf("%s-run%d.json", participant, maxIdx+1))
 }

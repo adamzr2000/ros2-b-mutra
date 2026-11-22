@@ -41,22 +41,22 @@ describe("AttestationManagerLV — IterQ (per-attestation K)", function () {
     const id = bytes32FromString("att-k0");
     const sig = bytes32FromString("sig");
     await expect(
-      am.connect(prover).SendEvidence(id, sig, 0)
-    ).to.be.revertedWith("SendEvidence : iterCount out of range");
+      am.connect(prover).Prove(id, sig, 0)
+    ).to.be.revertedWith("Prove : iterCount out of range");
   });
 
   it("rejects K > MAX_ITER_COUNT", async () => {
     const id = bytes32FromString("att-kmax");
     const sig = bytes32FromString("sig");
     await expect(
-      am.connect(prover).SendEvidence(id, sig, 10001)
-    ).to.be.revertedWith("SendEvidence : iterCount out of range");
+      am.connect(prover).Prove(id, sig, 10001)
+    ).to.be.revertedWith("Prove : iterCount out of range");
   });
 
   it("emits AttestationStarted with the supplied K", async () => {
     const id = bytes32FromString("att-emit");
     const sig = bytes32FromString("sig-emit");
-    await expect(am.connect(prover).SendEvidence(id, sig, 7))
+    await expect(am.connect(prover).Prove(id, sig, 7))
       .to.emit(am, "AttestationStarted")
       .withArgs(id, 7);
   });
@@ -70,7 +70,7 @@ describe("AttestationManagerLV — IterQ (per-attestation K)", function () {
     const m = bytes32FromString("measurement");
     const K = 5;
 
-    await am.connect(prover).SendEvidence(id, m, K);
+    await am.connect(prover).Prove(id, m, K);
 
     const [fresh, ref, k] = await am
       .connect(secaas)
@@ -90,14 +90,14 @@ describe("AttestationManagerLV — IterQ (per-attestation K)", function () {
     // equals the verifier-derived expected value.
     const fresh = rollingHashConst(baseRef, K);
 
-    await am.connect(prover).SendEvidence(id, fresh, K);
+    await am.connect(prover).Prove(id, fresh, K);
 
     // SECaaS oracle posts the *single-shot* reference; the contract just
     // stores it. The verifier (here, also secaas because of currentVerifier)
     // is what would re-derive the chained value off-chain. We mimic that
     // here by computing it locally and asserting the values that
     // GetAttestationSignatures returns are sufficient to reproduce it.
-    await am.connect(secaas).SendRefSignature(id, baseRef);
+    await am.connect(secaas).SubmitReference(id, baseRef);
 
     const [returnedFresh, returnedRef, returnedK] = await am
       .connect(secaas)
@@ -111,9 +111,9 @@ describe("AttestationManagerLV — IterQ (per-attestation K)", function () {
     const derivedRef = rollingHashConst(returnedRef, returnedK);
     expect(derivedRef).to.equal(returnedFresh);
 
-    // Close the round positively. With VRP=1 this stores Closed state.
-    await expect(am.connect(secaas).CloseAttestationProcess(id, true))
+    // Close the round positively.
+    await expect(am.connect(secaas).Verify(id, true))
       .to.emit(am, "AttestationCompleted")
-      .withArgs(id);
+      .withArgs(id, prover.address, true);
   });
 });

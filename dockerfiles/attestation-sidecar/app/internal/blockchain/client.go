@@ -13,16 +13,18 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"app/internal/logger"
 	// types.go is in the same package 'blockchain'
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // Pooled HTTP client for RPC calls
@@ -42,10 +44,19 @@ type BlockchainClient struct {
 	contractAddress common.Address
 	contractABI     abi.ABI
 	chainID         *big.Int
+	gasPrice        *big.Int // read once: fixed on this network (zero base fee)
 	ethNodeURL      string
 
 	nonceLock  sync.Mutex
 	localNonce uint64
+
+	heads *heads // block notifications, see FollowHeads
+
+	// Settings fixed at deployment, read once (V3).
+	juryTimeout atomic.Uint64
+	freshness   atomic.Uint64
+
+	agentNames sync.Map // address -> registered name, for the logs
 }
 
 // Helper struct for loading ABI JSON (Hardhat-style artifact: {"abi":[...]} )
@@ -57,10 +68,13 @@ type ABIFile struct {
 // Updated to remove redundant abiPath arg to match main.go
 func NewBlockchainClient(ethAddressStr, privateKeyHex, ethNodeURL, contractAddrStr string, contractABI interface{}) (*BlockchainClient, error) {
 	// 1. Connect
-	client, err := ethclient.Dial(ethNodeURL)
+	// The pooled client keeps the connections to the node open: the prover,
+	// the watcher and the juror of a sidecar query it at the same block.
+	rpcClient, err := rpc.DialOptions(context.Background(), ethNodeURL, rpc.WithHTTPClient(pooledHTTPClient))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to eth node: %v", err)
 	}
+	client := ethclient.NewClient(rpcClient)
 
 	// 2. Private Key
 	privateKeyHex = strings.TrimPrefix(privateKeyHex, "0x")
@@ -109,6 +123,10 @@ func NewBlockchainClient(ethAddressStr, privateKeyHex, ethNodeURL, contractAddrS
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nonce: %v", err)
 	}
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gas price: %v", err)
+	}
 
 	bc := &BlockchainClient{
 		client:          client,
@@ -117,8 +135,10 @@ func NewBlockchainClient(ethAddressStr, privateKeyHex, ethNodeURL, contractAddrS
 		contractAddress: common.HexToAddress(contractAddrStr),
 		contractABI:     parsedABI,
 		chainID:         chainID,
+		gasPrice:        gasPrice,
 		ethNodeURL:      ethNodeURL,
 		localNonce:      nonce,
+		heads:           newHeads(),
 	}
 
 	logger.Info("Web3 Client Initialized:")
@@ -143,6 +163,7 @@ type rpcRequest struct {
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+	Data    string `json:"data"` // revert data, when the call reverted
 }
 
 type rpcResponse struct {
@@ -150,21 +171,19 @@ type rpcResponse struct {
 	Error  *rpcError `json:"error"`
 }
 
-// rawEthCall executes eth_call via direct JSON-RPC.
-// If from is nil, we omit it (often the most compatible behavior).
-func (bc *BlockchainClient) rawEthCall(from *common.Address, data []byte) ([]byte, error) {
+// rawEthCall executes eth_call via direct JSON-RPC, from this agent's
+// address: the contract checks the caller of some reads.
+func (bc *BlockchainClient) rawEthCall(data []byte) ([]byte, error) {
 	type callParams struct {
-		From string `json:"from,omitempty"`
+		From string `json:"from"`
 		To   string `json:"to"`
 		Data string `json:"data"`
 	}
 
 	params := callParams{
+		From: bc.ethAddress.Hex(),
 		To:   bc.contractAddress.Hex(),
 		Data: "0x" + hex.EncodeToString(data),
-	}
-	if from != nil {
-		params.From = from.Hex()
 	}
 
 	req := rpcRequest{
@@ -198,6 +217,11 @@ func (bc *BlockchainClient) rawEthCall(from *common.Address, data []byte) ([]byt
 		return nil, err
 	}
 	if rpcResp.Error != nil {
+		if data, err := hexutil.Decode(rpcResp.Error.Data); err == nil {
+			if reason, err := abi.UnpackRevert(data); err == nil {
+				return nil, &RevertError{Reason: reason}
+			}
+		}
 		return nil, fmt.Errorf("RPC error: %s", rpcResp.Error.Message)
 	}
 
@@ -217,6 +241,32 @@ func (bc *BlockchainClient) refreshNonce(ctx context.Context) error {
 	return nil
 }
 
+// RevertError is a transaction the contract would revert, with its reason.
+type RevertError struct{ Reason string }
+
+func (e *RevertError) Error() string { return "reverted: " + e.Reason }
+
+// IsRevert tells whether err is a revert whose reason contains part.
+func IsRevert(err error, part string) bool {
+	var re *RevertError
+	return errors.As(err, &re) && strings.Contains(re.Reason, part)
+}
+
+// revertReason turns a node error carrying revert data into a *RevertError.
+func revertReason(err error) error {
+	var dataErr rpc.DataError
+	if errors.As(err, &dataErr) {
+		if hexData, ok := dataErr.ErrorData().(string); ok {
+			if data, derr := hexutil.Decode(hexData); derr == nil {
+				if reason, uerr := abi.UnpackRevert(data); uerr == nil {
+					return &RevertError{Reason: reason}
+				}
+			}
+		}
+	}
+	return fmt.Errorf("failed to estimate gas: %w", err)
+}
+
 func isNonceError(err error) bool {
 	if err == nil {
 		return false
@@ -229,19 +279,35 @@ func isNonceError(err error) bool {
 }
 
 // estimateGasLimit estimates gas for the tx data and adds a safety buffer.
-// If estimation fails (some nodes fail estimation on certain reverts), it falls back to a conservative default.
-func (bc *BlockchainClient) estimateGasLimit(ctx context.Context, data []byte) (uint64, error) {
-	msg := ethereum.CallMsg{
-		From:  bc.ethAddress,
-		To:    &bc.contractAddress,
-		Value: big.NewInt(0),
-		Data:  data,
-	}
+// The estimate runs in the pending block, the first one the transaction can
+// go in. A transaction that reverts there is not sent: the error is then a
+// *RevertError with the contract's reason.
+// estimateRetries counts the gas estimates tried again after a Besu
+// "Internal error": the experiments record it per run.
+var estimateRetries atomic.Int64
 
-	est, err := bc.client.EstimateGas(ctx, msg)
+// EstimateRetries is the number of gas estimates tried again so far.
+func EstimateRetries() int64 { return estimateRetries.Load() }
+
+func (bc *BlockchainClient) estimateGasLimit(ctx context.Context, data []byte) (uint64, error) {
+	call := map[string]interface{}{
+		"from":  bc.ethAddress,
+		"to":    bc.contractAddress,
+		"input": hexutil.Bytes(data),
+	}
+	var est hexutil.Uint64
+	err := bc.client.Client().CallContext(ctx, &est, "eth_estimateGas", call, "pending")
+	// Besu answers "Internal error" (-32603) when it simulates while a block
+	// is being imported: the pending state is briefly unavailable. Tried
+	// once more after the import; a revert has another code.
+	var rpcErr rpc.Error
+	if errors.As(err, &rpcErr) && rpcErr.ErrorCode() == -32603 {
+		estimateRetries.Add(1)
+		time.Sleep(100 * time.Millisecond)
+		err = bc.client.Client().CallContext(ctx, &est, "eth_estimateGas", call, "pending")
+	}
 	if err != nil {
-		// fallback
-		return 1_000_000, nil
+		return 0, revertReason(err)
 	}
 
 	// If simulation works, add a 30% buffer
@@ -254,99 +320,68 @@ func (bc *BlockchainClient) estimateGasLimit(ctx context.Context, data []byte) (
 	return gas, nil
 }
 
-// sendSignedTransaction constructs, signs, and sends a transaction manually.
-// - Increments nonce only after successful SendTransaction.
-// - Retries once after refreshing nonce on nonce-related errors.
+// sendSignedTransaction estimates, signs and sends a transaction. The nonce is
+// taken and the transaction sent under one lock: on this zero-gas-price
+// network, two transactions sent with the same nonce replace each other in
+// the pool without an error (the prover and the juror of a sidecar send
+// concurrently). On a nonce error the nonce is read again and the send
+// retried once.
 func (bc *BlockchainClient) sendSignedTransaction(ctx context.Context, data []byte) (string, error) {
+	gasLimit, err := bc.estimateGasLimit(ctx, data)
+	if err != nil {
+		return "", err
+	}
+
+	bc.nonceLock.Lock()
+	defer bc.nonceLock.Unlock()
 	for attempt := 0; attempt < 2; attempt++ {
-		// read current nonce without changing it yet
-		bc.nonceLock.Lock()
-		nonce := bc.localNonce
-		bc.nonceLock.Unlock()
-
-		gasPrice, err := bc.client.SuggestGasPrice(ctx)
-		if err != nil {
-			return "", fmt.Errorf("failed to get gas price: %v", err)
-		}
-		// bump gas price by 25%
-		bump := new(big.Int).Mul(gasPrice, big.NewInt(125))
-		bump.Div(bump, big.NewInt(100))
-
-		gasLimit, err := bc.estimateGasLimit(ctx, data)
-		if err != nil {
-			return "", fmt.Errorf("failed to estimate gas: %v", err)
-		}
-
-		tx := gethtypes.NewTransaction(
-			nonce,
-			bc.contractAddress,
-			big.NewInt(0),
-			gasLimit,
-			bump,
-			data,
-		)
-
+		tx := gethtypes.NewTransaction(bc.localNonce, bc.contractAddress, big.NewInt(0), gasLimit, bc.gasPrice, data)
 		signedTx, err := gethtypes.SignTx(tx, gethtypes.NewEIP155Signer(bc.chainID), bc.privateKey)
 		if err != nil {
 			return "", fmt.Errorf("failed to sign tx: %v", err)
 		}
-
 		err = bc.client.SendTransaction(ctx, signedTx)
 		if err == nil {
-			// increment nonce only on success
-			bc.nonceLock.Lock()
-			// keep monotonic
-			if bc.localNonce == nonce {
-				bc.localNonce++
-			} else if bc.localNonce < nonce+1 {
-				bc.localNonce = nonce + 1
-			}
-			bc.nonceLock.Unlock()
+			bc.localNonce++
 			return signedTx.Hash().Hex(), nil
 		}
-
 		if attempt == 0 && isNonceError(err) {
-			bc.nonceLock.Lock()
-			_ = bc.refreshNonce(ctx)
-			bc.nonceLock.Unlock()
+			if rerr := bc.refreshNonce(ctx); rerr != nil {
+				return "", fmt.Errorf("failed to send tx: %v (nonce refresh: %v)", err, rerr)
+			}
 			continue
 		}
-
 		return "", fmt.Errorf("failed to send tx: %v", err)
 	}
 	return "", fmt.Errorf("failed to send tx after nonce refresh")
 }
 
-func (bc *BlockchainClient) waitForReceipt(txHashStr string, timeoutSec int) error {
+// WaitForReceipt waits until a transaction is mined. It fails with
+// ErrReceiptTimeout if it is not mined in time, and with another error if it
+// reverted.
+func (bc *BlockchainClient) WaitForReceipt(txHashStr string, timeoutSec int) error {
 	txHash := common.HexToHash(txHashStr)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
-	defer cancel()
-
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
+	deadline := time.Now().Add(time.Duration(timeoutSec) * time.Second)
 	logger.Debug("Waiting for transaction %s...", txHashStr)
 
+	// Checked at once, then at each new block: the receipt is seen as soon as
+	// the node imports the block that includes the transaction.
 	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for tx %s", txHashStr)
-		case <-ticker.C:
-			receipt, err := bc.client.TransactionReceipt(context.Background(), txHash)
-			if err != nil {
-				// common case: not mined yet (different clients use different errors)
-				continue
-			}
-			if receipt == nil {
-				continue
-			}
+		next := bc.NextHead()
+		receipt, err := bc.client.TransactionReceipt(context.Background(), txHash)
+		if err == nil && receipt != nil {
 			if receipt.Status == gethtypes.ReceiptStatusSuccessful {
 				logger.Debug("Transaction %s mined in block %d", txHashStr, receipt.BlockNumber)
 				return nil
 			}
 			return fmt.Errorf("transaction %s failed (status=0)", txHashStr)
 		}
+		// err: not mined yet (clients report it differently)
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%w: tx %s", ErrReceiptTimeout, txHashStr)
+		}
+		WaitHead(next, nil)
 	}
 }
 
@@ -364,7 +399,7 @@ func (bc *BlockchainClient) RegisterAgent(name string, wait bool, timeout int) (
 		return "", err
 	}
 	if wait {
-		if err := bc.waitForReceipt(txHash, timeout); err != nil {
+		if err := bc.WaitForReceipt(txHash, timeout); err != nil {
 			return txHash, err
 		}
 	}
@@ -381,7 +416,7 @@ func (bc *BlockchainClient) RemoveAgent(wait bool, timeout int) (string, error) 
 		return "", err
 	}
 	if wait {
-		if err := bc.waitForReceipt(txHash, timeout); err != nil {
+		if err := bc.WaitForReceipt(txHash, timeout); err != nil {
 			return txHash, err
 		}
 	}
@@ -398,28 +433,34 @@ func (bc *BlockchainClient) ResetAttestationChain(wait bool, timeout int) (strin
 		return "", err
 	}
 	if wait {
-		if err := bc.waitForReceipt(txHash, timeout); err != nil {
+		if err := bc.WaitForReceipt(txHash, timeout); err != nil {
 			return txHash, err
 		}
 	}
 	return txHash, nil
 }
 
-// SendEvidence submits the rolling-hash digest plus its IterQ depth K
+// Prove submits the rolling-hash digest plus its IterQ depth K
 // (iterCount). The contract enforces 1 <= K <= MAX_ITER_COUNT (10000).
 // For K=1 the digest is the single-shot measurement (no chaining); for
-// K>1 it is the K-fold chain H_K = SHA256(H_{K-1} || m_K).
-func (bc *BlockchainClient) SendEvidence(attID string, freshSig string, iterCount uint32, wait bool, timeout int) (string, error) {
+// K>1 it is the K-fold chain H_K = SHA256(H_{K-1} || m_K). boundBlock is
+// the block the measurements are bound to, sent only to a contract that
+// checks freshness (V3).
+func (bc *BlockchainClient) Prove(attID string, freshSig string, iterCount uint32, boundBlock uint64, wait bool, timeout int) (string, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
 		return "", err
 	}
 	sigBytes, err := AsBytes32(freshSig)
-    if err != nil {
-        return "", err
-    }
+	if err != nil {
+		return "", err
+	}
 
-	data, err := bc.contractABI.Pack("SendEvidence", attIDBytes, sigBytes, iterCount)
+	args := []interface{}{attIDBytes, sigBytes, iterCount}
+	if bc.HasFreshness() {
+		args = append(args, boundBlock)
+	}
+	data, err := bc.contractABI.Pack("Prove", args...)
 	if err != nil {
 		return "", err
 	}
@@ -429,24 +470,24 @@ func (bc *BlockchainClient) SendEvidence(attID string, freshSig string, iterCoun
 		return "", err
 	}
 	if wait {
-		if err := bc.waitForReceipt(txHash, timeout); err != nil {
+		if err := bc.WaitForReceipt(txHash, timeout); err != nil {
 			return txHash, err
 		}
 	}
 	return txHash, nil
 }
 
-func (bc *BlockchainClient) SendRefSignature(attID string, refSig string, wait bool, timeout int) (string, error) {
+func (bc *BlockchainClient) SubmitReference(attID string, refSig string, wait bool, timeout int) (string, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
 		return "", err
 	}
 	sigBytes, err := AsBytes32(refSig)
-    if err != nil {
-        return "", err
-    }
+	if err != nil {
+		return "", err
+	}
 
-	data, err := bc.contractABI.Pack("SendRefSignature", attIDBytes, sigBytes)
+	data, err := bc.contractABI.Pack("SubmitReference", attIDBytes, sigBytes)
 	if err != nil {
 		return "", err
 	}
@@ -456,19 +497,19 @@ func (bc *BlockchainClient) SendRefSignature(attID string, refSig string, wait b
 		return "", err
 	}
 	if wait {
-		if err := bc.waitForReceipt(txHash, timeout); err != nil {
+		if err := bc.WaitForReceipt(txHash, timeout); err != nil {
 			return txHash, err
 		}
 	}
 	return txHash, nil
 }
 
-func (bc *BlockchainClient) SendAttestationResult(attID string, verified bool, wait bool, timeout int) (string, error) {
+func (bc *BlockchainClient) Verify(attID string, verified bool, wait bool, timeout int) (string, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
 		return "", err
 	}
-	data, err := bc.contractABI.Pack("CloseAttestationProcess", attIDBytes, verified)
+	data, err := bc.contractABI.Pack("Verify", attIDBytes, verified)
 	if err != nil {
 		return "", err
 	}
@@ -478,7 +519,7 @@ func (bc *BlockchainClient) SendAttestationResult(attID string, verified bool, w
 		return "", err
 	}
 	if wait {
-		if err := bc.waitForReceipt(txHash, timeout); err != nil {
+		if err := bc.WaitForReceipt(txHash, timeout); err != nil {
 			return txHash, err
 		}
 	}
@@ -486,6 +527,22 @@ func (bc *BlockchainClient) SendAttestationResult(attID string, verified bool, w
 }
 
 // Vote gives this agent's verdict as a juror of a V3 cycle.
+// CheckVote rehearses Vote(attID) in the pending block without sending it:
+// nil when this agent may vote now, a *RevertError otherwise (e.g. "caller is
+// not in the jury"). The jury does not depend on the verdict.
+func (bc *BlockchainClient) CheckVote(attID string) error {
+	attIDBytes, err := TextToBytes32(attID)
+	if err != nil {
+		return err
+	}
+	data, err := bc.contractABI.Pack("Vote", attIDBytes, true)
+	if err != nil {
+		return err
+	}
+	_, err = bc.estimateGasLimit(context.Background(), data)
+	return err
+}
+
 func (bc *BlockchainClient) Vote(attID string, verdict bool, wait bool, timeout int) (string, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
@@ -500,7 +557,7 @@ func (bc *BlockchainClient) Vote(attID string, verdict bool, wait bool, timeout 
 		return "", err
 	}
 	if wait {
-		if err := bc.waitForReceipt(txHash, timeout); err != nil {
+		if err := bc.WaitForReceipt(txHash, timeout); err != nil {
 			return txHash, err
 		}
 	}
@@ -522,7 +579,7 @@ func (bc *BlockchainClient) Expire(attID string, wait bool, timeout int) (string
 		return "", err
 	}
 	if wait {
-		if err := bc.waitForReceipt(txHash, timeout); err != nil {
+		if err := bc.WaitForReceipt(txHash, timeout); err != nil {
 			return txHash, err
 		}
 	}
@@ -538,7 +595,7 @@ func (bc *BlockchainClient) IsRegistered() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	res, err := bc.rawEthCall(nil, data)
+	res, err := bc.rawEthCall(data)
 	if err != nil {
 		return false, err
 	}
@@ -558,88 +615,31 @@ func (bc *BlockchainClient) IsRegistered() (bool, error) {
 	return v, nil
 }
 
-func (bc *BlockchainClient) GetAgentInfo(addr common.Address) (string, bool, *big.Int, error) {
+func (bc *BlockchainClient) GetAgentInfo(addr common.Address) (string, bool, error) {
 	data, err := bc.contractABI.Pack("GetAgentInfo", addr, bc.ethAddress)
 	if err != nil {
-		return "", false, nil, err
+		return "", false, err
 	}
-	res, err := bc.rawEthCall(nil, data)
+	res, err := bc.rawEthCall(data)
 	if err != nil {
-		return "", false, nil, err
+		return "", false, err
 	}
-
 	values, err := bc.contractABI.Unpack("GetAgentInfo", res)
 	if err != nil {
-		return "", false, nil, err
+		return "", false, err
 	}
-	if len(values) < 3 {
-		return "", false, nil, fmt.Errorf("GetAgentInfo: expected 3 returns, got %d", len(values))
+	if len(values) != 2 {
+		return "", false, fmt.Errorf("GetAgentInfo: expected 2 returns, got %d", len(values))
 	}
-
 	name, ok := values[0].(string)
 	if !ok {
-		return "", false, nil, fmt.Errorf("GetAgentInfo: name type %T", values[0])
+		return "", false, fmt.Errorf("GetAgentInfo: name type %T", values[0])
 	}
 	isReg, ok := values[1].(bool)
 	if !ok {
-		return "", false, nil, fmt.Errorf("GetAgentInfo: registered type %T", values[1])
+		return "", false, fmt.Errorf("GetAgentInfo: registered type %T", values[1])
 	}
-
-	// 3rd return is bytes32[]; compute len robustly
-	count := big.NewInt(0)
-	switch v := values[2].(type) {
-	case [][32]byte:
-		count = big.NewInt(int64(len(v)))
-	case []common.Hash:
-		count = big.NewInt(int64(len(v)))
-	case []interface{}:
-		count = big.NewInt(int64(len(v)))
-	default:
-		// keep 0, but avoid panic
-		count = big.NewInt(0)
-	}
-
-	return name, isReg, count, nil
-}
-
-func (bc *BlockchainClient) IsProver(attID string) (bool, error) {
-	attIDBytes, err := TextToBytes32(attID)
-	if err != nil {
-		return false, err
-	}
-
-	// Check state first to avoid a contract revert on closed/nonexistent IDs.
-	// Return ErrAttestationClosed (not nil) so callers can distinguish
-	// "not yet confirmed as prover" from "attestation already resolved".
-	state, err := bc.GetAttestationState(attID)
-	if err != nil {
-		return false, nil
-	}
-	if state == Closed {
-		return false, ErrAttestationClosed
-	}
-
-	data, err := bc.contractABI.Pack("IsProver", attIDBytes, bc.ethAddress)
-	if err != nil {
-		return false, err
-	}
-	res, err := bc.rawEthCall(nil, data)
-	if err != nil {
-		return false, nil
-	}
-
-	values, err := bc.contractABI.Unpack("IsProver", res)
-	if err != nil {
-		return false, nil
-	}
-	if len(values) != 1 {
-		return false, nil
-	}
-	v, ok := values[0].(bool)
-	if !ok {
-		return false, nil
-	}
-	return v, nil
+	return name, isReg, nil
 }
 
 func (bc *BlockchainClient) IsVerifier(attID string) (bool, error) {
@@ -657,7 +657,7 @@ func (bc *BlockchainClient) IsVerifier(attID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	res, err := bc.rawEthCall(nil, data)
+	res, err := bc.rawEthCall(data)
 	if err != nil {
 		return false, nil
 	}
@@ -682,6 +682,29 @@ func (bc *BlockchainClient) HasJury() bool {
 	return ok
 }
 
+// HasFreshness tells whether the deployed contract takes the block the
+// evidence is bound to (V3).
+func (bc *BlockchainClient) HasFreshness() bool {
+	return len(bc.contractABI.Methods["Prove"].Inputs) == 4
+}
+
+// ParentBlock returns the number and hash of the block before the latest one,
+// as the node reports them (the hash the contract's blockhash returns).
+// Evidence is bound to it rather than to the latest block: the node simulates
+// Prove (gas estimate) in the latest block, where that block's hash is not
+// readable yet.
+func (bc *BlockchainClient) ParentBlock() (uint64, [32]byte, error) {
+	var head struct {
+		Number     hexutil.Uint64 `json:"number"`
+		ParentHash common.Hash    `json:"parentHash"`
+	}
+	err := bc.client.Client().CallContext(context.Background(), &head, "eth_getBlockByNumber", "latest", false)
+	if err == nil && head.Number == 0 {
+		err = errors.New("the chain has no block before the genesis")
+	}
+	return uint64(head.Number) - 1, head.ParentHash, err
+}
+
 func (bc *BlockchainClient) Address() common.Address {
 	return bc.ethAddress
 }
@@ -702,41 +725,38 @@ func (bc *BlockchainClient) TxBlockNumber(txHashStr string) (uint64, error) {
 // JuryTimeoutBlocks returns the number of blocks after its evidence block
 // from which a V3 jury cycle can be expired.
 func (bc *BlockchainClient) JuryTimeoutBlocks() (uint64, error) {
-	data, err := bc.contractABI.Pack("juryTimeoutBlocks")
+	return bc.fixedUint("juryTimeoutBlocks", &bc.juryTimeout)
+}
+
+// FreshnessBlocks returns the age, in blocks, past which V3 rejects evidence.
+func (bc *BlockchainClient) FreshnessBlocks() (uint64, error) {
+	return bc.fixedUint("freshnessBlocks", &bc.freshness)
+}
+
+// fixedUint reads a uint setting fixed at deployment once, then serves it
+// from cache.
+func (bc *BlockchainClient) fixedUint(getter string, cache *atomic.Uint64) (uint64, error) {
+	if v := cache.Load(); v != 0 {
+		return v, nil
+	}
+	data, err := bc.contractABI.Pack(getter)
 	if err != nil {
 		return 0, err
 	}
-	res, err := bc.rawEthCall(nil, data)
+	res, err := bc.rawEthCall(data)
 	if err != nil {
 		return 0, err
 	}
-	values, err := bc.contractABI.Unpack("juryTimeoutBlocks", res)
+	values, err := bc.contractABI.Unpack(getter, res)
 	if err != nil {
 		return 0, err
 	}
 	v, ok := values[0].(*big.Int)
 	if !ok {
-		return 0, fmt.Errorf("juryTimeoutBlocks: unexpected type %T", values[0])
+		return 0, fmt.Errorf("%s: unexpected type %T", getter, values[0])
 	}
+	cache.Store(v.Uint64())
 	return v.Uint64(), nil
-}
-
-// PreviewJury returns the jury of a V3 cycle. The contract reverts until a
-// block has been sealed after the evidence block.
-func (bc *BlockchainClient) PreviewJury(attID string) ([]common.Address, error) {
-	attIDBytes, err := TextToBytes32(attID)
-	if err != nil {
-		return nil, err
-	}
-	data, err := bc.contractABI.Pack("PreviewJury", attIDBytes)
-	if err != nil {
-		return nil, err
-	}
-	res, err := bc.rawEthCall(nil, data)
-	if err != nil {
-		return nil, err
-	}
-	return unpackJury(bc.contractABI, res)
 }
 
 // JuryVotes returns the frozen jury of a V3 cycle and what each juror
@@ -751,7 +771,7 @@ func (bc *BlockchainClient) JuryVotes(attID string) ([]common.Address, string, e
 	if err != nil {
 		return nil, "", err
 	}
-	res, err := bc.rawEthCall(nil, data)
+	res, err := bc.rawEthCall(data)
 	if err != nil {
 		return nil, "", err
 	}
@@ -766,7 +786,7 @@ func (bc *BlockchainClient) JuryVotes(attID string) ([]common.Address, string, e
 	}
 	parts := make([]string, len(jurors))
 	for i, j := range jurors {
-		name, _, _, err := bc.GetAgentInfo(j)
+		name, err := bc.agentName(j)
 		if err != nil {
 			return nil, "", err
 		}
@@ -775,19 +795,17 @@ func (bc *BlockchainClient) JuryVotes(attID string) ([]common.Address, string, e
 	return jurors, strings.Join(parts, ", "), nil
 }
 
-func unpackJury(contractABI abi.ABI, res []byte) ([]common.Address, error) {
-	values, err := contractABI.Unpack("PreviewJury", res)
+// agentName returns the registered name of an agent, read once.
+func (bc *BlockchainClient) agentName(addr common.Address) (string, error) {
+	if name, ok := bc.agentNames.Load(addr); ok {
+		return name.(string), nil
+	}
+	name, _, err := bc.GetAgentInfo(addr)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	if len(values) != 1 {
-		return nil, fmt.Errorf("PreviewJury: expected 1 return, got %d", len(values))
-	}
-	jury, ok := values[0].([]common.Address)
-	if !ok {
-		return nil, fmt.Errorf("PreviewJury: unexpected type %T", values[0])
-	}
-	return jury, nil
+	bc.agentNames.Store(addr, name)
+	return name, nil
 }
 
 func (bc *BlockchainClient) GetAttestationState(attID string) (AttestationState, error) {
@@ -799,7 +817,7 @@ func (bc *BlockchainClient) GetAttestationState(attID string) (AttestationState,
 	if err != nil {
 		return 0, err
 	}
-	res, err := bc.rawEthCall(nil, data)
+	res, err := bc.rawEthCall(data)
 	if err != nil {
 		return 0, err
 	}
@@ -823,36 +841,35 @@ func (bc *BlockchainClient) GetAttestationState(attID string) (AttestationState,
 	return AttestationState(u8), nil
 }
 
-func (bc *BlockchainClient) GetAttestationInfo(attID string) (common.Address, common.Address, uint8, *big.Int, error) {
+func (bc *BlockchainClient) GetAttestationInfo(attID string) (common.Address, common.Address, uint8, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
-		return common.Address{}, common.Address{}, 0, nil, err
+		return common.Address{}, common.Address{}, 0, err
 	}
 	data, err := bc.contractABI.Pack("GetAttestationInfo", attIDBytes)
 	if err != nil {
-		return common.Address{}, common.Address{}, 0, nil, err
+		return common.Address{}, common.Address{}, 0, err
 	}
-	res, err := bc.rawEthCall(nil, data)
+	res, err := bc.rawEthCall(data)
 	if err != nil {
-		return common.Address{}, common.Address{}, 0, nil, err
+		return common.Address{}, common.Address{}, 0, err
 	}
 	values, err := bc.contractABI.Unpack("GetAttestationInfo", res)
 	if err != nil {
-		return common.Address{}, common.Address{}, 0, nil, err
+		return common.Address{}, common.Address{}, 0, err
 	}
-	if len(values) < 4 {
-		return common.Address{}, common.Address{}, 0, nil, fmt.Errorf("GetAttestationInfo: expected 4 returns, got %d", len(values))
+	if len(values) != 3 {
+		return common.Address{}, common.Address{}, 0, fmt.Errorf("GetAttestationInfo: expected 3 returns, got %d", len(values))
 	}
 
 	prover, ok := values[0].(common.Address)
 	if !ok {
-		return common.Address{}, common.Address{}, 0, nil, fmt.Errorf("GetAttestationInfo: prover type %T", values[0])
+		return common.Address{}, common.Address{}, 0, fmt.Errorf("GetAttestationInfo: prover type %T", values[0])
 	}
 	verifier, ok := values[1].(common.Address)
 	if !ok {
-		return common.Address{}, common.Address{}, 0, nil, fmt.Errorf("GetAttestationInfo: verifier type %T", values[1])
+		return common.Address{}, common.Address{}, 0, fmt.Errorf("GetAttestationInfo: verifier type %T", values[1])
 	}
-
 	var result uint8
 	switch v := values[2].(type) {
 	case uint8:
@@ -860,171 +877,70 @@ func (bc *BlockchainClient) GetAttestationInfo(attID string) (common.Address, co
 	case *big.Int:
 		result = uint8(v.Uint64())
 	default:
-		return common.Address{}, common.Address{}, 0, nil, fmt.Errorf("GetAttestationInfo: result type %T", values[2])
+		return common.Address{}, common.Address{}, 0, fmt.Errorf("GetAttestationInfo: result type %T", values[2])
 	}
-
-	ts, ok := values[3].(*big.Int)
-	if !ok {
-		return common.Address{}, common.Address{}, 0, nil, fmt.Errorf("GetAttestationInfo: timestamp type %T", values[3])
-	}
-
-	return prover, verifier, result, ts, nil
+	return prover, verifier, result, nil
 }
 
-func (bc *BlockchainClient) GetProverAddress(attID string) (common.Address, error) {
+func (bc *BlockchainClient) GetAttestationSignatures(attID string) (string, string, uint32, uint64, error) {
 	attIDBytes, err := TextToBytes32(attID)
 	if err != nil {
-		return common.Address{}, err
-	}
-	data, err := bc.contractABI.Pack("GetProverAddress", attIDBytes, bc.ethAddress)
-	if err != nil {
-		return common.Address{}, err
-	}
-	res, err := bc.rawEthCall(nil, data)
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	values, err := bc.contractABI.Unpack("GetProverAddress", res)
-	if err != nil {
-		return common.Address{}, err
-	}
-	if len(values) != 1 {
-		return common.Address{}, fmt.Errorf("GetProverAddress: expected 1 return, got %d", len(values))
-	}
-	addr, ok := values[0].(common.Address)
-	if !ok {
-		return common.Address{}, fmt.Errorf("GetProverAddress: unexpected type %T", values[0])
-	}
-	return addr, nil
-}
-
-// GetAttestationSignatures returns (fresh, ref, iterCount). iterCount is
-// the K value the prover supplied to SendEvidence; the verifier uses it to
-// re-derive the chained reference R_K = chain(ref, K).
-func (bc *BlockchainClient) GetAttestationSignatures(attID string) (string, string, uint32, error) {
-	attIDBytes, err := TextToBytes32(attID)
-	if err != nil {
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 	data, err := bc.contractABI.Pack("GetAttestationSignatures", attIDBytes, bc.ethAddress)
 	if err != nil {
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
-	res, err := bc.rawEthCall(nil, data)
+	res, err := bc.rawEthCall(data)
 	if err != nil {
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 
 	values, err := bc.contractABI.Unpack("GetAttestationSignatures", res)
 	if err != nil {
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 	if len(values) < 3 {
-		return "", "", 0, fmt.Errorf("GetAttestationSignatures: expected 3 returns, got %d", len(values))
+		return "", "", 0, 0, fmt.Errorf("GetAttestationSignatures: expected 3 or 4 returns, got %d", len(values))
 	}
 
 	fresh, ok := values[0].([32]byte)
 	if !ok {
-		return "", "", 0, fmt.Errorf("GetAttestationSignatures: fresh type %T", values[0])
+		return "", "", 0, 0, fmt.Errorf("GetAttestationSignatures: fresh type %T", values[0])
 	}
 	ref, ok := values[1].([32]byte)
 	if !ok {
-		return "", "", 0, fmt.Errorf("GetAttestationSignatures: ref type %T", values[1])
+		return "", "", 0, 0, fmt.Errorf("GetAttestationSignatures: ref type %T", values[1])
 	}
 	iterCount, ok := values[2].(uint32)
 	if !ok {
-		return "", "", 0, fmt.Errorf("GetAttestationSignatures: iterCount type %T", values[2])
+		return "", "", 0, 0, fmt.Errorf("GetAttestationSignatures: iterCount type %T", values[2])
+	}
+	var boundBlock uint64
+	if len(values) > 3 {
+		if boundBlock, ok = values[3].(uint64); !ok {
+			return "", "", 0, 0, fmt.Errorf("GetAttestationSignatures: boundBlock type %T", values[3])
+		}
 	}
 
-	return "0x" + hex.EncodeToString(fresh[:]), "0x" + hex.EncodeToString(ref[:]), iterCount, nil
+	return "0x" + hex.EncodeToString(fresh[:]), "0x" + hex.EncodeToString(ref[:]), iterCount, boundBlock, nil
 }
 
-func (bc *BlockchainClient) GetAttestationChain() ([][32]byte, error) {
-	data, err := bc.contractABI.Pack("GetAttestationChain")
-	if err != nil {
-		return nil, err
+// BlockHash returns the hash of block n as the node reports it.
+func (bc *BlockchainClient) BlockHash(n uint64) ([32]byte, error) {
+	var block struct {
+		Hash common.Hash `json:"hash"`
 	}
-	res, err := bc.rawEthCall(nil, data)
-	if err != nil {
-		return nil, err
+	err := bc.client.Client().CallContext(context.Background(), &block, "eth_getBlockByNumber", hexutil.EncodeUint64(n), false)
+	if err == nil && block.Hash == (common.Hash{}) {
+		err = fmt.Errorf("block %d not found", n)
 	}
-
-	values, err := bc.contractABI.Unpack("GetAttestationChain", res)
-	if err != nil {
-		return nil, err
-	}
-	if len(values) != 1 {
-		return nil, fmt.Errorf("GetAttestationChain: expected 1 return, got %d", len(values))
-	}
-
-	// Most clients decode bytes32[] into [][32]byte directly.
-	switch v := values[0].(type) {
-	case [][32]byte:
-		return v, nil
-	case []common.Hash:
-		out := make([][32]byte, 0, len(v))
-		for _, h := range v {
-			var b [32]byte
-			copy(b[:], h.Bytes())
-			out = append(out, b)
-		}
-		return out, nil
-	case []interface{}:
-		out := make([][32]byte, 0, len(v))
-		for _, it := range v {
-			switch t := it.(type) {
-			case [32]byte:
-				out = append(out, t)
-			case common.Hash:
-				var b [32]byte
-				copy(b[:], t.Bytes())
-				out = append(out, b)
-			default:
-				return nil, fmt.Errorf("GetAttestationChain: unexpected element type %T", it)
-			}
-		}
-		return out, nil
-	default:
-		return nil, fmt.Errorf("GetAttestationChain: unexpected type %T", values[0])
-	}
+	return block.Hash, err
 }
 
 // -------------------------------------------------------------------------
 // Misc
 // -------------------------------------------------------------------------
-
-func (bc *BlockchainClient) PeriodicAttestationChainDisplay(chainDisplayN int, interval int) {
-	ticker := time.NewTicker(time.Duration(interval) * time.Second)
-	defer ticker.Stop()
-	for {
-		bc.safeDisplay(chainDisplayN)
-		<-ticker.C
-	}
-}
-
-func (bc *BlockchainClient) safeDisplay(n int) {
-	chain, err := bc.GetAttestationChain()
-	if err != nil {
-		logger.Error("Failed to display chain: %v", err)
-		return
-	}
-	tableStr := BuildAttestationChainTable(
-		chain,
-		bc.GetAttestationInfo,
-		bc.GetAgentInfo,
-		func(attID string) (string, error) {
-			if !bc.HasJury() {
-				return "", nil
-			}
-			_, votes, err := bc.JuryVotes(attID)
-			return votes, err
-		},
-		"0xed9d02e382b34818e88b88a309c7fe71e65f419d",
-		n,
-	)
-	logger.Info("\n%s", tableStr)
-}
 
 type TxReceiptInfo struct {
 	TxHash            string   `json:"tx_hash"`

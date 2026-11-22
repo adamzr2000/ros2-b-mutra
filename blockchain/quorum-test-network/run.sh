@@ -35,8 +35,7 @@ if [ -f "docker-compose-deps.yml" ]; then
 fi
 
 echo "Starting network..."
-docker compose build --pull
-docker compose up --detach
+docker compose up --detach || { echo "❌ Blockchain network failed to start"; exit 1; }
 
 
 #list services and endpoints

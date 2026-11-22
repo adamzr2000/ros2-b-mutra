@@ -1,8 +1,9 @@
 # Blockchain-based Mutual Remote Attestation for ROS2 Executables
 
-**Author(s):** Adam Zahir Rodriguez and Mark Angoustures
+**Author(s):** Adam Zahir and Mark Angoustures
 
 ## Installation
+
 Before getting started, make sure you have the [Docker](https://docs.docker.com/engine/install/ubuntu/) and [Docker Compose](https://docs.docker.com/compose/install/linux/) installed on your system.
 
 1. Clone the repository:
@@ -20,30 +21,38 @@ The following modules will be built and tagged locally:
 
 | Module                 | Description                                                                                                     | Status       |
 |------------------------|-----------------------------------------------------------------------------------------------------------------|--------------|
-| **hardhat**            | Development framework for Ethereum-based blockchain applications ([details](./dockerfiles/hardhat))         | ✅ Available |
-| **gazebo-vnc**         | Robot simulation tool ([details](./dockerfiles/gazebo-vnc))       | ✅ Available |
-| **turtlebot3**         | Robot simulation model in Gazebo ([details](./dockerfiles/turtlebot3)) | ✅ Available |
-| **attestation-sidecar**   | ... ([details](./dockerfiles/attestation-sidecar)) | ✅ Available |
-| **secaas**   | ... ([details](./dockerfiles/secaas)) | ✅ Available |
+| **hardhat**            | Development framework for compiling, testing, and deploying smart contracts on the Ethereum-based blockchain. ([Details](./dockerfiles/hardhat))         | ✅ Available |
+| **gazebo-server**      | Headless Gazebo simulation server, shared by all robots. Handles physics, sensors, and simulation worlds. ([Details](./dockerfiles/gazebo-server)) | ✅ Available |
+| **gazebo-gui**         | Optional graphical interface for viewing and interacting with the Gazebo simulation remotely through a web-based VNC desktop. Enabled with `start.sh --gui`. ([Details](./dockerfiles/gazebo-gui)) | ✅ Available |
+| **robot-simulation**   | Runs the ROS 2 software stack for a single TurtleBot3 robot in simulation, including robot state publishing, navigation (Nav2), and mission and formation management. ([Details](./dockerfiles/robot-simulation)) | ✅ Available |
+| **attestation-sidecar**   | Runs alongside each robot to prove its integrity and verify the integrity of other robots. ([Details](./dockerfiles/attestation-sidecar)) | ✅ Available |
+| **secaas**   | Prepares each robot's environment for remote attestation. ([Details](./dockerfiles/secaas)) | ✅ Available |
 
 ---
 
-## Quick Setup
+## Automated Setup
 
-1. Start the full experiment:
+1. Start the experimental scenario:
 
 ```bash
-./start.sh --auto --contract rr --ssp 20000 --cpu-limit 0.5 --iterq 1
+./start.sh --auto --ssp 20000 --cpu-limit 0.5 --iterq 1
 ```
 
-This will start all required containers, deploy the [AttestationManagerRR.sol](./smart-contracts/contracts/AttestationManagerRR.sol) or [AttestationManagerRR.sol](./smart-contracts/contracts/AttestationManagerLV.sol.sol)
-and start processing attestations (`AUTO_START=TRUE`)
-- **4-node Private Ethereum-based blockchain** with [Hyperledger Besu](https://besu.hyperledger.org/private-networks) platform running [QBFT](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft) consensus algorithm
-- **Gazebo** robot simulator
-- **4 Robot(s)**, each including `turtlebot3-gazebo` and `attestation-sidecar` container images
-- **Security-as-a-Service (SECaaS)**
+The script automatically deploys the following components:
 
-2. Stop the experiment:
+- **Private Ethereum blockchain:** A four-node private network running [Hyperledger Besu](https://besu.hyperledger.org/private-networks) with the [QBFT consensus algorithm](https://besu.hyperledger.org/private-networks/how-to/configure/consensus/qbft).
+- **Gazebo:** Robot simulation environment.
+- **Four TurtleBot3 robots:** Each robot runs a `robot-simulation` container and an `attestation-sidecar` container.
+- **Security-as-a-Service (SECaaS):** Provides the infrastructure required for robot attestation.
+
+The script also deploys the [`AttestationManagerV3.sol`](./smart-contracts/contracts/AttestationManagerV3.sol) smart contract to the blockchain.
+
+Once deployed, the robots' attestation sidecars automatically start the attestation process (`AUTO_START=TRUE`). Each robot:
+
+- **Attests itself** to prove its integrity.
+- **Verifies other robots** by acting as an attestation verifier.
+
+2. Stop the experimental scenario:
 
 ```bash
 ./stop.sh
@@ -51,9 +60,11 @@ and start processing attestations (`AUTO_START=TRUE`)
 
 ---
 
-## Blockchain Network Setup
+## Manual Setup
 
-1. Initialize the network:
+### Blockchain Network
+
+1. Initialize the blockchain:
 ```bash
 cd blockchain/quorum-test-network
 ./run.sh
@@ -63,19 +74,13 @@ Services exposed:
 - [Block Explorer](http://localhost:25000/explorer/nodes)
 - [Grafana](http://localhost:3000)
 
-2. Deploy a smart contract (`rr` or `lv`):
+2. Deploy the smart contract (`AttestationManagerLV`, `AttestationManagerV2` or `AttestationManagerV3`):
 
 ```bash
-# Round-robin (AttestationManagerRR)
-./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerRR
-
-# Last-verifier (AttestationManagerLV)
 ./deploy_sc.sh --rpc_url http://localhost:21001 --chain_id 1337 --contract AttestationManagerLV
 ```
 
-> **Note:** [start.sh](./start.sh) handles blockchain init and contract deployment automatically.
-
-3. Remove the network:
+3. Remove the blockchain:
 
 ```bash
 cd blockchain/quorum-test-network
@@ -84,205 +89,9 @@ cd blockchain/quorum-test-network
 
 ---
 
-## Data collection (attestation times + docker stats)
+## Experiments
 
-1. Start the experimental setup:
-
-```bash
-# Local mode (default)
-./start.sh --robots <N> --export --contract rr --no-cpu-limit
-
-# Remote mode — Blockchain+SECaaS+Monitoring on local host; Robots+Sidecars+Monitoring on remote1 host
-./start.sh --robots <N> --export --remote --contract rr --no-cpu-limit
-```
-
-Use `--startup` for one-shot attestation mode, `--robots N` to scale (1–128).
-
-2. Run attestation workflow in loop:
-
-```bash
-# Local — continuous mode (--variant must match contract deployed by start.sh: rr or lv)
-python3 run_experiments_and_collect_results.py --robots <N> --runs 5 --duration 120 --variant lv
-
-# Local — startup (one-shot) mode (no variant needed)
-python3 run_experiments_and_collect_results.py --robots <N> --runs 10 --startup
-
-# Remote — add --remote (must match --remote used in start.sh)
-python3 run_experiments_and_collect_results.py --robots <N> --runs 5 --duration 120 --variant lv --remote
-python3 run_experiments_and_collect_results.py --robots <N> --runs 10 --startup --remote
-```
-
-`--robots N` must match the value used in `start.sh`. `--variant` sets the results subdirectory (`rr` or `lv`) and must match the contract deployed.
-
-3. Stop the experimental setup:
-
-```bash
-./stop.sh
-```
-
----
-
-## Data collection (blockchain stats)
-
-Measures on-chain activity (transactions per block, gas, block time) while robots perform
-continuous attestation. Three sweeps are collected:
-
-- **Idle** — no attestation, baseline chain activity
-- **N sweep** — fixed SSP and ITERQ, increasing number of robots
-- **ITERQ sweep** — fixed N (largest), fixed SSP, increasing ITERQ
-
-Results: `experiments/data/blockchain-stats/results/`
-Tagged: `N{N}/blockchain-SSP{N}ms-ITERQ{N}-run{N}.csv`. Run index is auto-incremented.
-
-1. Start the experimental setup:
-
-```bash
-# Remote
-./start.sh --robots <N> --remote --contract rr --ssp 20000 --iterq 1
-```
-
-SSP and ITERQ set here are overridden at runtime by the collection script, so these
-values only affect what the containers start with before the first `/config` push.
-
-2. Collect idle baseline
-
-No robots active — just the chain running:
-
-```bash
-python3 collect_blockchain_stats_idle.py --duration 300
-```
-
-Results go to `experiments/data/blockchain-stats/results/idle/`.
-
-3. N sweep (fixed SSP, fixed ITERQ)
-
-```bash
-python3 run_experiments_and_collect_blockchain_stats.py --remote --robots <N> --ssp 20000 --iterq 1 --duration 300
-```
-
-Restart the the experimental setup for each N
-
-4. ITERQ sweep (largest N, fixed SSP)
-
-Keep the experimental setup running at the largest N from Step 3.
-
-```bash
-for q in 2 4 8; do python3 run_experiments_and_collect_blockchain_stats.py --remote --robots <N> --ssp 20000 --iterq $q --duration 300; sleep 10; done
-```
-
-5. Stop
-
-```bash
-./stop.sh
-```
-
----
-
-## Data collection (robot app performance)
-
-Two topic variants are measured, each attesting the process that publishes it:
-
-| Topic | Attested process | `--topic` | `start.sh` flag |
-|-------|-----------------|-----------|-----------------|
-| `/robotX/tf` | `robot_state_publisher` | `tf` | *(default)* |
-| `/robotX/scan` | `gzserver` | `scan` | `--attest-gzserver` |
-
-All 4 robot sidecars attest the same target process; topic data is collected from robot1 only.
-Results: `experiments/data/robot-stats/results/<topic>/<condition>/<mode>/`
-Tagged: `SSP{N}ms-ITERQ{N}-cpu{N|NC}-run{N}.csv` (`NC` = no CPU cap).
-
-Two sweeps are collected. SSP is pushed to sidecars at runtime via `/config`; the CPU
-cap is a cgroup set at container start and requires a stack restart to change.
-
-- **SSP sweep** — no CPU cap (`--no-cpu-limit`), SSP ∈ {5000, 1000, 500, 100, 10} ms
-- **CPU sweep** — fixed SSP = 10 ms (most aggressive), CPU ∈ {0.5, 0.25, 0.1} cores
-
-1. Start the experimental setup:
-
-```bash
-# /tf variant (robot_state_publisher) — no CPU cap
-./start.sh --robots 4 --contract rr --no-cpu-limit --no-wait-result
-
-# /scan variant (gzserver)
-./start.sh --robots 4 --contract rr --no-cpu-limit --no-wait-result --attest-gzserver
-
-# CPU sweep: restart once per CPU limit value (add --attest-gzserver for scan)
-./start.sh --robots 4 --contract rr --cpu-limit <0.5|0.25|0.1> --no-wait-result
-```
-
-2. Start the topic collector
-
-```bash
-# /tf
-COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/tf MSG_TYPE=tf2_msgs.msg/TFMessage \
-  docker compose -f docker-compose.robots.yml \
-                 -f docker-compose.benchmark-collector.yml \
-                 up -d --force-recreate topic-collector
-
-# /scan
-COMPOSE_IGNORE_ORPHANS=1 TOPIC_NAME=/scan MSG_TYPE=sensor_msgs.msg/LaserScan \
-  docker compose -f docker-compose.robots.yml \
-                 -f docker-compose.benchmark-collector.yml \
-                 up -d --force-recreate topic-collector
-```
-
-3. Run conditions
-
-```bash
-# Baseline (run once per topic variant, no sidecars)
-python3 run_experiments_and_collect_robot_stats.py --condition no_sidecar --topic tf --duration 300
-python3 run_experiments_and_collect_robot_stats.py --condition no_sidecar --topic scan --duration 300
-
-# SSP/CPU sweep (replace --topic tf with --topic scan for the gzserver variant)
-for ssp in 5000 1000 100 10; do python3 run_experiments_and_collect_robot_stats.py --condition with_sidecar --topic tf --duration 300 --ssp "$ssp" --cpu-limit <0.5|0.25|0.1>; sleep 10; done
-```
-
-4. Stop
-
-```bash
-docker compose -f docker-compose.benchmark-collector.yml down && ./stop.sh
-```
-
----
-
-## Data collection (tamper detection latency)
-
-Measures the wall-clock time between in-memory binary tampering and the first
-❌ FAILURE attestation verdict logged by the prover sidecar. SSP is the main
-independent variable.
-
-Results: `experiments/data/tamper-detection/results/<target>/`
-Tagged: `SSP{N}ms-batch{B}.csv`. Batch index is auto-incremented.
-
-1. Start the experimental setup:
-
-```bash
-./start.sh --robots 4 --contract lv --ssp 20000 --iterq 1 --auto
-```
-
-No `--export`, no `--no-wait-result` — normal continuous attestation mode.
-`WAIT_FOR_VERIFICATION_RESULT=TRUE` (default) is required so the prover logs the verdict.
-
-2. Run tamper detection collection:
-
-```bash
-# Single SSP, robot binary target (default)
-python3 run_experiments_and_collect_tamper_detection.py --ssp 20000 --trials 15
-
-# Full SSP sweep, robot binary
-python3 run_experiments_and_collect_tamper_detection.py --ssp 1000,5000,10000,20000 --trials 15
-
-# Both targets (robot binary + sidecar self-integrity)
-python3 run_experiments_and_collect_tamper_detection.py --ssp 1000,5000,10000,20000 --trials 15 --target both
-```
-
-The script handles injection, detection waiting, container recovery, and CSV export automatically.
-
-3. Stop the experimental setup:
-
-```bash
-./stop.sh
-```
+How to run each experiment for the final results: [README_EXPERIMENTS.md](./README_EXPERIMENTS.md).
 
 ---
 

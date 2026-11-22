@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run all B-MuTRA test suites: rolling-hash vectors (Go + Python) and
-# the AttestationManagerLV Hardhat tests. Each suite is run in
+# the Hardhat contract tests. Each suite is run in
 # its own throwaway container so no host-side toolchain is required.
 set -euo pipefail
 

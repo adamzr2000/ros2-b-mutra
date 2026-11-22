@@ -39,6 +39,7 @@ while sleep 30; do ./tools/observe.sh; done >> snapshots.jsonl 2>/dev/null
   "chain": {
     "block": 7669,
     "events_started": 100, "events_completed": 96,
+    "completed_success": 95, "completed_failure": 1,
     "in_flight": 4,
     "oldest_pending_block": 7012,
     "oldest_pending_age_s": 42
@@ -78,10 +79,9 @@ while sleep 30; do ./tools/observe.sh; done >> snapshots.jsonl 2>/dev/null
   chunks. Quick on a small chain (under 2s for ~10k blocks); will
   grow O(blocks) as the chain ages. If you ever care about deltas
   rather than totals, add a `--from-block` flag.
-- `eth_call` to `GetVRP()` and `GetCurrentVerifier()` uses 4-byte
-  function selectors hardcoded at the top of the script. If the
-  contract changes those signatures, regenerate them (the comment
-  block at the top of the script shows how).
+- The event topics and the `GetCurrentVerifier()` selector are hardcoded
+  at the top of the script. If the contract changes those signatures,
+  regenerate them (the comment block at the top of the script shows how).
 - `logs.success` / `logs.failure` count substring matches of "SUCCESS"
   and "FAILURE" in container logs — they may double-count if either
   word appears for non-attestation reasons. Treat them as

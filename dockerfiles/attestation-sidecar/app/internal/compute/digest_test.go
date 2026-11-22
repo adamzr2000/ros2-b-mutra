@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -128,4 +129,23 @@ func fixturesPath(t *testing.T) string {
 	}
 	// .../app/internal/compute/digest_test.go → repo root
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "..", "tests", "rolling-hash-vectors.json")
+}
+
+func TestBindToBlock_MatchesContract(t *testing.T) {
+	// The verifier binds the reference as sha256(ref || blockhash), like the prover.
+	var m, h [32]byte
+	m[0], h[31] = 0xaa, 0xbb
+	want := sha256.Sum256(append(m[:], h[:]...))
+	if got := BindToBlock(m, h); got != want {
+		t.Fatalf("BindToBlock = %x, want %x", got, want)
+	}
+	// Folding the bound reference K times equals folding K bound measurements.
+	b := BindToBlock(m, h)
+	acc := b
+	for i := 2; i <= 3; i++ {
+		acc = RollingHashStep(acc, BindToBlock(m, h))
+	}
+	if RollingHash(b, 3) != acc {
+		t.Fatal("bound reference does not fold like bound measurements")
+	}
 }

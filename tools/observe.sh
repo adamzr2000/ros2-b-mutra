@@ -15,19 +15,23 @@
 set -uo pipefail
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-ADDR_FILE="$REPO/smart-contracts/deployments/besu-AttestationManagerLV.json"
+# The deployed contract and the SECaaS account, as written by start.sh.
+SECAAS_CFG="$REPO/config/secaas.json"
 
-# keccak256 of the three events and the 4-byte selectors of two view fns.
+# keccak256 of the event signatures (topic0) and the selector of GetCurrentVerifier().
 # Regenerate with:
 #   docker run --rm --network quorum-dev-quickstart hardhat:latest bash -c "node -e \"
 #     const e = require('ethers');
 #     console.log(e.id('AttestationStarted(bytes32,uint32)'));
-#     console.log(e.id('AttestationCompleted(bytes32)'));
+#     console.log(e.id('ReadyForEvaluation(bytes32)'));
+#     console.log(e.id('AttestationCompleted(bytes32,address,bool)'));
 #   \""
-# NOTE: AttestationCompleted(bytes32) — no bool result field in the event.
-# Success vs failure cannot be split from chain events; use logs.success/failure instead.
+# A round emits AttestationStarted (SECaaS verifies) and/or ReadyForEvaluation
+# (peer or jury verifies), depending on the contract.
+# AttestationCompleted data = id | prover | success (32 bytes each).
 TOPIC_STARTED="0x6aa34f034d08ce6962560c4805f8d0ea14020343310408c935a7354c772f2d38"
-TOPIC_COMPLETED="0x31a3cf273cd0e82f8ddb4be15d4b954d7fcd18a4c5d4591cce32edd1a4bc417d"
+TOPIC_READY="0x6781e8d3c07e87e938ec28a5435aa7862779fb9c7d01b7315eca91430b2a4643"
+TOPIC_COMPLETED="0x050c30e7d601c743faee5bf1f06bd60e99215b8796bc03ea2f2ef4da05932f0d"
 SEL_GET_VERIFIER="0x7cb98689"
 
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
@@ -73,8 +77,10 @@ itq=$(docker exec robot1-sidecar printenv ITERQ_THRESHOLD 2>/dev/null || echo ""
 ssp_ms=$(docker exec robot1-sidecar printenv ATTESTATION_INTERVAL_MS 2>/dev/null || echo "")
 cpu_limit=$(docker inspect robot1-sidecar --format '{{.HostConfig.NanoCpus}}' 2>/dev/null | awk '{printf "%.2f", $1/1e9}')
 
-ADDR=$(jq -r .address "$ADDR_FILE" 2>/dev/null || echo "")
-cv_raw=$(rpc eth_call "[{\"to\":\"$ADDR\",\"data\":\"$SEL_GET_VERIFIER\"},\"latest\"]" | jq -r 'try .result // ""')
+ADDR=$(jq -r .contract_address "$SECAAS_CFG" 2>/dev/null || echo "")
+SECAAS_ADDR=$(jq -r .eth_address "$SECAAS_CFG" 2>/dev/null || echo "")
+# GetCurrentVerifier answers the SECaaS only (LV, V2); V3 has none.
+cv_raw=$(rpc eth_call "[{\"from\":\"$SECAAS_ADDR\",\"to\":\"$ADDR\",\"data\":\"$SEL_GET_VERIFIER\"},\"latest\"]" | jq -r 'try .result // ""')
 current_verifier=""
 if [[ -n "$cv_raw" && "$cv_raw" != "0x" ]]; then
   # address is last 40 hex chars
@@ -104,20 +110,23 @@ get_logs_paginated() {
 }
 get_logs_paginated
 
-# One jq pass over the events file, emits all counters + the list of
-# blockNumbers of pending Started events (their ID is not in any Completed).
+# One jq pass over the events file, emits all counters + the blockNumbers of
+# the opening events of pending rounds (their id is not in any Completed).
 # Hashtable lookup (object key) is O(1), the whole pipeline is one read.
 metrics=$(jq -s "
   ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | {(.data[0:66]): true}] | add // {}) as \$done |
   {
-    n_started:      ([.[] | select(.topics[0]==\"$TOPIC_STARTED\")] | length),
+    n_started:      ([.[] | select(.topics[0]==\"$TOPIC_STARTED\" or .topics[0]==\"$TOPIC_READY\") | .data[0:66]] | unique | length),
     n_completed:    ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\")] | length),
-    pending_blocks: [.[] | select(.topics[0]==\"$TOPIC_STARTED\") | select(\$done[.data[0:66]] | not) | .blockNumber]
+    n_success:      ([.[] | select(.topics[0]==\"$TOPIC_COMPLETED\") | select(.data[-1:]==\"1\")] | length),
+    pending_blocks: [.[] | select(.topics[0]==\"$TOPIC_STARTED\" or .topics[0]==\"$TOPIC_READY\") | select(\$done[.data[0:66]] | not) | .blockNumber]
   }
 " "$LOG_TMP")
 
 n_started=$(echo   "$metrics" | jq -r '.n_started')
 n_completed=$(echo "$metrics" | jq -r '.n_completed')
+n_success=$(echo "$metrics" | jq -r '.n_success')
+n_failure=$((n_completed - n_success))
 in_flight=$((n_started - n_completed))
 
 # Age (in seconds) of the oldest unclosed attestation — the wall-clock
@@ -171,6 +180,7 @@ snapshot=$(jq -n \
   --arg cv "${current_verifier:-null}" \
   --argjson block "$block" \
   --argjson n_started "$n_started" --argjson n_completed "$n_completed" \
+  --argjson n_success "$n_success" --argjson n_failure "$n_failure" \
   --argjson in_flight "$in_flight" \
   --arg oldest_age_s "${oldest_age_s:-null}" \
   --arg oldest_pending_block "${oldest_pending_block:-null}" \
@@ -188,6 +198,7 @@ snapshot=$(jq -n \
     chain: {
       block: $block,
       events_started: $n_started, events_completed: $n_completed,
+      completed_success: $n_success, completed_failure: $n_failure,
       in_flight: $in_flight,
       oldest_pending_block: ($oldest_pending_block | if . == "null" or . == "" then null else tonumber end),
       oldest_pending_age_s: ($oldest_age_s | if . == "null" or . == "" then null else tonumber end)
@@ -208,8 +219,8 @@ echo "$snapshot" | jq -c .  # stdout: one JSON line
   echo
   printf '  config:     K=%s   SSP=%sms   CPU=%s   verifier=%s\n' \
     "${itq:-?}" "${ssp_ms:-?}" "${cpu_limit:-?}" "${current_verifier:0:14}…"
-  printf '  chain:      block=%d   started=%d   completed=%d   in_flight=%d\n' \
-    "$block" "$n_started" "$n_completed" "$in_flight"
+  printf '  chain:      block=%d   started=%d   completed=%d (success=%d failure=%d)   in_flight=%d\n' \
+    "$block" "$n_started" "$n_completed" "$n_success" "$n_failure" "$in_flight"
   if [[ -n "$oldest_age_s" ]]; then
     h=$(( oldest_age_s / 3600 )); m=$(( (oldest_age_s % 3600) / 60 )); s=$(( oldest_age_s % 60 ))
     printf '  backlog:    oldest pending = block %d, %dh%02dm%02ds old\n' \

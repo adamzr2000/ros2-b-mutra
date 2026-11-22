@@ -1,257 +1,109 @@
-# app/main.py
+"""Resource collector for the experiment runner. Samples CPU, memory and
+network of the given containers from the Docker stats stream (about one
+sample per second each) and keeps the samples in memory.
+
+  POST /start {"containers": [...]}  starts sampling, clearing earlier samples
+  POST /stop                         stops sampling
+  GET  /results                      {"samples": [...]}
+
+A sample: t_ms (Unix ms), container, cpu_percent (100 = one core), mem_mb
+(usage minus inactive page cache, as docker stats shows it), net_rx_kb and
+net_tx_kb (received and sent since sampling started).
+"""
+
 import logging
-from typing import Dict, List, Optional
-from contextlib import asynccontextmanager
-import os
-import re
-import glob
+import threading
+import time
+from typing import List
+
 import docker
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
-from monitoring import DockerContainerMonitor
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+log = logging.getLogger(__name__)
 
-# ---------- Logging ----------
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+app = FastAPI(title="Resource collector")
+client = docker.from_env()
 
-# ---------- Models ----------
-class MessageResponse(BaseModel):
-    success: bool = True
-    message: str
+lock = threading.Lock()
+samples: List[dict] = []
+stop = threading.Event()
+threads: List[threading.Thread] = []
+
+
+def cpu_percent(s):
+    cpu = s["cpu_stats"]["cpu_usage"]["total_usage"] - s["precpu_stats"]["cpu_usage"]["total_usage"]
+    system = s["cpu_stats"].get("system_cpu_usage", 0) - s["precpu_stats"].get("system_cpu_usage", 0)
+    cpus = s["cpu_stats"].get("online_cpus") or 1
+    return cpu / system * cpus * 100 if system > 0 and cpu >= 0 else 0.0
+
+
+def mem_mb(s):
+    m = s.get("memory_stats", {})
+    stats = m.get("stats", {})
+    inactive = stats.get("inactive_file", stats.get("total_inactive_file", 0))
+    return max(0, m.get("usage", 0) - inactive) / 2**20
+
+
+def net_bytes(s):
+    nets = (s.get("networks") or {}).values()
+    return sum(n["rx_bytes"] for n in nets), sum(n["tx_bytes"] for n in nets)
+
+
+def sample(name):
+    try:
+        stream = client.containers.get(name).stats(stream=True, decode=True)
+        next(stream)  # the first one has no previous CPU reading
+        rx0 = tx0 = None
+        for s in stream:
+            if stop.is_set():
+                break
+            rx, tx = net_bytes(s)
+            if rx0 is None:
+                rx0, tx0 = rx, tx
+            row = {"t_ms": int(time.time() * 1000), "container": name,
+                   "cpu_percent": round(cpu_percent(s), 2), "mem_mb": round(mem_mb(s), 2),
+                   "net_rx_kb": round((rx - rx0) / 1024, 1), "net_tx_kb": round((tx - tx0) / 1024, 1)}
+            with lock:
+                samples.append(row)
+    except Exception as e:
+        log.error("sampling %s stopped: %s", name, e)
+
 
 class StartRequest(BaseModel):
-    containers: List[str] = Field(..., description="List of container names/IDs/prefixes")
-    interval: float = 1.0
-    csv_dir: Optional[str] = Field(None, description="If set, writes one CSV per container in this directory")
-    csv_names: Optional[Dict[str, str]] = Field(
-        None,
-        description="Optional map {container_ref: csv filename or absolute path} to override automatic naming"
-    )
-    ssp_s:     Optional[int]   = Field(None, description="SSP value — embeds -SSP{X}s-ITERQ{X}-cpu{X}p{X}- tag in auto-generated filenames")
-    iterq:    Optional[int]   = Field(None, description="ITERQ value for param tag")
-    cpu_limit: Optional[float] = Field(None, description="CPU limit value for param tag (e.g. 0.4 → cpu0p4)")
-    stdout: bool = False
-    write_header: bool = True
-
-class StartResponse(BaseModel):
-    success: bool = True
-    started: List[str]
-    skipped: List[str] = []
-    message: str
-
-class StatusItem(BaseModel):
-    container: str
-    running: bool
-
-class StatusResponse(BaseModel):
-    monitors: List[StatusItem]
-
-class SampleResponse(BaseModel):
-    container: str
-    sample: Optional[dict] = None
-
-class WindowTotalsResponse(BaseModel):
-    container: str
-    totals: Optional[dict] = None
-
-# ---------- App lifespan ----------
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.docker = None
-    app.state.monitors: Dict[str, DockerContainerMonitor] = {}  # multiple monitors
-    try:
-        client = docker.from_env()
-        client.ping()
-        info = client.version()
-        logger.info(f"Connected to Docker daemon - Version: {info.get('Version')}")
-        app.state.docker = client
-        yield
-    finally:
-        # Stop all running monitors gracefully
-        mons: Dict[str, DockerContainerMonitor] = getattr(app.state, "monitors", {})
-        for ref, mon in list(mons.items()):
-            try:
-                if mon.is_running():
-                    mon.stop()
-            except Exception as e:
-                logger.error(f"Error stopping monitor '{ref}' during shutdown: {e}")
-
-app = FastAPI(title="Docker metrics collector API", version="2.0.0", lifespan=lifespan)
-
-# ---------- Helpers ----------
-def _ensure_no_conflict(app: FastAPI, ref: str):
-    mon = app.state.monitors.get(ref)
-    if mon and mon.is_running():
-        raise HTTPException(status_code=409, detail={"success": False, "message": f"Monitoring already running for '{ref}'. Stop it first."})
-
-def _sanitize_ref(ref: str) -> str:
-    """Make a filename-safe container ref."""
-    return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in ref)
-
-def _param_tag(ssp_s, iterq, cpu_limit) -> str:
-    """Build the experiment-param suffix, e.g. '-SSP20s-ITERQ1-cpu0p4'. Empty string if any param is None."""
-    if ssp_s is None or iterq is None or cpu_limit is None:
-        return ""
-    cpu_str = f"{cpu_limit:.1f}".replace(".", "p")
-    return f"-SSP{ssp_s}s-ITERQ{iterq}-cpu{cpu_str}"
-
-def _next_run_csv(csv_dir: str, ref: str, tag: str = "") -> str:
-    safe = _sanitize_ref(ref)
-    base = csv_dir.rstrip("/")
-    os.makedirs(base, exist_ok=True)
-    pattern = os.path.join(base, f"{safe}{tag}-run*.csv")
-    existing = glob.glob(pattern)
-    max_idx = 0
-    rx = re.compile(rf"{re.escape(safe)}{re.escape(tag)}-run(\d+)\.csv$")
-    for path in existing:
-        m = rx.search(os.path.basename(path))
-        if m:
-            try:
-                idx = int(m.group(1))
-                if idx > max_idx:
-                    max_idx = idx
-            except ValueError:
-                pass
-    return os.path.join(base, f"{safe}{tag}-run{max_idx + 1}.csv")
-
-def _make_csv_path(csv_dir: Optional[str], ref: str, csv_names: Optional[Dict[str, str]], tag: str = "") -> Optional[str]:
-    """
-    Choose CSV path for this container ref.
-    Priority:
-      1) csv_names[ref] if provided (absolute path allowed; otherwise filename under csv_dir)
-      2) auto-increment: <sanitized_ref><tag>-runN.csv
-    """
-    if not csv_dir:
-        return None
-
-    base = csv_dir.rstrip("/")
-
-    if csv_names and ref in csv_names and csv_names[ref]:
-        name = csv_names[ref].strip()
-        if os.path.isabs(name):
-            return name
-        if not name.lower().endswith(".csv"):
-            name += ".csv"
-        return os.path.join(base, name)
-
-    return _next_run_csv(base, ref, tag)
+    containers: List[str]
 
 
-# ---------- Endpoints ----------
-@app.post(
-    "/monitor/start",
-    tags=["Monitoring"],
-    summary="Start monitoring for one or more containers",
-    response_model=StartResponse,
-)
-def monitor_start(req: StartRequest):
-    tag = _param_tag(req.ssp_s, req.iterq, req.cpu_limit)
-    started, skipped = [], []
-    for ref in req.containers:
+@app.post("/start")
+def start(req: StartRequest):
+    if any(t.is_alive() for t in threads):
+        raise HTTPException(409, "already sampling: POST /stop first")
+    for name in req.containers:
         try:
-            _ensure_no_conflict(app, ref)
-            csv_path = _make_csv_path(req.csv_dir, ref, req.csv_names, tag)
-            if csv_path:
-                logger.info("CSV path for '%s': %s", ref, csv_path)
+            client.containers.get(name)
+        except docker.errors.NotFound:
+            raise HTTPException(404, f"no container {name}")
+    stop.clear()
+    threads.clear()
+    with lock:
+        samples.clear()
+    for name in req.containers:
+        t = threading.Thread(target=sample, args=(name,), daemon=True)
+        t.start()
+        threads.append(t)
+    return {"sampling": req.containers}
 
-            mon = DockerContainerMonitor(
-                container_ref=ref,
-                interval=req.interval,
-                csv_path=csv_path,
-                write_header=req.write_header,
-                stdout=req.stdout,
-            )
 
-            mon.start()
-            app.state.monitors[ref] = mon
-            started.append(ref)
-        except HTTPException:
-            skipped.append(ref)
-        except Exception as e:
-            logger.error(f"monitor_start failed for '{ref}': {e}")
-            skipped.append(ref)
+@app.post("/stop")
+def stop_sampling():
+    stop.set()
+    for t in threads:
+        t.join(timeout=3)
+    return {"samples": len(samples)}
 
-    if not started and skipped:
-        raise HTTPException(status_code=500, detail={"success": False, "message": "No monitors started.", "skipped": skipped})
 
-    msg = f"Started {len(started)} monitor(s)."
-    if skipped:
-        msg += f" Skipped {len(skipped)}."
-    return StartResponse(started=started, skipped=skipped, message=msg)
-
-@app.post(
-    "/monitor/stop",
-    tags=["Monitoring"],
-    summary="Stop monitoring. If container is omitted, stop all.",
-    response_model=MessageResponse,
-)
-def monitor_stop(container: Optional[str] = Query(default=None, description="Container ref to stop. If omitted, stop all.")):
-    mons: Dict[str, DockerContainerMonitor] = app.state.monitors
-
-    if container:
-        mon = mons.get(container)
-        if not mon or not mon.is_running():
-            raise HTTPException(status_code=400, detail={"success": False, "message": f"No active monitoring for '{container}'."})
-        try:
-            mon.stop()
-            mons.pop(container, None)
-            return {"success": True, "message": f"Monitoring stopped for '{container}'."}
-        except Exception as e:
-            logger.error(f"monitor_stop failed for '{container}': {e}")
-            raise HTTPException(status_code=500, detail={"success": False, "message": str(e)})
-    else:
-        running_mons = [(ref, mon) for ref, mon in list(mons.items()) if mon.is_running()]
-        app.state.monitors.clear()
-        if not running_mons:
-            raise HTTPException(status_code=400, detail={"success": False, "message": "No active monitoring to stop."})
-
-        def _stop_one(ref_mon):
-            ref, mon = ref_mon
-            try:
-                mon.stop()
-                return ref, None
-            except Exception as e:
-                return ref, e
-
-        with ThreadPoolExecutor(max_workers=len(running_mons)) as pool:
-            for ref, err in pool.map(_stop_one, running_mons):
-                if err:
-                    logger.error(f"monitor_stop (all) failed stopping '{ref}': {err}")
-
-        return {"success": True, "message": f"All {len(running_mons)} monitor(s) stopped."}
-
-@app.get(
-    "/monitor/status",
-    tags=["Monitoring"],
-    summary="List monitors and whether they are running",
-    response_model=StatusResponse,
-)
-def monitor_status():
-    items = [StatusItem(container=ref, running=mon.is_running()) for ref, mon in app.state.monitors.items()]
-    return StatusResponse(monitors=items)
-
-@app.get(
-    "/monitor/last",
-    tags=["Monitoring"],
-    summary="Get last sample for a container",
-    response_model=SampleResponse,
-)
-def monitor_last(container: str = Query(..., description="Container ref")):
-    mon = app.state.monitors.get(container)
-    if not mon:
-        raise HTTPException(status_code=404, detail={"success": False, "message": f"No monitor found for '{container}'."})
-    return SampleResponse(container=container, sample=mon.get_last_sample())
-
-@app.get(
-    "/monitor/window",
-    tags=["Monitoring"],
-    summary="Get I/O and network totals since monitoring started (per container)",
-    response_model=WindowTotalsResponse,
-)
-def monitor_window(container: str = Query(..., description="Container ref")):
-    mon = app.state.monitors.get(container)
-    if not mon:
-        raise HTTPException(status_code=404, detail={"success": False, "message": f"No monitor found for '{container}'."})
-    return WindowTotalsResponse(container=container, totals=mon.get_window_totals())
+@app.get("/results")
+def results():
+    with lock:
+        return {"samples": list(samples)}

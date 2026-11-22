@@ -1,31 +1,18 @@
 #!/usr/bin/env python3
 """
-Generates docker-compose files for a given number of robots (1–128).
+Generates the robot and sidecar compose files for N robots (1–128). Called by start.sh.
 
-LOCAL MODE (default):
-  Everything runs on d-mutra.
-  N ≤ GAZEBO_LIMIT = 16: Gazebo mode (gazebo-server + turtlebots on ros-net).
-  N > GAZEBO_LIMIT:      dummy mode (namespaced ROS2 dummy_publisher, no Gazebo).
-  Always outputs docker-compose.robots.yml and docker-compose.attestation.yml.
+Robots: Gazebo (default, N ≤ 16): gazebo-server + one robot-simulation container
+per robot. --dummy: each robot runs a namespaced dummy_publisher, no simulator.
 
-REMOTE MODE (--mode remote):
-  d-mutra hosts Besu + SECaaS + monitoring only.
-  All robots + sidecars run on remote host(s).
-  N ≤ GAZEBO_LIMIT (16): Gazebo mode on remote1.
-  N > GAZEBO_LIMIT: dummy mode on remote1 (and remote2 if N > REMOTE1_LIMIT).
-  Outputs under generated/:
-      docker-compose.robots-N{N}-remote1.yml
-      docker-compose.attestation-N{N}-remote1.yml
-      docker-compose.robots-N{N}-remote2.yml        (only when N > REMOTE1_LIMIT)
-      docker-compose.attestation-N{N}-remote2.yml   (only when N > REMOTE1_LIMIT)
+local (default): docker-compose.robots.yml and docker-compose.attestation.yml,
+  everything on this host.
+remote: generated/docker-compose.{robots,attestation}-N{N}-remote{1,2}.yml,
+  robots 1..64 on remote1, 65..128 on remote2 (dummy only).
 
-Usage:
-    python3 generate_compose.py --robots 4             # local, Gazebo
-    python3 generate_compose.py --robots 32            # local, dummy
-    python3 generate_compose.py --robots 4  --mode remote  # remote, Gazebo on remote1
-    python3 generate_compose.py --robots 64 --mode remote  # remote, dummy on remote1
-
-Called automatically by start.sh via --robots N --mode MODE.
+    python3 generate_compose.py --robots 4                          # local, Gazebo
+    python3 generate_compose.py --robots 32 --dummy                 # local, dummy
+    python3 generate_compose.py --robots 64 --dummy --mode remote   # remote1, dummy
 """
 import argparse
 import math
@@ -33,12 +20,11 @@ import os
 import sys
 
 MAX_ROBOTS    = 128
-GAZEBO_LIMIT  = 16   # N ≤ 16: real Gazebo simulation; N > 16: dummy mode
+GAZEBO_LIMIT  = 16   # most robots one gazebo-server runs
 REMOTE1_LIMIT = 64   # remote mode: robots 1..64 on remote1
 REMOTE2_LIMIT = 128  # remote mode: robots 65..128 on remote2
 
 CONTRACT_TO_IMAGE = {
-    "AttestationManagerRR": "attestation-sidecar:latest",
     "AttestationManagerLV": "attestation-sidecar:latest",
     "AttestationManagerV2": "attestation-sidecar:latest",
     "AttestationManagerV3": "attestation-sidecar:latest",
@@ -98,16 +84,16 @@ def robot_position(i: int, spacing: float = 5.0, world: str = "empty",
 
 # ── Robot compose generators ──────────────────────────────────────────────────
 
-def generate_robots_yml_gazebo(n: int, gpu: bool = False, vnc: bool = False, world: str = "empty",
+def generate_robots_yml_gazebo(n: int, gpu: bool = False, gui: bool = False, world: str = "empty",
                                formation: bool = False, formation_scale: float = 2.0) -> str:
-    """N ≤ GAZEBO_LIMIT (16): gazebo-server + N turtlebots on ros-net bridge."""
+    """gazebo-server + N robot-simulation containers on the ros-net bridge."""
     lines = [
         "# docker-compose.robots.yml",
         f"# AUTO-GENERATED for {n} robot(s) [Gazebo mode] — edit generate_compose.py, not this file.",
         "",
         "services:",
         "  gazebo-server:",
-        "    image: turtlebot3-gazebo",
+        "    image: gazebo-server",
         "    container_name: gazebo-server",
         "    hostname: gazebo-server",
         "    environment:",
@@ -118,7 +104,6 @@ def generate_robots_yml_gazebo(n: int, gpu: bool = False, vnc: bool = False, wor
         '      - "127.0.0.1:11345:11345"',
         "    tty: true",
         "    stdin_open: true",
-        '    command: bash -c "./start_gazebo_server.sh"',
         "    networks:",
         "      - ros-net",
     ]
@@ -148,7 +133,7 @@ def generate_robots_yml_gazebo(n: int, gpu: bool = False, vnc: bool = False, wor
         lines += [
             "",
             f"  robot{i}:",
-            f"    image: turtlebot3-gazebo",
+            f"    image: robot-simulation",
             f"    container_name: robot{i}",
             f"    hostname: robot{i}",
             f"    environment:",
@@ -172,13 +157,13 @@ def generate_robots_yml_gazebo(n: int, gpu: bool = False, vnc: bool = False, wor
             f"      - ros-net",
         ]
 
-    if vnc:
-        vnc_lines = [
+    if gui:
+        gui_lines = [
             "",
-            "  gazebo-vnc:",
-            "    image: gazebo-vnc",
-            "    container_name: gazebo-vnc",
-            "    hostname: gazebo-vnc",
+            "  gazebo-gui:",
+            "    image: gazebo-gui",
+            "    container_name: gazebo-gui",
+            "    hostname: gazebo-gui",
             "    environment:",
             "      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}",
             "      - GAZEBO_MASTER_URI=http://gazebo-server:11345",
@@ -190,14 +175,14 @@ def generate_robots_yml_gazebo(n: int, gpu: bool = False, vnc: bool = False, wor
             "    security_opt:",
             "      - seccomp:unconfined",
             "    volumes:",
-            "      - ./dockerfiles/turtlebot3/src/turtlebot3_simulations/turtlebot3_gazebo/models:/home/ubuntu/turtlebot3_models:ro",
+            "      - ./dockerfiles/robot-simulation/src/turtlebot3_simulations/turtlebot3_gazebo/models:/home/ubuntu/turtlebot3_models:ro",
             "    depends_on:",
             "      - gazebo-server",
             "    networks:",
             "      - ros-net",
         ]
         if gpu:
-            vnc_lines += [
+            gui_lines += [
                 "    deploy:",
                 "      resources:",
                 "        reservations:",
@@ -206,7 +191,7 @@ def generate_robots_yml_gazebo(n: int, gpu: bool = False, vnc: bool = False, wor
                 "              count: 1",
                 "              capabilities: [gpu]",
             ]
-        lines += vnc_lines
+        lines += gui_lines
 
     lines += [
         "",
@@ -220,7 +205,7 @@ def generate_robots_yml_gazebo(n: int, gpu: bool = False, vnc: bool = False, wor
 
 
 def generate_robots_yml_dummy(n: int) -> str:
-    """N > GAZEBO_LIMIT: each robot runs a namespaced ROS2 dummy_publisher.
+    """Each robot runs a namespaced ROS2 dummy_publisher.
     Loads the full rclcpp/rmw/FastDDS library stack (realistic memory map for
     attestation) without requiring Gazebo or a DDS discovery server.
     """
@@ -235,7 +220,7 @@ def generate_robots_yml_dummy(n: int) -> str:
         lines += [
             "",
             f"  robot{i}:",
-            f"    image: turtlebot3-gazebo",
+            f"    image: robot-simulation",
             f"    container_name: robot{i}",
             f"    hostname: robot{i}",
             f"    environment:",
@@ -249,12 +234,12 @@ def generate_robots_yml_dummy(n: int) -> str:
     return "\n".join(lines) + "\n"
 
 
-def generate_robots_yml(n: int, gpu: bool = False, vnc: bool = False, world: str = "empty",
+def generate_robots_yml(n: int, dummy: bool, gpu: bool = False, gui: bool = False, world: str = "empty",
                         formation: bool = False, formation_scale: float = 2.0) -> str:
-    if n <= GAZEBO_LIMIT:
-        return generate_robots_yml_gazebo(n, gpu=gpu, vnc=vnc, world=world,
-                                          formation=formation, formation_scale=formation_scale)
-    return generate_robots_yml_dummy(n)
+    if dummy:
+        return generate_robots_yml_dummy(n)
+    return generate_robots_yml_gazebo(n, gpu=gpu, gui=gui, world=world,
+                                      formation=formation, formation_scale=formation_scale)
 
 
 def generate_robots_remote_yml(n_start: int, n_end: int) -> str:
@@ -271,7 +256,7 @@ def generate_robots_remote_yml(n_start: int, n_end: int) -> str:
         lines += [
             "",
             f"  robot{i}:",
-            f"    image: turtlebot3-gazebo",
+            f"    image: robot-simulation",
             f"    container_name: robot{i}",
             f"    hostname: robot{i}",
             f"    environment:",
@@ -308,14 +293,10 @@ def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config
             f"    image: {sidecar_image}",
             f"    environment:",
             f"      - CONFIG_PATH=/config/robot{i}.json",
-            f"      - EXPORT_RESULTS=${{EXPORT_RESULTS}}",
-            f"      - RESULTS_DIR=${{RESULTS_DIR}}",
-            f"      - USE_REDIS=${{USE_REDIS}}",
-            f"      - ONE_SHOT=${{ONE_SHOT}}",
+            f"      - ROUNDS=${{ROUNDS}}",
             f"      - AUTO_START=${{AUTO_START}}",
             f"      - WAIT_FOR_TX_CONFIRMATIONS=${{WAIT_FOR_TX_CONFIRMATIONS}}",
             f"      - WAIT_FOR_VERIFICATION_RESULT=${{WAIT_FOR_VERIFICATION_RESULT}}",
-            f"      - MEMORY_STORAGE_FILE=/measurements/robot{i}_measurements.json",
             f"      - ATTESTATION_INTERVAL_MS=${{ATTESTATION_INTERVAL_MS}}",
             f"      - ATTESTATION_INTERVAL_MODE=${{ATTESTATION_INTERVAL_MODE}}",
             f"      - ITERQ_THRESHOLD=${{ITERQ_THRESHOLD}}",
@@ -331,9 +312,7 @@ def generate_attestation_yml(n: int, start: int = 1, config_dir: str = "./config
             f'      - "127.0.0.1:{port}:8000"',
             f"    volumes:",
             f"      - {config_dir}/robot{i}.json:/config/robot{i}.json",
-            f"      - ./experiments/data/:/experiments/data:rw",
             f"      - /var/run/docker.sock:/var/run/docker.sock",
-            f"      - ./measurements/:/measurements:rw",
             f"      - ./checkpoints/robot{i}-sidecar:/checkpoints",
             f'    pid: "container:{pid_target}"',
             f"    cap_add:",
@@ -381,14 +360,10 @@ def generate_attestation_remote_yml(n_start: int, n_end: int, config_dir: str = 
             f"    image: {sidecar_image}",
             f"    environment:",
             f"      - CONFIG_PATH=/config/robot{i}.json",
-            f"      - EXPORT_RESULTS=${{EXPORT_RESULTS}}",
-            f"      - RESULTS_DIR=${{RESULTS_DIR}}",
-            f"      - USE_REDIS=${{USE_REDIS}}",
-            f"      - ONE_SHOT=${{ONE_SHOT}}",
+            f"      - ROUNDS=${{ROUNDS}}",
             f"      - AUTO_START=${{AUTO_START}}",
             f"      - WAIT_FOR_TX_CONFIRMATIONS=${{WAIT_FOR_TX_CONFIRMATIONS}}",
             f"      - WAIT_FOR_VERIFICATION_RESULT=${{WAIT_FOR_VERIFICATION_RESULT}}",
-            f"      - MEMORY_STORAGE_FILE=/measurements/robot{i}_measurements.json",
             f"      - ATTESTATION_INTERVAL_MS=${{ATTESTATION_INTERVAL_MS}}",
             f"      - ATTESTATION_INTERVAL_MODE=${{ATTESTATION_INTERVAL_MODE}}",
             f"      - ITERQ_THRESHOLD=${{ITERQ_THRESHOLD}}",
@@ -404,9 +379,7 @@ def generate_attestation_remote_yml(n_start: int, n_end: int, config_dir: str = 
             f'      - "0.0.0.0:{port}:8000"',
             f"    volumes:",
             f"      - {config_dir}/robot{i}.json:/config/robot{i}.json",
-            f"      - ./experiments/data/:/experiments/data:rw",
             f"      - /var/run/docker.sock:/var/run/docker.sock",
-            f"      - ./measurements/:/measurements:rw",
             f"      - ./checkpoints/robot{i}-sidecar:/checkpoints",
             f'    pid: "container:robot{i}"',
             f"    cap_add:",
@@ -437,9 +410,11 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--robots", type=int, required=True,
-        help=f"Number of robots (1–{MAX_ROBOTS}). "
-             f"N≤{GAZEBO_LIMIT}: Gazebo mode (local). "
-             f"N>{GAZEBO_LIMIT}: dummy mode (local).",
+        help=f"Number of robots (1–{MAX_ROBOTS}; at most {GAZEBO_LIMIT} with Gazebo).",
+    )
+    parser.add_argument(
+        "--dummy", action="store_true", default=False,
+        help="Robots run a dummy_publisher instead of the Gazebo simulation.",
     )
     parser.add_argument(
         "--blockchain-host", default="",
@@ -448,15 +423,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--mode", choices=["local", "remote"], default="local",
-        help="Deployment mode. "
-             "local (default): robots on d-mutra, split to remote1 when N > LOCAL_LIMIT. "
-             "remote: d-mutra hosts Besu+SECaaS only; all robots+sidecars on remote host(s).",
+        help="local (default): everything on this host. "
+             "remote: robots and sidecars on the remote hosts.",
     )
     parser.add_argument(
-        "--contract", default="AttestationManagerRR",
+        "--contract", default="AttestationManagerLV",
         choices=list(CONTRACT_TO_IMAGE.keys()),
         help="Smart contract in use — determines which sidecar image is written into compose files "
-             "(default: AttestationManagerRR → attestation-sidecar:latest).",
+             "(default: AttestationManagerLV).",
     )
     parser.add_argument(
         "--no-cpu-limit", action="store_true", default=False,
@@ -471,8 +445,9 @@ if __name__ == "__main__":
         help="Add NVIDIA GPU reservation to the gazebo-server container (Gazebo mode only, N≤4).",
     )
     parser.add_argument(
-        "--vnc", action="store_true", default=False,
-        help="Add a gazebo-vnc sidecar container on ros-net with port 6080:80 (Gazebo mode only, N≤4).",
+        "--gui", "--vnc", dest="gui", action="store_true", default=False,
+        help="Add a gazebo-gui container (Gazebo client in a web VNC desktop, port 6080) "
+             "on ros-net (Gazebo mode only). --vnc is the old name.",
     )
     parser.add_argument(
         "--world", default="empty",
@@ -493,48 +468,49 @@ if __name__ == "__main__":
         print(f"❌ --robots must be between 1 and {MAX_ROBOTS} (got {args.robots})")
         sys.exit(1)
 
-    if args.attest_gzserver and (args.mode != "local" or args.robots != GAZEBO_LIMIT):
-        print("❌ --attest-gzserver is only valid for local mode with --robots 4")
+    if not args.dummy and args.robots > GAZEBO_LIMIT:
+        print(f"❌ Gazebo runs at most {GAZEBO_LIMIT} robots: use --dummy for more")
         sys.exit(1)
 
-    if args.gpu and args.robots > GAZEBO_LIMIT:
-        print(f"❌ --gpu is only valid in Gazebo mode (N≤{GAZEBO_LIMIT})")
+    if args.attest_gzserver and (args.mode != "local" or args.robots != 4 or args.dummy):
+        print("❌ --attest-gzserver is only valid for local Gazebo mode with --robots 4")
         sys.exit(1)
 
-    if args.vnc and args.robots > GAZEBO_LIMIT:
-        print(f"❌ --vnc is only valid in Gazebo mode (N≤{GAZEBO_LIMIT})")
+    for flag in ("gpu", "gui", "formation", "attest_gzserver"):
+        if args.dummy and getattr(args, flag):
+            print(f"❌ --{flag.replace('_', '-')} needs Gazebo: not valid with --dummy")
+            sys.exit(1)
+    if args.dummy and args.world != "empty":
+        print("❌ --world needs Gazebo: not valid with --dummy")
         sys.exit(1)
 
     n = args.robots
     sidecar_image = CONTRACT_TO_IMAGE[args.contract]
     no_cpu_limit  = args.no_cpu_limit
     gpu           = args.gpu
-    vnc           = args.vnc
+    gui           = args.gui
     world         = args.world
     formation     = args.formation
     formation_scale = args.formation_scale
+    dummy         = args.dummy
+    robot_mode    = "dummy" if dummy else "Gazebo"
+    cfg_dir       = "./config-dummy" if dummy else "./config"
 
     if args.mode == "remote":
         # ── REMOTE MODE: all robots on remote host(s) ─────────────────────────
         gen_dir = os.path.join(SCRIPT_DIR, "generated")
         os.makedirs(gen_dir, exist_ok=True)
 
-        # Config dir depends on Gazebo vs dummy
-        cfg_dir = "./config" if n <= GAZEBO_LIMIT else "./config-dummy"
-
         # Remote1: robots 1..min(n, REMOTE1_LIMIT)
         r1_end = min(n, REMOTE1_LIMIT)
 
         robots_r1_path = os.path.join(gen_dir, f"docker-compose.robots-N{n}-remote1.yml")
-        if n <= GAZEBO_LIMIT:
-            # Gazebo mode: use full Gazebo compose (includes ros-net bridge)
-            with open(robots_r1_path, "w") as f:
-                f.write(generate_robots_yml_gazebo(n, gpu=gpu, vnc=vnc, world=world))
-            print(f"✅ {robots_r1_path}  (robots 1–{n}, Gazebo mode)")
-        else:
-            with open(robots_r1_path, "w") as f:
+        with open(robots_r1_path, "w") as f:
+            if dummy:
                 f.write(generate_robots_remote_yml(1, r1_end))
-            print(f"✅ {robots_r1_path}  (robots 1–{r1_end}, dummy mode)")
+            else:
+                f.write(generate_robots_yml_gazebo(n, gpu=gpu, gui=gui, world=world))
+        print(f"✅ {robots_r1_path}  (robots 1–{r1_end}, {robot_mode} mode)")
 
         attest_r1_path = os.path.join(gen_dir, f"docker-compose.attestation-N{n}-remote1.yml")
         with open(attest_r1_path, "w") as f:
@@ -556,7 +532,7 @@ if __name__ == "__main__":
             attest_r2_path = os.path.join(gen_dir, f"docker-compose.attestation-N{n}-remote2.yml")
             with open(attest_r2_path, "w") as f:
                 f.write(generate_attestation_remote_yml(REMOTE1_LIMIT + 1, r2_end,
-                                                        config_dir="./config-dummy",
+                                                        config_dir=cfg_dir,
                                                         blockchain_host=args.blockchain_host,
                                                         sidecar_image=sidecar_image,
                                                         no_cpu_limit=no_cpu_limit))
@@ -564,17 +540,15 @@ if __name__ == "__main__":
 
     else:
         # ── LOCAL MODE: everything on d-mutra ─────────────────────────────────
-        mode = "Gazebo" if n <= GAZEBO_LIMIT else "dummy"
         robots_path      = os.path.join(SCRIPT_DIR, "docker-compose.robots.yml")
         attestation_path = os.path.join(SCRIPT_DIR, "docker-compose.attestation.yml")
 
         with open(robots_path, "w") as f:
-            f.write(generate_robots_yml(n, gpu=gpu, vnc=vnc, world=world,
+            f.write(generate_robots_yml(n, dummy, gpu=gpu, gui=gui, world=world,
                                         formation=formation, formation_scale=formation_scale))
-        print(f"✅ {robots_path}  ({n} robots, {mode} mode"
+        print(f"✅ {robots_path}  ({n} robots, {robot_mode} mode"
               + (f", formation d={formation_scale}" if formation else "") + ")")
 
-        cfg_dir = "./config" if n <= GAZEBO_LIMIT else "./config-dummy"
         with open(attestation_path, "w") as f:
             f.write(generate_attestation_yml(n, config_dir=cfg_dir, sidecar_image=sidecar_image,
                                              no_cpu_limit=no_cpu_limit,

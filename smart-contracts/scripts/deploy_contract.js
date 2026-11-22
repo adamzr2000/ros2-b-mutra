@@ -2,7 +2,7 @@ const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
-const CONTRACT_NAME = process.env.CONTRACT_NAME || "AttestationManagerRR";
+const CONTRACT_NAME = process.env.CONTRACT_NAME || "AttestationManagerLV";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -10,13 +10,9 @@ async function main() {
 
   const factory = await ethers.getContractFactory(CONTRACT_NAME);
 
-  // AttestationManagerLV_StructDelete requires a VRP constructor argument; all others take none
+  // LV takes no constructor arguments; V2 and V3 take their admins (and V3 its jury).
   let contract;
-  if (CONTRACT_NAME === "AttestationManagerLV_StructDelete") {
-    const vrp = parseInt(process.env.VRP || "1");
-    console.log(`VRP        : ${vrp}`);
-    contract = await factory.deploy(vrp, { gasPrice: 0 });
-  } else if (CONTRACT_NAME === "AttestationManagerV2" || CONTRACT_NAME === "AttestationManagerV3") {
+  if (CONTRACT_NAME === "AttestationManagerV2" || CONTRACT_NAME === "AttestationManagerV3") {
     // Admin keys that may write the on-chain references. Never the deployer (SECaaS).
     const { ADMINS, ADMIN_THRESHOLD } = process.env;
     if (!ADMINS || !ADMIN_THRESHOLD) {
@@ -25,12 +21,13 @@ async function main() {
     console.log(`Admins     : ${ADMINS} (threshold ${ADMIN_THRESHOLD})`);
     const args = [ADMINS.split(","), parseInt(ADMIN_THRESHOLD)];
     if (CONTRACT_NAME === "AttestationManagerV3") {
-      const { JURY_SIZE, JURY_THRESHOLD, JURY_TIMEOUT_BLOCKS } = process.env;
-      if (!JURY_SIZE || !JURY_THRESHOLD || !JURY_TIMEOUT_BLOCKS) {
-        throw new Error("AttestationManagerV3 requires JURY_SIZE, JURY_THRESHOLD and JURY_TIMEOUT_BLOCKS");
+      const { JURY_SIZE, JURY_THRESHOLD, JURY_TIMEOUT_BLOCKS, FRESHNESS_BLOCKS } = process.env;
+      if (!JURY_SIZE || !JURY_THRESHOLD || !JURY_TIMEOUT_BLOCKS || !FRESHNESS_BLOCKS) {
+        throw new Error(`${CONTRACT_NAME} requires JURY_SIZE, JURY_THRESHOLD, JURY_TIMEOUT_BLOCKS and FRESHNESS_BLOCKS`);
       }
       console.log(`Jury       : ${JURY_THRESHOLD} of ${JURY_SIZE}, timeout ${JURY_TIMEOUT_BLOCKS} blocks`);
-      args.push(parseInt(JURY_SIZE), parseInt(JURY_THRESHOLD), parseInt(JURY_TIMEOUT_BLOCKS));
+      console.log(`Freshness  : evidence bound to a block at most ${FRESHNESS_BLOCKS} blocks old`);
+      args.push(parseInt(JURY_SIZE), parseInt(JURY_THRESHOLD), parseInt(JURY_TIMEOUT_BLOCKS), parseInt(FRESHNESS_BLOCKS));
     }
     contract = await factory.deploy(...args, { gasPrice: 0 });
   } else {

@@ -14,7 +14,7 @@ usage() {
   echo "Usage: $0 [--private_key <hexkey>] --rpc_url <url> --chain_id <id> [--contract <name>]"
   echo "       If --private_key is not given, will try to read from:"
   echo "       $DEFAULT_KEY_PATH"
-  echo "       If --contract is not given, deploy_contract.js default is used (AttestationManagerRR)."
+  echo "       If --contract is not given, deploy_contract.js default is used (AttestationManagerLV)."
   exit 1
 }
 
@@ -82,7 +82,7 @@ docker run --rm --name hardhat \
   -e PRIVATE_KEY="$private_key" \
   -e RPC_URL="$rpc_url_internal" \
   -e CHAIN_ID="$chain_id" \
-  -e ADMINS -e ADMIN_THRESHOLD -e JURY_SIZE -e JURY_THRESHOLD -e JURY_TIMEOUT_BLOCKS \
+  -e ADMINS -e ADMIN_THRESHOLD -e JURY_SIZE -e JURY_THRESHOLD -e JURY_TIMEOUT_BLOCKS -e FRESHNESS_BLOCKS \
   ${contract_env_flag} \
   hardhat:latest \
   bash -lc "npx hardhat run scripts/deploy_contract.js --network besu"

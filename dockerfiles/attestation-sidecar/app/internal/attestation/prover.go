@@ -1,21 +1,20 @@
 package attestation
 
 import (
-    "crypto/sha256"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"app/internal/blockchain"
 	"app/internal/compute"
 	"app/internal/logger"
-	// "app/internal/metrics"
-	"app/internal/storage"
+	"app/internal/results"
 	"app/internal/utils"
-
 )
 
 // SelfIntegrityInfo holds self-integrity check configuration
@@ -30,208 +29,183 @@ type SelfIntegrityInfo struct {
 
 // ProverConfig holds configuration for the prover
 type ProverConfig struct {
-	CmdName           string
-	TextSectionSize   int
-	Offset            int
-	TextSectionPrefix string // Hex string of first N bytes of .text section
-	Threshold         int    // Kept for config compatibility, but logic uses interval
-	IterQThreshold    uint32 // K = fresh measurements folded per on-chain attestation
-	Salt              *[32]byte // nil = unsalted measurements (contracts LV and RR)
-	AgentName         string
-	ExportEnabled     bool
-	ResultsDir        string
-	ResultsFile       string
-	MemoryStorageFile string
-	SelfIntegrity     SelfIntegrityInfo
-	OneShot                    bool
-	WaitForTxConfirmations     bool
-	WaitForVerificationResult  bool
+	CmdName                   string
+	TextSectionSize           int
+	Offset                    int
+	TextSectionPrefix         string    // Hex string of first N bytes of .text section
+	IterQThreshold            uint32    // K = fresh measurements folded per on-chain attestation
+	Salt                      *[32]byte // nil = unsalted measurements (contracts LV and RR)
+	AgentName                 string
+	SelfIntegrity             SelfIntegrityInfo
+	Rounds                    int           // batches to send, then stop; 0 = until stopped
+	StartOffset               time.Duration // wait before the first batch
+	WaitForVerificationResult bool
 }
 
-// ProverState holds the runtime state of the prover
-type ProverState struct {
-	Digests      []string
-	DigestsCount int
-	FinalDigest  string
-	Measuring    bool
-	mu           sync.Mutex
-}
-
-// ProcessProverAttestation processes a single attestation as prover
+// ProcessProverAttestation sends one round and waits for its verdict. row
+// holds the round id, the robot and the evidence time; ready is when the
+// evidence was ready. The row is recorded unless the prover is stopped.
 func ProcessProverAttestation(
 	bc *blockchain.BlockchainClient,
-	attestationID string,
+	row results.Prover,
+	ready time.Time,
 	measurement string,
 	iterCount uint32,
+	boundBlock uint64,
 	stopCh <-chan struct{},
-	exportEnabled bool,
-	participantName string,
-	resultsDir string,
-	resultsFile string,
-	startTs int64,
-	startP int64,
-	waitForTx bool,
 	waitForResult bool,
 ) {
-	timestamps := make(map[string]interface{})
-
-	// 1. Capture Prover Start (from the loop's start time)
-	timestamps["prover_start"] = startTs
-	timestamps["p_prover_start"] = startP
-
+	attestationID := row.RoundID
 	logPrefix := fmt.Sprintf("[Prover-%s]", utils.ShortAttID(attestationID, 4))
+	record := func(outcome string) {
+		row.Outcome = outcome
+		results.AddProver(row)
+	}
 
-	// 2. Send Evidence
-	waitSubmitSlot()
-	timestamps["evidence_sent"] = utils.NowMs()
-	timestamps["p_send_evidence_start"] = utils.PerfNs()
+	// 1. Send Evidence. A jury contract refuses it while a round left open by
+	// a stop is still with the jury. Rounds slower than the SSP leave batches
+	// waiting: one already past the freshness window would be rejected, so it
+	// is not sent.
+	select {
+	case <-stopCh:
+		return // stopped: the batches still waiting are not sent
+	default:
+	}
+	if !waitForOpenRound(bc, stopCh, logPrefix) {
+		return
+	}
+	if stale, err := pastFreshnessWindow(bc, boundBlock); err == nil && stale {
+		logger.Warn("%s Evidence past the freshness window, not sent (rounds slower than the SSP)", logPrefix)
+		counters.stale.Add(1)
+		record("stale")
+		return
+	}
+	// Marked before it is sent: this agent's verifier, notified of the same
+	// block as the prover, must not take it for another agent's round.
+	ownRounds.Store(attestationID, true)
+	defer ownRounds.Delete(attestationID)
 
-	// Send evidence with wait=true and timeout=60s. iterCount carries K for
-	// the on-chain record so the verifier can re-derive the chained reference.
-	txHash, err := bc.SendEvidence(attestationID, measurement, iterCount, waitForTx, 60)
+	start := time.Now()
+	row.TSentMs = start.UnixMilli()
+	row.PresendMs = results.Dur(start.Sub(ready))
 
-	timestamps["p_send_evidence_finished"] = utils.PerfNs()
-
-	// Only record confirmation if we actually waited for it!
-    if waitForTx {
-        timestamps["p_send_evidence_finished_tx_confirmed"] = timestamps["p_send_evidence_finished"]
-        timestamps["evidence_sent_tx_confirmed"] = utils.NowMs()
-    }
-
+	// iterCount carries K for the on-chain record so the verifier can
+	// re-derive the chained reference. Sent without waiting: the wait below
+	// is timed apart.
+	txHash, err := bc.Prove(attestationID, measurement, iterCount, boundBlock, false, 60)
+	sent := time.Now()
+	row.SendMs = results.Dur(sent.Sub(start))
 	if err != nil {
 		logger.Error("%s Failed to send evidence: %v", logPrefix, err)
+		counters.errors.Add(1)
+		record("error")
 		return
 	}
-
 	logger.Info("%s Evidence sent (attestation started)", logPrefix)
 
-	if !waitForResult {
-		timestamps["p_prover_finished"] = utils.PerfNs()
-		timestamps["prover_finished"] = utils.NowMs()
-		if exportEnabled {
-			utils.ExportAttestationTimesJSON(participantName, attestationID, "prover", timestamps, resultsDir, resultsFile)
+	// 2. Wait for the evidence to be mined, checked at each new block: a
+	// rejected Prove (stale evidence, open round) is reported at once
+	// instead of after the close timeout.
+	if err := bc.WaitForReceipt(txHash, 60); err != nil {
+		logger.Error("%s Evidence not accepted: %v", logPrefix, err)
+		if errors.Is(err, blockchain.ErrReceiptTimeout) {
+			counters.timeouts.Add(1)
+			record("timeout")
+		} else {
+			counters.errors.Add(1)
+			record("rejected")
 		}
 		return
 	}
+	mined := time.Now()
+	row.InclusionMs = results.Dur(mined.Sub(sent))
+	counters.proved.Add(1)
 
-	// 3. Wait to become Prover (Poll Loop)
-	//
-	// Two exit conditions:
-	//   a) IsProver returns true  → normal path (Open state, we are the elected prover)
-	//   b) IsProver returns ErrAttestationClosed → SECaaS resolved atomically
-	//      (startup/one-shot mode where lastSuccess=0 so SECaaS is always verifier).
-	//      In this case the attestation is already Closed; step 4 will immediately
-	//      confirm Closed and we proceed to read the result.  Without this check the
-	//      loop spins for the full 60 s timeout because IsProver always returns
-	//      (false, nil) for Closed attestations.
-	startWait := time.Now()
-	timeout := 60 * time.Second
-
-	for {
-		isProver, err := bc.IsProver(attestationID)
-		if err == nil && isProver {
-			break
-		}
-		if errors.Is(err, blockchain.ErrAttestationClosed) {
-			logger.Info("%s Attestation already closed (SECaaS resolved atomically); proceeding to result retrieval.", logPrefix)
-			break
-		}
-
-		select {
-		case <-stopCh:
-			logger.Info("%s Stopping while waiting to become prover.", logPrefix)
-			return
-		default:
-		}
-
-		if time.Since(startWait) > timeout {
-			logger.Error("%s Timeout while waiting to become prover.", logPrefix)
-			return
-		}
-		time.Sleep(proverPollInterval())
+	if !waitForResult {
+		record("sent")
+		return
+	}
+	if bc.HasJury() {
+		openRound.Store(attestationID)
 	}
 
 	logger.Info("%s Waiting for verification result...", logPrefix)
 
-	// 4. Wait for Attestation to Close. With a jury (V3), hand the cycle to
+	// 3. Wait for Attestation to Close. With a jury (V3), hand the cycle to
 	// the SECaaS once its timeout has passed without enough votes.
 	jury := bc.HasJury()
 	var expireAt uint64 // first block where Expire is accepted, 0 = not known yet
 	expired := false
-	startWait = time.Now()
+	var expiryChecked time.Time // the timeout is blocks long: checked once a second
+	timeout := 60 * time.Second
 	for {
+		next := bc.NextHead()
 		state, err := bc.GetAttestationState(attestationID)
 		if err == nil && state == blockchain.Closed {
+			openRound.Store("")
 			break
 		}
-		if jury && !expired && err == nil && state == blockchain.ReadyForEvaluation {
+		if jury && !expired && err == nil && state == blockchain.ReadyForEvaluation && time.Since(expiryChecked) >= time.Second {
+			expiryChecked = time.Now()
 			expired = expireIfDue(bc, attestationID, txHash, &expireAt, logPrefix)
 		}
 
-		select {
-		case <-stopCh:
+		if time.Since(mined) > timeout {
+			logger.Error("%s Timeout while waiting for attestation to close.", logPrefix)
+			counters.timeouts.Add(1)
+			record("timeout")
+			return
+		}
+		if !blockchain.WaitHead(next, stopCh) {
 			logger.Info("%s Stopping while waiting for attestation to close.", logPrefix)
 			return
-		default:
 		}
-
-		if time.Since(startWait) > timeout {
-			logger.Error("%s Timeout while waiting for attestation to close.", logPrefix)
-			return
-		}
-		time.Sleep(proverPollInterval())
 	}
+	closed := time.Now()
+	row.JudgementMs = results.Dur(closed.Sub(mined))
+	total := row.EvidenceMs + results.Ms(closed.Sub(ready))
+	row.TotalMs = &total
 
-	timestamps["p_result_received"] = utils.PerfNs()
-	timestamps["result_received"] = utils.NowMs()
-
-	// 5. Retrieve Result
-	_, verifier, resultEnum, ts, err := bc.GetAttestationInfo(attestationID)
+	// 4. Retrieve Result
+	_, verifier, resultEnum, err := bc.GetAttestationInfo(attestationID)
 	if err != nil {
 		logger.Error("%s Failed to read attestation info: %v", logPrefix, err)
-	} else {
-		// Enum: 0=None, 1=Failure, 2=Success
-		isSuccess := (resultEnum == 2)
-		statusIcon := "❌ FAILURE"
-		if isSuccess {
-			statusIcon = "✅ SUCCESS"
-		}
-		logger.Info("%s Attestation Complete", logPrefix)
-		logger.Info("%s Result: %s", logPrefix, statusIcon)
-		verifiedBy := verifier.Hex()
-		votes := ""
-		if bc.HasJury() {
-			// V3: a cycle closed by its jury names the juror whose vote closed it
-			jurors, summary, err := bc.JuryVotes(attestationID)
-			if err != nil {
-				logger.Error("%s Failed to read the jury votes: %v", logPrefix, err)
-			}
-			for _, j := range jurors {
-				if j == verifier {
-					verifiedBy = "the jury, closing vote from " + verifier.Hex()
-				}
-			}
-			votes = summary
-		}
-		logger.Info("%s Verified by: %s at %v", logPrefix, verifiedBy, ts)
-		if votes != "" {
-			logger.Info("%s Jury votes: %s", logPrefix, votes)
-		}
+		counters.errors.Add(1)
+		record("error")
+		return
 	}
-
-	timestamps["p_prover_finished"] = utils.PerfNs()
-	timestamps["prover_finished"] = utils.NowMs()
-
-	// 6. Export Results
-	if exportEnabled {
-		utils.ExportAttestationTimesJSON(
-			participantName,
-			attestationID,
-			"prover",
-			timestamps,
-			resultsDir,
-			resultsFile, // result file path handled by helper if empty
-		)
+	// Enum: 0=None, 1=Failure, 2=Success
+	isSuccess := (resultEnum == 2)
+	if isSuccess {
+		counters.success.Add(1)
+	} else {
+		counters.failure.Add(1)
+	}
+	record(results.Verdict(isSuccess))
+	statusIcon := "❌ FAILURE"
+	if isSuccess {
+		statusIcon = "✅ SUCCESS"
+	}
+	logger.Info("%s Attestation Complete", logPrefix)
+	logger.Info("%s Result: %s", logPrefix, statusIcon)
+	verifiedBy := verifier.Hex()
+	votes := ""
+	if jury {
+		// V3: a cycle closed by its jury names the juror whose vote closed it
+		jurors, summary, err := bc.JuryVotes(attestationID)
+		if err != nil {
+			logger.Error("%s Failed to read the jury votes: %v", logPrefix, err)
+		}
+		for _, j := range jurors {
+			if j == verifier {
+				verifiedBy = "the jury, closing vote from " + verifier.Hex()
+			}
+		}
+		votes = summary
+	}
+	logger.Info("%s Verified by: %s", logPrefix, verifiedBy)
+	if votes != "" {
+		logger.Info("%s Jury votes: %s", logPrefix, votes)
 	}
 }
 
@@ -251,9 +225,9 @@ func expireIfDue(bc *blockchain.BlockchainClient, attID, txHash string, expireAt
 		}
 		*expireAt = seed + timeout
 	}
-	// Gas is estimated at the head block, so wait for head = evidence + timeout.
+	// Expire goes in the next block at best, where its gas is also estimated.
 	head, err := bc.BlockNumber()
-	if err != nil || head < *expireAt {
+	if err != nil || head+1 < *expireAt {
 		return false
 	}
 	if _, err := bc.Expire(attID, true, 60); err != nil {
@@ -265,47 +239,37 @@ func expireIfDue(bc *blockchain.BlockchainClient, attID, txHash string, expireAt
 }
 
 // RunProverAndCleanup runs the prover and cleans up
-// A jury contract refuses a new round while the prover's last one is open,
-// so rounds are sent one after the other instead of losing a measurement.
-// ponytail: waiting rounds queue up without bound if the SSP stays shorter
-// than a round; drop or merge them if that happens.
-var roundMu sync.Mutex
-
 func RunProverAndCleanup(
 	bc *blockchain.BlockchainClient,
-	attestationID string,
+	row results.Prover,
+	ready time.Time,
 	measurement string,
-	startTs int64,
-	startP int64,
+	boundBlock uint64,
 	stopCh <-chan struct{},
 	config ProverConfig,
 	activeAttestations *sync.Map,
 ) {
-	if bc.HasJury() {
-		roundMu.Lock()
-		defer roundMu.Unlock()
-	}
 	start := time.Now()
-	logPrefix := fmt.Sprintf("[Prover-%s]", utils.ShortAttID(attestationID, 4))
+	logPrefix := fmt.Sprintf("[Prover-%s]", utils.ShortAttID(row.RoundID, 4))
 
 	defer func() {
 		elapsed := time.Since(start)
-		logger.Info("%s", logger.GreenText(fmt.Sprintf("%s completed in %.2fs", logPrefix, elapsed.Seconds())))
-		activeAttestations.Delete(attestationID)
+		logger.Info("%s", logger.CyanText(fmt.Sprintf("%s completed in %.2fs", logPrefix, elapsed.Seconds())))
+		activeAttestations.Delete(row.RoundID)
 	}()
 
 	ProcessProverAttestation(
-		bc, attestationID, measurement, config.IterQThreshold, stopCh,
-		config.ExportEnabled, config.AgentName, config.ResultsDir, config.ResultsFile,
-		startTs, startP, config.WaitForTxConfirmations, config.WaitForVerificationResult,
+		bc, row, ready, measurement, config.IterQThreshold, boundBlock, stopCh,
+		config.WaitForVerificationResult,
 	)
 }
 
-// measureCombinedOnce performs a single integrity measurement cycle and
-// returns the combined digest as a hex string (the same "fresh measurement
-// m_i" that, in K=1 mode, would be sent as-is on-chain). Kept identical to
-// the optimized variant's helper for ABI/result parity.
-func measureCombinedOnce(config ProverConfig) (combinedDigest, robotHash, sidecarHash, libsHash string, err error) {
+// measureCombinedOnce takes one measurement m_i: the hash of the attested
+// process, combined with the sidecar's own hash (self-integrity) and the
+// loaded libraries when enabled, as hex.
+func measureCombinedOnce(config ProverConfig) (string, error) {
+	var robotHash, sidecarHash, libsHash string
+	var err error
 	if config.TextSectionPrefix != "" {
 		robotHash, err = compute.ComputeProgramHashWithPrefix(
 			config.CmdName,
@@ -320,9 +284,9 @@ func measureCombinedOnce(config ProverConfig) (combinedDigest, robotHash, sideca
 		)
 	}
 	if err != nil {
-		return "", "", "", "", err
+		return "", err
 	}
-	combinedDigest = robotHash
+	combinedDigest := robotHash
 
 	if config.SelfIntegrity.Enabled {
 		sidecarHash, err = compute.ComputeProgramHash(
@@ -331,7 +295,7 @@ func measureCombinedOnce(config ProverConfig) (combinedDigest, robotHash, sideca
 			config.SelfIntegrity.TextSectionOffset,
 		)
 		if err != nil {
-			return "", robotHash, "", "", err
+			return "", err
 		}
 		if sidecarHash != config.SelfIntegrity.ExpectedSHA256 {
 			logger.Warn("[Prover] ⚠️ Self-integrity mismatch!")
@@ -355,7 +319,7 @@ func measureCombinedOnce(config ProverConfig) (combinedDigest, robotHash, sideca
 			logger.Warn("[Prover] ⚠️ Loaded libs hash mismatch!")
 		}
 	}
-	return combinedDigest, robotHash, sidecarHash, libsHash, nil
+	return combinedDigest, nil
 }
 
 // RunProverLogicContinuousMode runs the continuous prover loop.
@@ -363,11 +327,12 @@ func measureCombinedOnce(config ProverConfig) (combinedDigest, robotHash, sideca
 // Per cycle: takes K = config.IterQThreshold fresh measurements spaced by
 // ATTESTATION_INTERVAL_MS, folds them into a single rolling hash H_K via
 // byte-level chained SHA-256 (compute.RollingHashStep), and submits one
-// SendEvidence(id, H_K, K) on-chain. K=1 reduces to single-shot.
+// Prove(id, H_K, K) on-chain. K=1 reduces to single-shot. With a contract
+// that checks freshness, each measurement is first bound to the hash of a
+// recent block, read before the batch, and that block goes with the evidence.
 func RunProverLogicContinuousMode(
 	stopCh <-chan struct{},
 	bc *blockchain.BlockchainClient,
-	store storage.StorageBackend,
 	config ProverConfig,
 	activeAttestations *sync.Map,
 	wg *sync.WaitGroup,
@@ -379,10 +344,32 @@ func RunProverLogicContinuousMode(
 		K = 1
 	}
 	logger.Info("Starting attestation process in continuous mode (IterQ K=%d)...", K)
+	if config.StartOffset > 0 {
+		select {
+		case <-stopCh:
+			return
+		case <-time.After(config.StartOffset):
+		}
+	}
 
-	state := &ProverState{
-		Digests:   make([]string, 0),
-		Measuring: true,
+	bindToBlock := bc.HasFreshness()
+	var boundBlock uint64
+	batches := 0
+
+	// A jury contract refuses a new round while the prover's last one is open,
+	// and accepts rounds bound to increasing blocks only: they are sent one
+	// after the other, in the order of their batches, by a single worker.
+	// ponytail: the measuring loop blocks once 64 rounds wait, if the SSP stays
+	// shorter than a round.
+	var serial chan func()
+	if bc.HasJury() {
+		serial = make(chan func(), 64)
+		defer close(serial)
+		go func() {
+			for round := range serial {
+				round()
+			}
+		}()
 	}
 
 	for {
@@ -393,46 +380,55 @@ func RunProverLogicContinuousMode(
 		default:
 		}
 
-		if !state.Measuring {
-			time.Sleep(25 * time.Millisecond)
-			continue
-		}
-
-		batchStartTs := utils.NowMs()
-		batchStartP := utils.PerfNs()
 		attestationID := utils.GenerateAttestationID()
 		logPrefix := fmt.Sprintf("[Prover-%s]", utils.ShortAttID(attestationID, 4))
 
+		var boundHash [32]byte
+		if bindToBlock {
+			var ok bool
+			if boundBlock, boundHash, ok = nextBoundBlock(bc, boundBlock, stopCh); !ok {
+				logger.Info("Attestation process stopped")
+				return
+			}
+		}
+
 		// Fold K fresh measurements into a rolling-hash accumulator.
+		evidenceStart := time.Now()
+		var slept time.Duration
 		var H [32]byte
-		var lastCombined, lastRobotHash, lastSidecarHash, lastLibsHash string
 		failed := false
 		for i := uint32(1); i <= K; i++ {
 			if i > 1 {
+				sleepStart := time.Now()
 				select {
 				case <-stopCh:
 					logger.Info("Attestation process stopped")
 					return
 				case <-time.After(measurementDelay()):
 				}
+				slept += time.Since(sleepStart)
 			}
 
-			logger.Info("%s Measurement %d/%d at %d ms", logPrefix, i, K, utils.NowMs())
-			combined, robotHash, sidecarHash, libsHash, err := measureCombinedOnce(config)
+			logger.Info("%s Measurement %d/%d", logPrefix, i, K)
+			combined, err := measureCombinedOnce(config)
+			if err == nil {
+				counters.measurements.Add(1)
+			}
 			if err != nil {
 				if compute.IsComputeHashError(err) {
 					logger.Debug("Hash computation error at iter %d/%d: %v", i, K, err)
 				} else {
 					logger.Error("Error in attestation process at iter %d/%d: %v", i, K, err)
+					counters.errors.Add(1)
 				}
 				failed = true
 				break
 			}
-			lastCombined, lastRobotHash, lastSidecarHash, lastLibsHash = combined, robotHash, sidecarHash, libsHash
 
 			raw, err := hex.DecodeString(combined)
 			if err != nil || len(raw) != 32 {
 				logger.Error("Invalid combined digest at iter %d/%d (len=%d): %v", i, K, len(raw), err)
+				counters.errors.Add(1)
 				failed = true
 				break
 			}
@@ -440,6 +436,9 @@ func RunProverLogicContinuousMode(
 			copy(m[:], raw)
 			if config.Salt != nil {
 				m = compute.SaltMeasurement(m, *config.Salt)
+			}
+			if bindToBlock {
+				m = compute.BindToBlock(m, boundHash)
 			}
 
 			if i == 1 {
@@ -453,6 +452,13 @@ func RunProverLogicContinuousMode(
 			time.Sleep(1 * time.Second)
 			continue
 		}
+		ready := time.Now()
+		row := results.Prover{
+			RoundID:     attestationID,
+			Robot:       config.AgentName,
+			TMeasuredMs: evidenceStart.UnixMilli(),
+			EvidenceMs:  results.Ms(ready.Sub(evidenceStart) - slept),
+		}
 
 		select {
 		case <-stopCh:
@@ -462,7 +468,6 @@ func RunProverLogicContinuousMode(
 		}
 
 		freshSig := hex.EncodeToString(H[:])
-		state.FinalDigest = freshSig
 		if K == 1 {
 			logger.Info("[Prover] Final digest (K=1): %s...%s",
 				freshSig[:16], freshSig[len(freshSig)-16:])
@@ -471,44 +476,36 @@ func RunProverLogicContinuousMode(
 				K, freshSig[:16], freshSig[len(freshSig)-16:])
 		}
 
-		store.PushFinalDigest("final_digests:"+config.AgentName, map[string]interface{}{
-			"final_digest":    lastCombined,
-			"sidecar_hash":    lastSidecarHash,
-			"libs_hash":       lastLibsHash,
-			"robot_hash":      lastRobotHash,
-			"combined_digest": freshSig,
-			"iter_count":      K,
-			"timestamp":       float64(time.Now().Unix()),
-		})
-
-		wg.Add(1)
-		go func(attID, evidence string, startTs, startP int64) {
-			defer wg.Done()
-			RunProverAndCleanup(
-				bc, attID, evidence, startTs, startP, stopCh, config, activeAttestations,
-			)
-		}(attestationID, freshSig, batchStartTs, batchStartP)
-
 		activeAttestations.Store(attestationID, true)
-
-		if memStor, ok := store.(*storage.MemoryStorageBackend); ok && config.MemoryStorageFile != "" {
-			memStor.ExportToFile(config.MemoryStorageFile)
+		wg.Add(1)
+		round := func(row results.Prover, ready time.Time, evidence string, boundBlock uint64) func() {
+			return func() {
+				defer wg.Done()
+				RunProverAndCleanup(
+					bc, row, ready, evidence, boundBlock, stopCh, config, activeAttestations,
+				)
+			}
+		}(row, ready, freshSig, boundBlock)
+		if serial != nil {
+			serial <- round
+		} else {
+			go round()
 		}
 
-		if config.OneShot {
-			logger.Info("One-shot attestation completed; stopping prover loop")
+		batches++
+		if config.Rounds > 0 && batches >= config.Rounds {
+			logger.Info("%d round(s) sent; stopping prover loop", batches)
 			return
 		}
 
 		// Inter-cycle sleep — the period between m_K of this cycle and m_1 of
 		// the next equals the SSP exactly, with a 500ms floor that only applies
-		// when SSP < 500ms (e.g. SSP=0 back-to-back mode) so consecutive
-		// SendEvidence submissions stay spaced enough to avoid prover-account
-		// nonce races. For SSP >= 500ms the cycle period is precisely the SSP,
-		// so detection latency models can use P = SSP without a +0.5s constant.
-		// In exp mode there is no floor: the end of a batch is visible on chain,
-		// so a floor would give an attacker 500ms of safe time after it. The
-		// spacing is enforced on the submission instead (waitSubmitSlot).
+		// when SSP < 500ms (e.g. SSP=0 back-to-back mode), so that back-to-back
+		// mode sends at most two Prove per second. For SSP >= 500ms the cycle
+		// period is precisely the SSP, so detection latency models can use
+		// P = SSP without a +0.5s constant. In exp mode there is no floor: the
+		// end of a batch is visible on chain, so a floor would give an attacker
+		// 500ms of safe time after it.
 		sleep := measurementDelay()
 		if os.Getenv("ATTESTATION_INTERVAL_MODE") != "exp" && sleep < 500*time.Millisecond {
 			sleep = 500 * time.Millisecond
@@ -542,23 +539,74 @@ func attestationInterval() time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-// submitGate spaces the SendEvidence of this prover by 500ms: two submissions
-// closer than that can take the same nonce, because the client releases its
-// nonce lock before sending.
-// ponytail: waiting submissions queue on the mutex, so exp mode needs an SSP
-// above 500ms on average or the queue grows without bound.
-var submitGate struct {
-	sync.Mutex
-	last time.Time
+// ownRounds are the rounds this agent proves, from just before each Prove
+// until its verdict: its verifier skips them.
+var ownRounds sync.Map
+
+// openRound is the prover's last jury round until it is seen closed: set
+// still when the prover stopped while waiting for it.
+var openRound atomic.Value
+
+// waitForOpenRound waits until the round left open, if any, is closed or with
+// the SECaaS (a jury that does not vote is expired by the SECaaS). false
+// when the prover is stopped meanwhile.
+func waitForOpenRound(bc *blockchain.BlockchainClient, stopCh <-chan struct{}, logPrefix string) bool {
+	id, _ := openRound.Load().(string)
+	if id == "" {
+		return true
+	}
+	logger.Info("%s Waiting for the previous round to leave the jury", logPrefix)
+	for {
+		next := bc.NextHead()
+		if state, err := bc.GetAttestationState(id); err == nil && state != blockchain.ReadyForEvaluation {
+			openRound.Store("")
+			return true
+		}
+		if !blockchain.WaitHead(next, stopCh) {
+			return false
+		}
+	}
 }
 
-func waitSubmitSlot() {
-	submitGate.Lock()
-	defer submitGate.Unlock()
-	if wait := 500*time.Millisecond - time.Since(submitGate.last); wait > 0 {
-		time.Sleep(wait)
+// pastFreshnessWindow tells whether evidence bound to boundBlock would be
+// rejected as stale: a transaction sent now goes in the next block at best.
+func pastFreshnessWindow(bc *blockchain.BlockchainClient, boundBlock uint64) (bool, error) {
+	if !bc.HasFreshness() {
+		return false, nil
 	}
-	submitGate.last = time.Now()
+	window, err := bc.FreshnessBlocks()
+	if err != nil {
+		return false, err
+	}
+	// The block just notified, else asked to the node.
+	head, _, live := bc.LastHead()
+	if !live {
+		if head, err = bc.BlockNumber(); err != nil {
+			return false, err
+		}
+	}
+	return head+1-boundBlock > window, nil
+}
+
+// nextBoundBlock returns the block the next batch is bound to, the parent of
+// the latest one, once it is newer than last: the contract accepts each round
+// bound to a newer block than the one before. ok is false when the prover is
+// stopped.
+func nextBoundBlock(bc *blockchain.BlockchainClient, last uint64, stopCh <-chan struct{}) (uint64, [32]byte, bool) {
+	for {
+		next := bc.NextHead()
+		n, hash, err := bc.ParentBlock()
+		if err == nil && n > last {
+			return n, hash, true
+		}
+		if err != nil {
+			logger.Error("[Prover] Failed to read the block to bind the evidence to: %v", err)
+			counters.errors.Add(1)
+		}
+		if !blockchain.WaitHead(next, stopCh) {
+			return 0, [32]byte{}, false
+		}
+	}
 }
 
 // measurementDelay is the wait before a measurement: the SSP in fixed mode,
@@ -569,17 +617,4 @@ func measurementDelay() time.Duration {
 		return nextInterval(attestationInterval())
 	}
 	return attestationInterval()
-}
-
-// proverPollInterval is the sleep between successive RPC state-check calls
-// while waiting for IsProver / AttestationClosed. Keeping this at 200ms caps
-// the fleet-wide RPC load to ~640 calls/s at N=64 (vs ~8500 at 15ms), which
-// prevents Besu JSON-RPC saturation that causes prover timeouts at large N.
-// Tunable via PROVER_POLL_INTERVAL_MS; defaults to 200ms.
-func proverPollInterval() time.Duration {
-	ms := utils.GetEnvInt("PROVER_POLL_INTERVAL_MS", 200)
-	if ms < 10 {
-		ms = 10
-	}
-	return time.Duration(ms) * time.Millisecond
 }

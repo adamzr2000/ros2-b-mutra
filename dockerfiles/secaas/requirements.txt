@@ -1,6 +1,5 @@
 web3>=7,<8
 python-dotenv
-prettytable
 uvicorn
 fastapi
 psycopg2-binary>=2.9.0

@@ -7,15 +7,18 @@ import random
 BESU_BASE = "blockchain/quorum-test-network"
 NODES_DIR = os.path.join(BESU_BASE, "config", "nodes")
 
-# Validator RPC ports exposed on the Docker host (validator1→21001 … validator4→21004)
+# Validator ports exposed on the Docker host: HTTP RPC validator1→21001 …
+# validator4→21004, WebSocket RPC validator1→22001 … validator4→22004.
 _VALIDATOR_PORTS = [21001, 21002, 21003, 21004]
+_WS_PORT_OFFSET = 1000
 
-_DEFAULT_CONTRACT = "AttestationManagerRR"  # ← change this to switch contracts
+_DEFAULT_CONTRACT = "AttestationManagerLV"
 
 
-def pick_random_eth_node_url(blockchain_host: str) -> str:
+def pick_random_eth_node_url(blockchain_host: str):
+    """(HTTP URL, WebSocket URL) of one validator."""
     port = random.choice(_VALIDATOR_PORTS)
-    return f"http://{blockchain_host}:{port}"
+    return f"http://{blockchain_host}:{port}", f"ws://{blockchain_host}:{port + _WS_PORT_OFFSET}"
 
 
 def read_credentials_from_dir(node_dir: str, eth_node_url: str):
@@ -57,7 +60,7 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir, blockchain_ho
                        contract_address: str, contract_abi: list):
     # robot i -> agent i
     agent_dir = os.path.join(NODES_DIR, f"agent{agent_index}")
-    eth_node_url = pick_random_eth_node_url(blockchain_host)
+    eth_node_url, eth_ws_url = pick_random_eth_node_url(blockchain_host)
     creds = read_credentials_from_dir(agent_dir, eth_node_url)
 
     # 1) Normal config -> ./config/robot{i}.json
@@ -70,6 +73,7 @@ def create_agent_files(agent_index: int, config_dir: str, ref_dir, blockchain_ho
         "eth_address": creds["eth_address"],
         "private_key": creds["private_key"],
         "eth_node_url": creds["eth_node_url"],
+        "eth_ws_url": eth_ws_url,
         "contract_address": contract_address,
         "contract_abi": contract_abi,
     }
@@ -125,7 +129,7 @@ def create_secaas_config(config_dir: str, blockchain_host: str,
                          contract_address: str, contract_abi: list):
     # MUST read keys from validator1
     validator_dir = os.path.join(NODES_DIR, "validator1")
-    eth_node_url = pick_random_eth_node_url(blockchain_host)
+    eth_node_url, eth_ws_url = pick_random_eth_node_url(blockchain_host)
     creds = read_credentials_from_dir(validator_dir, eth_node_url)
 
     secaas_data = {
@@ -133,6 +137,7 @@ def create_secaas_config(config_dir: str, blockchain_host: str,
         "eth_address": creds["eth_address"],
         "private_key": creds["private_key"],
         "eth_node_url": creds["eth_node_url"],       # random validator URL
+        "eth_ws_url": eth_ws_url,                    # the same validator
         "contract_address": contract_address,
         "contract_abi": contract_abi,
     }

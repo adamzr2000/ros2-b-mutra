@@ -19,6 +19,7 @@ for key_file in "$@"; do
     -v "$(pwd)/smart-contracts/contracts":/smart-contracts/contracts \
     -v "$(pwd)/smart-contracts/artifacts":/smart-contracts/artifacts \
     -v "$(pwd)/smart-contracts/hardhat.config.js":/smart-contracts/hardhat.config.js \
+    -v hardhat-compilers:/root/.cache/hardhat-nodejs \
     -e PRIVATE_KEY="$(<"$key_file")" \
     -e RPC_URL="http://validator1:8545" \
     -e CHAIN_ID=1337 \

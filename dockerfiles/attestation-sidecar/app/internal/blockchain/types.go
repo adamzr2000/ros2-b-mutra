@@ -7,11 +7,9 @@ import (
 	"strings"
 )
 
-// ErrAttestationClosed is returned by IsProver when the attestation is already
-// in the Closed state. This lets callers distinguish "not yet the prover"
-// (nil error, false) from "attestation already resolved" (this error, false)
-// so they can exit early instead of spinning until a 60 s timeout.
-var ErrAttestationClosed = errors.New("attestation already closed")
+// ErrReceiptTimeout is returned by WaitForReceipt when a transaction is not
+// mined in time.
+var ErrReceiptTimeout = errors.New("timeout waiting for the transaction receipt")
 
 // AttestationState matches your Python IntEnum
 type AttestationState int

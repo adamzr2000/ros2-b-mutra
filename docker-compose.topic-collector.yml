@@ -1,0 +1,30 @@
+# docker-compose.topic-collector.yml
+# The topic collector of experiment_robot_impact.py, which starts and stops
+# it: arrivals of /robot1/tf, published by robot_state_publisher (attested).
+
+services:
+  topic-collector:
+    image: robot-simulation
+    container_name: topic-collector
+    hostname: topic-collector
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - ROBOT_ID=1
+      - COLLECTOR_PORT=7001
+      - TOPIC_NAME=/tf
+      - MSG_TYPE=tf2_msgs.msg/TFMessage
+    command: >
+      bash -c "source /opt/ros/humble/setup.bash &&
+               source /home/agent/ros2_ws/install/setup.bash &&
+               exec python3 /home/agent/scripts/topic_collector.py"
+    ports:
+      - "127.0.0.1:7001:7001"
+    volumes:
+      - ./dockerfiles/robot-simulation/scripts/topic_collector.py:/home/agent/scripts/topic_collector.py:ro
+    networks:
+      - ros-net
+
+networks:
+  ros-net:
+    external: true
+    name: ros-net

@@ -13,13 +13,11 @@ contract AttestationManagerV2 {
     }
 
     struct MutualAttestation {
-        bytes32 id;
         address verifier;
         address prover;
         bytes32 fresh_signature;
         AttestationState state;
         AttestationResult result;
-        uint256 timestamp;
         uint32 iterCount; // IterQ depth: number of nested SHA-256 folds
                          // composing fresh_signature. Verifier must apply
                          // the same fold count to ref_signature before
@@ -36,6 +34,9 @@ contract AttestationManagerV2 {
     // Root-of-trust verifier: always the last successfully verified agent.
     // Initialised to secaas (default fallback when no agent has been verified yet).
     address private currentVerifier;
+    // The verifier before it: verifies the rounds of currentVerifier itself, so
+    // that those do not go to the SECaaS. address(0) until there is one.
+    address private previousVerifier;
 
     mapping(address => Agent) private agent;
     mapping(bytes32 => MutualAttestation) private attestation;
@@ -56,7 +57,7 @@ contract AttestationManagerV2 {
     event AgentRemoved(address agent);
     event AttestationStarted(bytes32 id, uint32 iterCount);
     event ReadyForEvaluation(bytes32 id);
-    event AttestationCompleted(bytes32 id);
+    event AttestationCompleted(bytes32 id, address prover, bool success);
     event ChainReset();
     event ResetApproved(address indexed admin, uint256 version);
     event ReferenceApproved(address indexed agent, bytes32 newReference, address indexed admin);
@@ -111,6 +112,7 @@ contract AttestationManagerV2 {
         if (approvalCount[proposal] < adminThreshold) return;
         resetVersion++;
         currentVerifier = secaas;
+        previousVerifier = address(0);
         emit ChainReset();
     }
 
@@ -132,6 +134,9 @@ contract AttestationManagerV2 {
         if (msg.sender == currentVerifier) {
             currentVerifier = secaas;
         }
+        if (msg.sender == previousVerifier) {
+            previousVerifier = address(0);
+        }
 
         uint idx = indexOf[msg.sender];
         address last = participants[participants.length - 1];
@@ -144,34 +149,44 @@ contract AttestationManagerV2 {
         emit AgentRemoved(msg.sender);
     }
 
-    // Returns currentVerifier unless prover == currentVerifier, in which case falls back to secaas.
+    // currentVerifier, or previousVerifier when the prover is currentVerifier,
+    // or secaas when neither can verify the prover.
     function _assignVerifier(address prover) internal view returns (address) {
         if (currentVerifier != prover) {
             return currentVerifier;
         }
+        if (previousVerifier != address(0) && previousVerifier != prover) {
+            return previousVerifier;
+        }
         return secaas;
     }
 
-    function GetAgentInfo(address agentAddress, address callAddress) public view returns (string memory, bool, bytes32[] memory) {
+    // The successfully verified prover becomes the verifier; the one it replaces
+    // becomes the fallback.
+    function _promote(address prover) internal {
+        if (prover == currentVerifier) return;
+        previousVerifier = currentVerifier;
+        currentVerifier = prover;
+    }
+
+    function GetAgentInfo(address agentAddress, address callAddress) public view returns (string memory, bool) {
         Agent storage currentAgent = agent[callAddress];
         Agent storage agentToFind = agent[agentAddress];
         require(currentAgent.registered || callAddress == secaas, "GetAgentInfo : Agent is not registered");
-        return (agentToFind.name, agentToFind.registered, new bytes32[](0));
+        return (agentToFind.name, agentToFind.registered);
     }
 
-    function SendEvidence(bytes32 id, bytes32 freshMeasurement, uint32 iterCount) public {
+    function Prove(bytes32 id, bytes32 freshMeasurement, uint32 iterCount) public {
         Agent storage currentAgent = agent[msg.sender];
-        require(currentAgent.registered, "SendEvidence : Agent is not registered");
-        require(iterCount >= 1 && iterCount <= MAX_ITER_COUNT, "SendEvidence : iterCount out of range");
-        require(referenceOf[msg.sender] != bytes32(0), "SendEvidence : no reference anchored for this agent");
+        require(currentAgent.registered, "Prove : Agent is not registered");
+        require(iterCount >= 1 && iterCount <= MAX_ITER_COUNT, "Prove : iterCount out of range");
+        require(referenceOf[msg.sender] != bytes32(0), "Prove : no reference anchored for this agent");
 
         MutualAttestation storage currentAttestation = attestation[id];
-        currentAttestation.id = id;
         currentAttestation.verifier = _assignVerifier(msg.sender);
         currentAttestation.prover = msg.sender;
         currentAttestation.fresh_signature = freshMeasurement;
         currentAttestation.result = AttestationResult.None;
-        currentAttestation.timestamp = 0;
         currentAttestation.iterCount = iterCount;
 
         // The reference is already on chain, so a peer verifier can evaluate
@@ -203,37 +218,35 @@ contract AttestationManagerV2 {
         return (currentAttestation.fresh_signature, referenceOf[currentAttestation.prover], currentAttestation.iterCount);
     }
 
-    function GetAttestationInfo(bytes32 id) public view returns (address, address, AttestationResult, uint256) {
+    function GetAttestationInfo(bytes32 id) public view returns (address, address, AttestationResult) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.state == AttestationState.Closed, "Attestation process is not closed");
-        return (currentAttestation.prover, currentAttestation.verifier, currentAttestation.result, currentAttestation.timestamp);
+        return (currentAttestation.prover, currentAttestation.verifier, currentAttestation.result);
     }
 
     function GetAttestationState(bytes32 id) public view returns (AttestationState) {
         return attestation[id].state;
     }
 
-    function CloseAttestationProcess(bytes32 id, bool verified) public returns (bool) {
+    function Verify(bytes32 id, bool verified) public returns (bool) {
         MutualAttestation storage currentAttestation = attestation[id];
         require(currentAttestation.verifier == msg.sender, "Only the verifier can close the attestation process");
         require(currentAttestation.state == AttestationState.ReadyForEvaluation, "Attestation is not ready for closure");
 
         currentAttestation.state = AttestationState.Closed;
-        currentAttestation.timestamp = block.timestamp;
 
         if (verified) {
             currentAttestation.result = AttestationResult.Success;
-            // The successfully verified agent becomes the new root-of-trust verifier.
-            currentVerifier = currentAttestation.prover;
+            _promote(currentAttestation.prover);
         } else {
             currentAttestation.result = AttestationResult.Failure;
         }
 
-        emit AttestationCompleted(id);
+        emit AttestationCompleted(id, currentAttestation.prover, verified);
         return true;
     }
 
-    function ResolveAttestationSECaaS(bytes32 id, bool verified) public {
+    function VerifyBySECaaS(bytes32 id, bool verified) public {
         require(msg.sender == secaas, "Only the SECaaS can resolve attestations");
 
         MutualAttestation storage currentAttestation = attestation[id];
@@ -241,16 +254,15 @@ contract AttestationManagerV2 {
         require(currentAttestation.verifier == secaas, "SECaaS not elected as verifier");
 
         currentAttestation.state = AttestationState.Closed;
-        currentAttestation.timestamp = block.timestamp;
 
         if (verified) {
             currentAttestation.result = AttestationResult.Success;
-            currentVerifier = currentAttestation.prover;
+            _promote(currentAttestation.prover);
         } else {
             currentAttestation.result = AttestationResult.Failure;
         }
 
-        emit AttestationCompleted(id);
+        emit AttestationCompleted(id, currentAttestation.prover, verified);
     }
 
     function IsProver(bytes32 id, address callAddress) public view returns (bool) {
@@ -267,12 +279,6 @@ contract AttestationManagerV2 {
 
     function IsRegistered(address callAddress) public view returns (bool) {
         return agent[callAddress].registered;
-    }
-
-    // Always returns an empty array — LV does not maintain a global chain log.
-    // Present to keep the ABI compatible with AttestationManagerRR.
-    function GetAttestationChain() public pure returns (bytes32[] memory) {
-        return new bytes32[](0);
     }
 
     // Current root-of-trust verifier — restricted to SECaaS to avoid leaking verifier identity.

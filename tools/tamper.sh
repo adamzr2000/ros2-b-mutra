@@ -10,8 +10,9 @@
 # The change is in-memory only; restart the affected container to undo.
 # With --restore-after MS, the original bytes are saved first and written back
 # MS milliseconds after the change, as in a TOCTOU attack (tamper, run,
-# restore); the script returns after the restore. Both moments are printed in
-# epoch milliseconds.
+# restore); the script returns after the restore. Without it, the original
+# bytes are kept in the sidecar container and --restore writes them back
+# later. Both moments are printed in epoch milliseconds.
 #
 # Writes N bytes of a per-target FILL value at the given offset. Defaults:
 #   legacy targets (state_publisher/dummy/sidecar): 1 byte of 0x90 (NOP).
@@ -29,7 +30,7 @@
 #
 # Usage:
 #   ./tools/tamper.sh <robot> [--target T] [--offset 0xN] [--nops K] [--fill \\OCTAL]
-#                     [--restore-after MS]
+#                     [--restore-after MS | --restore]
 #
 # Targets:
 #   state_publisher (default)  - robot_state_publisher in Gazebo robots
@@ -45,6 +46,7 @@
 #   ./tools/tamper.sh robot1 --target sidecar
 #   ./tools/tamper.sh robot2 --target dummy --offset 0x6000
 #   ./tools/tamper.sh robot1 --restore-after 2500            # restore after 2.5 s
+#   ./tools/tamper.sh robot1 --restore                       # undo the last tampering of robot1
 #
 # Exit code: 0 if the bytes were written, 1 on any error.
 
@@ -56,6 +58,7 @@ NOPS=""
 FILL=""        # printf octal escape of the byte to write (e.g. \220=NOP, \303=RET)
 ROBOT=""
 RESTORE_MS=""  # empty: no restore
+RESTORE_NOW="" # --restore: write back the bytes saved by the last tampering
 
 usage() {
   sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
@@ -68,6 +71,7 @@ while [[ $# -gt 0 ]]; do
     --nops) NOPS="$2"; shift 2 ;;
     --fill) FILL="$2"; shift 2 ;;
     --restore-after) RESTORE_MS="$2"; shift 2 ;;
+    --restore) RESTORE_NOW=1; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "unknown flag: $1" >&2; usage >&2; exit 1 ;;
     *)
@@ -85,6 +89,20 @@ SIDECAR="${ROBOT}-sidecar"
 if ! docker ps --format '{{.Names}}' | grep -qx "$SIDECAR"; then
   echo "container $SIDECAR is not running" >&2
   exit 1
+fi
+
+# The bytes a tampering replaced, kept in the sidecar container for --restore.
+SAVED="/tmp/tamper-$TARGET"
+if [[ -n "$RESTORE_NOW" ]]; then
+  docker exec -e SAVED="$SAVED" "$SIDECAR" sh -c '
+    [ -f "$SAVED.at" ] || { echo "nothing to restore: no tampering of this target saved"; exit 1; }
+    read PID SEEK NBYTES < "$SAVED.at"
+    dd if="$SAVED.orig" of=/proc/$PID/mem bs=1 count="$NBYTES" seek=$SEEK conv=notrunc 2>/dev/null \
+      || { echo "restore failed (PID $PID gone?)"; exit 1; }
+    rm -f "$SAVED.at" "$SAVED.orig"
+    echo "  restored the original bytes at $(date +%s%3N) ms"
+  ' || { echo "restore failed" >&2; exit 1; }
+  exit 0
 fi
 
 case "$TARGET" in
@@ -123,15 +141,15 @@ case "$TARGET" in
     #
     # RE-DERIVE OFFSET AFTER ANY REBUILD (offset shifts if binary changes):
     #   1. Find and copy binary:
-    #        docker run --rm turtlebot3-gazebo bash -lc \
+    #        docker run --rm robot-simulation bash -lc \
     #          "find /home/agent/ros2_ws/build/formation_agent -name formation_agent -type f -perm /111"
     #   2. Disassemble steer_cmd:
-    #        docker run --rm turtlebot3-gazebo bash -lc \
+    #        docker run --rm robot-simulation bash -lc \
     #          "objdump -dC /home/agent/ros2_ws/build/formation_agent/formation_agent \
     #           | awk '/<FormationAgent::steer_cmd/,/ret/' | grep mulsd"
     #      Note the absolute address of the mulsd line.
     #   3. Get RE segment base:
-    #        docker run --rm turtlebot3-gazebo bash -lc \
+    #        docker run --rm robot-simulation bash -lc \
     #          "readelf -l /home/agent/ros2_ws/build/formation_agent/formation_agent" \
     #          | grep "R E"
     #      Use the VirtAddr of the R E LOAD segment (second column).
@@ -174,11 +192,14 @@ echo "  bytes:   $NOPS byte(s) of fill '$FILL'"
 echo
 
 docker exec -e TAMPER_OFFSET="$OFFSET" -e TAMPER_PROC="$PROC_GREP" -e TAMPER_NBYTES="$NOPS" -e TAMPER_FILL="$FILL" \
-  -e TAMPER_RESTORE_S="$RESTORE_S" "$SIDECAR" sh -c '
-  PID=$(pgrep -f "$TAMPER_PROC" | head -1)
-  [ -z "$PID" ] && { echo "$TAMPER_PROC not found in PID namespace"; exit 1; }
-  ADDR=$(grep "r-xp.*$TAMPER_PROC" /proc/$PID/maps | head -1 | cut -d- -f1)
-  [ -z "$ADDR" ] && { echo "no r-xp mapping for $TAMPER_PROC in /proc/$PID/maps"; exit 1; }
+  -e TAMPER_RESTORE_S="$RESTORE_S" -e SAVED="$SAVED" "$SIDECAR" sh -c '
+  # The process that maps the binary: its launcher can match the name too.
+  PID=""; ADDR=""
+  for P in $(pgrep -f "$TAMPER_PROC"); do
+    ADDR=$(grep "r-xp.*$TAMPER_PROC" /proc/$P/maps 2>/dev/null | head -1 | cut -d- -f1)
+    [ -n "$ADDR" ] && { PID=$P; break; }
+  done
+  [ -z "$PID" ] && { echo "no process maps the code of $TAMPER_PROC in this PID namespace"; exit 1; }
   SEEK=$(( 0x$ADDR + TAMPER_OFFSET ))
   ORIG=$(mktemp)
   dd if=/proc/$PID/mem of="$ORIG" bs=1 count="$TAMPER_NBYTES" skip=$SEEK 2>/dev/null || { echo "cannot save the original bytes"; exit 1; }
@@ -189,9 +210,11 @@ docker exec -e TAMPER_OFFSET="$OFFSET" -e TAMPER_PROC="$PROC_GREP" -e TAMPER_NBY
     sleep "$TAMPER_RESTORE_S"
     dd if="$ORIG" of=/proc/$PID/mem bs=1 count="$TAMPER_NBYTES" seek=$SEEK conv=notrunc 2>/dev/null || { echo "restore failed"; exit 1; }
     echo "  restored the original bytes at $(date +%s%3N) ms"
+    rm -f "$ORIG"
+  else
+    mv "$ORIG" "$SAVED.orig" && echo "$PID $SEEK $TAMPER_NBYTES" > "$SAVED.at"
   fi
-  rm -f "$ORIG"
 ' || { echo "tampering failed" >&2; exit 1; }
 
 echo
-[[ -n "$RESTORE_MS" ]] || echo "Recovery: docker restart $ROBOT       (reload the binary fresh)"
+[[ -n "$RESTORE_MS" ]] || echo "Recovery: ./tools/tamper.sh $ROBOT --target $TARGET --restore   (or docker restart $ROBOT)"

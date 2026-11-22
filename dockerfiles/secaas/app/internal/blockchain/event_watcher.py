@@ -19,6 +19,7 @@ class EventWatcher:
         confirmations: int = 2,
         batch_size: int = 1000,
         poll_interval: float = 1.0,
+        heads=None,
     ):
         self.w3 = web3
         self.address = Web3.to_checksum_address(address)
@@ -29,13 +30,16 @@ class EventWatcher:
         self.confirmations = confirmations
         self.batch_size = batch_size
         self.poll_interval = poll_interval
+        self.heads = heads  # Heads: read at each new block; None: every poll_interval
 
         cp = self._load_checkpoint()
         saved_block = cp.get("from_block")
         chain_tip   = self.w3.eth.block_number
-        if saved_block is not None and saved_block > chain_tip:
-            # Stale checkpoint from a previous chain instance (e.g. Quorum restarted).
-            # Scanning from a block ahead of the tip would cause the watcher to wait forever.
+        if saved_block is not None and saved_block > chain_tip + 1:
+            # from_block is the next block to read: tip+1 once the watcher read
+            # up to the tip. Further ahead, the checkpoint is from a previous
+            # chain instance (e.g. Quorum restarted): scanning from it would
+            # cause the watcher to wait forever.
             warn(
                 f"Checkpoint from_block={saved_block} is ahead of chain tip={chain_tip}"
                 " — stale chain detected, resetting to 0"
@@ -70,7 +74,8 @@ class EventWatcher:
             )
 
     def _latest_safe_block(self) -> int:
-        current = self.w3.eth.block_number
+        # The block just notified, else asked to the node.
+        current = self.heads.num if self.heads and self.heads.live else self.w3.eth.block_number
         return max(0, current - self.confirmations)
 
     def _unique_key(self, log) -> str:
@@ -93,6 +98,12 @@ class EventWatcher:
             
         return self.w3.eth.get_logs(filter_params)
 
+    def _wait(self, seq):
+        if self.heads:
+            self.heads.wait(seq)
+        else:
+            time.sleep(self.poll_interval)
+
     def run(self, handle_event, stop_event=None):
         event_name = self.event_abi.get("name", "UnknownEvent")
         topics_str = str(self.topics) if self.topics else "None"
@@ -105,10 +116,11 @@ class EventWatcher:
 
         while not (stop_event and stop_event.is_set()):
             try:
+                seq = self.heads.seq if self.heads else None
                 safe_to = self._latest_safe_block()
                 
                 if self.from_block > safe_to:
-                    time.sleep(self.poll_interval)
+                    self._wait(seq)
                     continue
 
                 while self.from_block <= safe_to:
@@ -137,7 +149,7 @@ class EventWatcher:
                     self._save_checkpoint()
                     self.seen_keys.clear()
 
-                time.sleep(self.poll_interval)
+                self._wait(seq)
 
             except Exception as e:
                 error(f"Watcher error, backing off: {e}")

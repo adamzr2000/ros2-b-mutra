@@ -70,6 +70,13 @@ func RollingHashStep(prev, mNext [32]byte) [32]byte {
 	return sha256.Sum256(buf[:])
 }
 
+// BindToBlock returns SHA256(m || blockHash): the measurement bound to the
+// hash of a recent block, so that the rolling hash of a round cannot be
+// submitted again in a later one. The verifier binds the reference the same way.
+func BindToBlock(m, blockHash [32]byte) [32]byte {
+	return RollingHashStep(m, blockHash)
+}
+
 // RollingHashHex is RollingHash with hex string I/O. Accepts the seed with or
 // without "0x" prefix; returns the result as bare hex (no prefix).
 func RollingHashHex(mHex string, k uint32) (string, error) {

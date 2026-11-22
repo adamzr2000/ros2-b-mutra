@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Smoke test: 4 robots attest successfully, verify each other, then a tampered
-# robot is detected. Usage: ./smoke.sh lv|rr|v2|v3 [fixed|exp] [--remote]   (starts the stack, checks, stops it)
+# robot is detected. Usage: ./smoke.sh lv|v2|v3 [fixed|exp] [--remote]   (starts the stack, checks, stops it)
 # fixed|exp: the measurement delay mode, fixed by default.
 # --remote: run from the core; the robots and their sidecars are on REMOTE1_HOST
 # (set in the environment, as for start.sh), reached over SSH.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-USAGE="usage: ./smoke.sh lv|rr|v2|v3 [fixed|exp] [--remote]"
+USAGE="usage: ./smoke.sh lv|v2|v3 [fixed|exp] [--remote]"
 CONTRACT="${1:?$USAGE}"
 N=4
 MODE=fixed
@@ -53,8 +53,6 @@ wait_for 120 all_succeeded || { echo "FAIL: not every robot attested successfull
 no_failure 1 "failed attestation before any tampering"
 echo "ok: $N robots attest successfully"
 
-# RR starts in SECaaS-only mode: leave it, so that robots verify each other.
-[[ "$CONTRACT" != "rr" ]] || curl -fsS -X POST "http://localhost:8000/secaas-only?enabled=false" >/dev/null
 SECAAS_ADDR="$(jq -er .eth_address config/secaas.json)"
 peer_verified() {
   for i in $(seq 1 $N); do

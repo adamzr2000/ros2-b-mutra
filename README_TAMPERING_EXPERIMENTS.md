@@ -10,7 +10,7 @@ that formula changes never require re-running an experiment.
 ## 1  Formation Agent
 
 Each robot runs an instance of `formation_agent` — a fully decentralized ROS 2 node
-(`dockerfiles/turtlebot3/src/formation_agent/src/formation_agent.cpp`).  There is
+(`dockerfiles/robot-simulation/src/formation_agent/src/formation_agent.cpp`).  There is
 no central planner: every robot independently computes its own velocity command at
 10 Hz from an Artificial Potential Field (APF) using *neighbor odometry*.
 

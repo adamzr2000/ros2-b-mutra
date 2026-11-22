@@ -1,7 +1,6 @@
 # app/internal/blockchain/client.py
 
 import json
-import time
 import threading
 import warnings
 
@@ -16,7 +15,6 @@ from app.internal.blockchain.types import (
     as_bytes32,
     text_to_bytes32
 )
-from app.internal.blockchain.formatters import build_attestation_chain_table
 from app.internal.logger import info, warn, error, debug
 
 warnings.filterwarnings("ignore", message="There was an issue with the method eth_maxPriorityFeePerGas")
@@ -56,6 +54,8 @@ class BlockchainClient:
             self.eth_address = derived_addr
         else:
             self.eth_address = derived_addr
+        # Calls go from the SECaaS address: the contract checks the caller of some reads.
+        self.web3.eth.default_account = self.eth_address
 
         abi = contract_abi
 
@@ -89,33 +89,42 @@ class BlockchainClient:
         self._nonce_lock = threading.Lock()
         self._local_nonce = self.web3.eth.get_transaction_count(self.eth_address, 'pending')
 
+        # Read once, as the sidecar does: fixed on this network. Given to
+        # build_transaction, they leave it only the gas estimate to ask.
+        self._chain_id = self.web3.eth.chain_id
+        self._gas_price = int(self.web3.eth.gas_price * 1.25)
+
+    def _tx(self):
+        """Fields of a transaction from this account, for build_transaction."""
+        return {'from': self.eth_address, 'gasPrice': self._gas_price, 'chainId': self._chain_id}
+
 
     def send_signed_transaction(self, build_transaction):
-        # Apply gas-price bump once before any retry loop.
-        if 'maxFeePerGas' not in build_transaction and 'maxPriorityFeePerGas' not in build_transaction:
-            build_transaction['gasPrice'] = int(self.web3.eth.gas_price * 1.25)
-        elif 'maxFeePerGas' in build_transaction:
-            build_transaction['maxFeePerGas'] = int(build_transaction['maxFeePerGas'] * 1.25)
+        # build_transaction estimates gas in the latest block; the transaction
+        # runs in a later one, so keep a margin (as the sidecar does).
+        if 'gas' in build_transaction:
+            build_transaction['gas'] = int(build_transaction['gas'] * 1.3)
 
-        for attempt in range(2):
-            with self._nonce_lock:
+        # The nonce is taken and the transaction sent under one lock, and the
+        # nonce advances only once the node accepted it: a failed send leaves
+        # no gap that would hold the next transactions back.
+        with self._nonce_lock:
+            for attempt in range(2):
                 build_transaction['nonce'] = self._local_nonce
-                self._local_nonce += 1
-
-            try:
-                signed_txn = self.web3.eth.account.sign_transaction(build_transaction, self.private_key)
-                tx_hash = self.web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                return tx_hash.hex()
-            except Exception as e:
-                err_str = str(e).lower()
-                nonce_error = any(k in err_str for k in ("nonce", "replacement transaction", "already known"))
-                if attempt == 0 and nonce_error:
-                    # Nonce is stale — refresh from the network and retry once.
-                    with self._nonce_lock:
+                try:
+                    signed_txn = self.web3.eth.account.sign_transaction(build_transaction, self.private_key)
+                    tx_hash = self.web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+                    self._local_nonce += 1
+                    return tx_hash.hex()
+                except Exception as e:
+                    err_str = str(e).lower()
+                    nonce_error = any(k in err_str for k in ("nonce", "replacement transaction", "already known"))
+                    if attempt == 0 and nonce_error:
+                        # Nonce is stale — refresh from the network and retry once.
                         self._local_nonce = self.web3.eth.get_transaction_count(self.eth_address, 'pending')
-                    warn(f"Nonce error on attempt 1, refreshed nonce to {self._local_nonce}, retrying: {e}")
-                    continue
-                raise
+                        warn(f"Nonce error on attempt 1, refreshed nonce to {self._local_nonce}, retrying: {e}")
+                        continue
+                    raise
 
 
     def _send_tx(self, tx_data: dict, wait: bool = False, timeout: int = 60) -> str:
@@ -254,7 +263,7 @@ class BlockchainClient:
     
     def reset_attestation_chain(self, wait: bool = False, timeout: int = 60):
         try:
-            tx_data = self.contract.functions.ResetChain().build_transaction({'from': self.eth_address})
+            tx_data = self.contract.functions.ResetChain().build_transaction(self._tx())
             return self._send_tx(tx_data, wait=wait, timeout=timeout)
         except Exception as e:
             raise Exception(f"An error occurred while calling the function: {str(e)}")
@@ -265,48 +274,19 @@ class BlockchainClient:
 
     def has_anchored_reference(self) -> bool:
         """True for V2 and V3, where the admins anchor each agent's reference on chain."""
-        return any(e.get("type") == "function" and e.get("name") == "referenceOf" for e in self.contract.abi)
+        return any(e.get("type") == "function" and e.get("name") == "SetReference" for e in self.contract.abi)
 
     def jury_timeout_blocks(self) -> int:
         return self.contract.functions.juryTimeoutBlocks().call()
 
     def expire(self, attestation_id: str, wait: bool = True, timeout: int = 60) -> str:
         """Hands a V3 jury cycle to the SECaaS once its timeout has passed."""
-        tx_data = self.contract.functions.Expire(text_to_bytes32(attestation_id)).build_transaction({'from': self.eth_address})
+        tx_data = self.contract.functions.Expire(text_to_bytes32(attestation_id)).build_transaction(self._tx())
         return self._send_tx(tx_data, wait=wait, timeout=timeout)
-
-    def set_secaas_only(self, enabled: bool, wait: bool = True, timeout: int = 60):
-        try:
-            tx_data = self.contract.functions.SetSecaasOnly(enabled).build_transaction({'from': self.eth_address})
-            return self._send_tx(tx_data, wait=wait, timeout=timeout)
-        except Exception as e:
-            raise Exception(f"An error occurred while calling SetSecaasOnly: {str(e)}")
-
-    def send_evidence(self, attestation_id, fresh_signature, iter_count: int = 1, wait: bool = False, timeout: int = 60):
-        """Submit an attestation request with IterQ depth K (iter_count).
-        Contract enforces 1 <= K <= MAX_ITER_COUNT (10000).
-        K=1 means a single measurement (no rolling-hash chaining).
-        SECaaS does not call this in production; kept aligned with the Solidity
-        ABI for benchmarking and tooling consistency.
-        """
-        try:
-            att_id_bytes = text_to_bytes32(attestation_id)
-            fresh_signature_bytes = as_bytes32(fresh_signature)
-
-            tx_data = self.contract.functions.SendEvidence(
-                att_id_bytes,
-                fresh_signature_bytes,
-                int(iter_count),
-            ).build_transaction({'from': self.eth_address})
-
-            return self._send_tx(tx_data, wait=wait, timeout=timeout)
-
-        except Exception as e:
-            raise Exception(f"An error occurred while requesting attestation: {str(e)}")
 
     def register_agent(self, name, wait: bool = False, timeout: int = 60):
         try:
-            tx_data = self.contract.functions.RegisterAgent(name).build_transaction({'from': self.eth_address})
+            tx_data = self.contract.functions.RegisterAgent(name).build_transaction(self._tx())
             return self._send_tx(tx_data, wait=wait, timeout=timeout)
         except Exception as e:
             error(f"Failed to register domain: {str(e)}")
@@ -315,7 +295,7 @@ class BlockchainClient:
 
     def remove_agent(self, wait: bool = False, timeout: int = 60):
         try:
-            tx_data = self.contract.functions.RemoveAgent().build_transaction({'from': self.eth_address})
+            tx_data = self.contract.functions.RemoveAgent().build_transaction(self._tx())
             return self._send_tx(tx_data, wait=wait, timeout=timeout)
         except Exception as e:
             error(f"Failed to unregister domain: {str(e)}")
@@ -324,20 +304,6 @@ class BlockchainClient:
     def is_registered(self):
         return self.contract.functions.IsRegistered(self.eth_address).call()
         
-    def is_prover_agent(self, attestation_id):
-        att_id = text_to_bytes32(attestation_id)
-
-        # If closed, contract would revert in IsProver => treat as "not prover" (or "not allowed")
-        state = self.contract.functions.GetAttestationState(att_id).call()
-        if state == AttestationState.Closed:
-            return False
-        try:
-            return self.contract.functions.IsProver(att_id, self.eth_address).call()
-        except ContractLogicError as e:
-            # covers revert reasons like "closed or not exists"
-            info(f"IsProver reverted for {attestation_id}: {e}")
-            return False
-
     def is_verifier_agent(self, attestation_id):
         att_id = text_to_bytes32(attestation_id)
         # IsVerifier reverts with ContractLogicError when state==Closed;
@@ -350,14 +316,14 @@ class BlockchainClient:
             return False
     
 
-    def send_reference_signature(self, attestation_id, ref_signature, wait: bool = False, timeout: int = 60):
+    def submit_reference(self, attestation_id, ref_signature, wait: bool = False, timeout: int = 60):
         try:
             ref_signature_bytes = as_bytes32(ref_signature)
 
-            tx_data = self.contract.functions.SendRefSignature(
+            tx_data = self.contract.functions.SubmitReference(
                 text_to_bytes32(attestation_id),
                 ref_signature_bytes
-            ).build_transaction({'from': self.eth_address})
+            ).build_transaction(self._tx())
 
             return self._send_tx(tx_data, wait=wait, timeout=timeout)
 
@@ -365,68 +331,40 @@ class BlockchainClient:
             raise Exception(f"An error occurred while sending the reference signature: {str(e)}")
 
     def get_attestation_signatures(self, attestation_id):
-        """Returns (fresh_hex, ref_hex, iter_count) where iter_count (K) is the
-        rolling-hash depth the prover used. The verifier must apply the same
-        K-fold to ref before comparing to fresh.
+        """Returns (fresh_hex, ref_hex, iter_count, bound_block). iter_count (K)
+        is the rolling-hash depth the prover used: the verifier applies the same
+        K-fold to ref before comparing to fresh. bound_block is the block the
+        evidence is bound to (V3), None for a contract without freshness.
         """
         try:
             att_id = text_to_bytes32(attestation_id)
-            fresh, ref, iter_count = self.contract.functions.GetAttestationSignatures(att_id, self.eth_address).call()
-            return Web3.to_hex(fresh), Web3.to_hex(ref), int(iter_count)
+            values = self.contract.functions.GetAttestationSignatures(att_id, self.eth_address).call()
+            fresh, ref, iter_count = values[:3]
+            bound_block = int(values[3]) if len(values) > 3 else None
+            return Web3.to_hex(fresh), Web3.to_hex(ref), int(iter_count), bound_block
         except Exception as e:
             raise Exception(f"An error occurred while getting the attestation signatures: {str(e)}")
+
+    def get_block_hash(self, block_number: int) -> str:
+        """Hash of a block as the node reports it, as hex."""
+        return Web3.to_hex(self.web3.eth.get_block(block_number)["hash"])
         
-    def send_attestation_result(self, attestation_id, verified, wait: bool = False, timeout: int = 60):
+    def verify_by_secaas(self, attestation_id: str, verified: bool, wait: bool = False, timeout: int = 60) -> str:
         try:
-            tx_data = self.contract.functions.CloseAttestationProcess(
+            tx_data = self.contract.functions.VerifyBySECaaS(
                 text_to_bytes32(attestation_id),
                 verified
-            ).build_transaction({'from': self.eth_address})
-            
-            return self._send_tx(tx_data, wait=wait, timeout=timeout)
-
-        except Exception as e:
-            raise Exception(f"An error occurred while closing the attestation process: {str(e)}")
-
-    def resolve_attestation(self, attestation_id: str, verified: bool, wait: bool = False, timeout: int = 60) -> str:
-        try:
-            tx_data = self.contract.functions.ResolveAttestationSECaaS(
-                text_to_bytes32(attestation_id),
-                verified
-            ).build_transaction({'from': self.eth_address})
+            ).build_transaction(self._tx())
             
             return self._send_tx(tx_data, wait=wait, timeout=timeout)
         except Exception as e:
             raise Exception(f"An error occurred while resolving attestation: {str(e)}")
-
-    def get_agent_info(self, agent_address):
-        try:
-            name, is_registered, completed_attestations  = self.contract.functions.GetAgentInfo(agent_address, self.eth_address).call()
-            return name, is_registered, completed_attestations
-        except Exception as e:
-            raise Exception(f"An error occurred while getting agent info: {str(e)}")
 
     def get_prover_address(self, attestation_id):
         try:
             return self.contract.functions.GetProverAddress(text_to_bytes32(attestation_id), self.eth_address).call()
         except Exception as e:
             raise Exception(f"An error occurred while getting agent info: {str(e)}")
-
-    def get_attestation_chain(self):
-        try:
-            attestation_chain = self.contract.functions.GetAttestationChain().call()
-            return attestation_chain
-        
-        except Exception as e:
-            raise Exception(f"An error occurred while getting the attestation chain: {str(e)}")
-      
-    def get_attestation_info(self, attestation_id):
-        try:
-            prover_address, verifier_address, attestation_result, timestamp  = self.contract.functions.GetAttestationInfo(text_to_bytes32(attestation_id)).call()
-            return prover_address, verifier_address, attestation_result, timestamp
-        
-        except Exception as e:
-            raise Exception(f"An error occurred while getting attestation info: {str(e)}")
 
     def get_attestation_state(self, attestation_id):
         try:
@@ -441,29 +379,4 @@ class BlockchainClient:
             info(f"Attestation state: {state_name}")
         except ValueError:
             error(f"Unknown attestation state: {current_attestation_state}")
-
-    def _safe_display(self, chain_display_n: int):
-        try:
-            attestation_chain = self.get_attestation_chain()
-            if not attestation_chain:
-                info("=== Attestation chain is empty ===")
-                return
-
-            table = build_attestation_chain_table(
-                attestation_chain=attestation_chain,
-                get_attestation_info=self.get_attestation_info,
-                get_agent_info=self.get_agent_info,
-                last_n=chain_display_n,
-            )
-            info("\n" + table.get_string())
-
-        except Exception as e:
-            error(f"Failed to display attestation chain: {e}")
-
-    def periodic_attestation_chain_display(self, chain_display_n: int, interval: int, run_immediately: bool = True):
-        if run_immediately:
-            self._safe_display(chain_display_n)
-        while True:
-            time.sleep(interval)
-            self._safe_display(chain_display_n)
 

@@ -2,8 +2,8 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 // Gas per function and per cycle, V2 against V3 with a jury of 1, 2 and 3,
-// for a swarm of 4 and of 16 agents. A V2 cycle is SendEvidence plus the
-// peer verifier's CloseAttestationProcess. A V3 cycle is SendEvidence plus
+// for a swarm of 4 and of 16 agents. A V2 cycle is Prove plus the
+// peer verifier's Verify. A V3 cycle is Prove plus
 // one Vote per juror; the votes after the close revert, but on a real chain
 // they are mined and paid for, so they are counted too.
 const b32 = (s) => ethers.encodeBytes32String(s);
@@ -37,18 +37,18 @@ async function measureV2(signers, m) {
   const [secaas, admin, ...rest] = signers;
   const agents = rest.slice(0, m);
   const am = await deploy("AttestationManagerV2", [[admin.address], 1], agents, admin);
-  await am.connect(agents[0]).SendEvidence(b32("boot"), REF, 1);
-  await am.connect(secaas).ResolveAttestationSECaaS(b32("boot"), true);
+  await am.connect(agents[0]).Prove(b32("boot"), REF, 1);
+  await am.connect(secaas).VerifyBySECaaS(b32("boot"), true);
   let send = 0n, close = 0n;
   for (let n = 0; n < CYCLES; n++) {
     const prover = agents[1 + (n % (m - 1))];
     const id = b32(`c${n}`);
-    send += await used(am.connect(prover).SendEvidence(id, REF, 1));
+    send += await used(am.connect(prover).Prove(id, REF, 1));
     const verifier = await (async () => {
       for (const a of agents) if (await am.IsVerifier(id, a.address)) return a;
       throw new Error(`no peer verifier for ${id}`);
     })();
-    close += await used(am.connect(verifier).CloseAttestationProcess(id, true));
+    close += await used(am.connect(verifier).Verify(id, true));
   }
   return { send: send / BigInt(CYCLES), votes: [close / BigInt(CYCLES)] };
 }
@@ -56,14 +56,14 @@ async function measureV2(signers, m) {
 async function measureV3(signers, m, size, quorum) {
   const [secaas, admin, ...rest] = signers;
   const agents = rest.slice(0, m);
-  const am = await deploy("AttestationManagerV3", [[admin.address], 1, size, quorum, 5], agents, admin);
+  const am = await deploy("AttestationManagerV3", [[admin.address], 1, size, quorum, 5, 10], agents, admin);
   // Make every agent eligible with one successful cycle each: the SECaaS
   // closes it while too few agents are eligible for a jury.
   for (const [i, a] of agents.entries()) {
     const id = b32(`boot${i}`);
-    await am.connect(a).SendEvidence(id, REF, 1);
+    await am.connect(a).Prove(id, REF, 1, await ethers.provider.getBlockNumber());
     if (await am.IsVerifier(id, secaas.address)) {
-      await am.connect(secaas).ResolveAttestationSECaaS(id, true);
+      await am.connect(secaas).VerifyBySECaaS(id, true);
       continue;
     }
     await ethers.provider.send("evm_mine", []);
@@ -77,7 +77,7 @@ async function measureV3(signers, m, size, quorum) {
   for (let n = 0; n < CYCLES; n++) {
     const prover = agents[n % m];
     const id = b32(`c${n}`);
-    send += await used(am.connect(prover).SendEvidence(id, REF, 1));
+    send += await used(am.connect(prover).Prove(id, REF, 1, await ethers.provider.getBlockNumber()));
     await ethers.provider.send("evm_mine", []);
     const jury = await am.PreviewJury(id);
     expect(jury.length).to.equal(size);
@@ -107,8 +107,8 @@ describe("Gas per function and per cycle", function () {
         const r = await measure(m);
         const total = r.send + r.votes.reduce((a, b) => a + b, 0n);
         perM[m] = total;
-        rows.push({ contract: name, agents: m, SendEvidence: Number(r.send),
-          "verdicts (Close or Vote 1..k)": r.votes.map(Number).join(" / "), "per cycle": Number(total) });
+        rows.push({ contract: name, agents: m, Prove: Number(r.send),
+          "verdicts (Verify or Vote 1..k)": r.votes.map(Number).join(" / "), "per cycle": Number(total) });
       }
       // Within 5 %: the draw loops a few more times when the pool is small.
       const ratio = Number(perM[16]) / Number(perM[4]);

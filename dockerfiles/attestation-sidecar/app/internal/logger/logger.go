@@ -100,6 +100,10 @@ func GreenText(s string) string {
 	return fmt.Sprintf("%s%s%s", Green, s, Reset)
 }
 
+func CyanText(s string) string {
+	return fmt.Sprintf("%s%s%s", Cyan, s, Reset)
+}
+
 func YellowText(s string) string {
 	return fmt.Sprintf("%s%s%s", Yellow, s, Reset)
 }

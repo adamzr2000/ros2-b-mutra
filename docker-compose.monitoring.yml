@@ -8,23 +8,7 @@ services:
       - "6000:6000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
       - ./dockerfiles/docker-stats-collector/app:/app
-      - ./experiments:/experiments
-    restart: unless-stopped
-    networks:
-      - mon-net
-
-  eth-stats-collector:
-    image: eth-stats-collector:latest
-    container_name: eth-stats-collector
-    ports:
-      - "127.0.0.1:7000:8000"
-    volumes:
-      - ./dockerfiles/eth-stats-collector/app:/src/app
-      - ./experiments:/experiments
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     networks:
       - mon-net
